@@ -38,7 +38,13 @@
                 "e2",
                 "e3",
                 "e4",
-                "e5"
+                "e5",
+                "e6",
+                "e7",
+                "e8",
+                "e9",
+                "e10"
+                
             ]
         },
         "e1": {
@@ -101,20 +107,75 @@
             "text": "幽霊を見たことある？\nこの町では少なくとも何人かの幽霊を見たことがあるよ。だいたい子供から青年くらいまでで\nみんな輪っかがついてるんだ。\nあれが幽霊なのかわからないけど、存在しない何かだけ",
             "image": "normal",
             "next": "idle"
+        },"e7": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"e8": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"e9": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"e10": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
         },
         "normal_root": {
             "random": [
                 "n1",
-                "n2"
+                "n2",
+                "n3",
+                "n4",
+                "n5",
+                "n6",
+                "n7",
+                "n8",
+                "n9",
+                "n10"
             ]
         },
         "n1": {
             "text": "人間は何かを自分の代わりにさせるのが好きみたいだね。\n自分の仕事を別のものにさせて、他にやりたいことが思いつく人はどれだけいるのだろう。",
             "image": "normal",
             "next": "idle"
-        },
-        "n2": {
+        },"n2": {
             "text": "でんでんがよく猫の動画を見てる。\nふわふわじゃなくて、ぱやぱやのおけけなんだよ〜って見せてくるんだよ。\n小さい生き物って力加減がわからなくて苦手なんだけど、ちょっと触ってみたくなった。猫ちゃんいないかな",
+            "image": "normal",
+            "next": "idle"
+        },"n3": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n4": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n5": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n6": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n7": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n8": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n9": {
+            "text": "テキスト",
+            "image": "normal",
+            "next": "idle"
+        },"n10": {
+            "text": "テキスト",
             "image": "normal",
             "next": "idle"
         },
