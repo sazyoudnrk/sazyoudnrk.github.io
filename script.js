@@ -484,8 +484,12 @@ function handleChoice(next) {
   const box = document.getElementById("choices");
   box.innerHTML = "";
   box.style.display = "none";
-  runNode(next);
+  
+  // クリックイベントの伝播を止める必要があるので
+  // 少し遅延してrunNodeを呼ぶ
+  setTimeout(() => runNode(next), 0);
 }
+
 
 
 function renderChoices(choices) {
