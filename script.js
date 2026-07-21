@@ -3,57 +3,86 @@
 // =====================
 let cache = {};
 let charConfig = {};
-let currentCharacter = "syochou";
+let characterList = [];   // characters.json の内容
+let currentCharacter = null;
 
 let state = "idle";
 let currentChunks = [];
 let chunkIndex = 0;
 let typingTimer = null;
 let isTyping = false;
-let fullText = "";	
+let fullText = "";
+let currentNode = null;
 
-const MAIN_KEY = `mainIndex_${currentCharacter}`;
-let mainIndex = Number(localStorage.getItem(MAIN_KEY) || 0);
-
-function saveMainIndex() {
-  localStorage.setItem(MAIN_KEY, mainIndex);
-}
-
-
-const KEY = `talkCount_${currentCharacter}`;
-
-let talkCount = Number(localStorage.getItem(KEY) || 0);
-
-function saveTalkCount() {
-  localStorage.setItem(KEY, talkCount);
-}
+// キャラクターごとに変化する進行状況
+// switchCharacter() のたびに読み直される（固定constにしない）
+let mainIndex = 0;
+let talkCount = 0;
+let seenIds = [];
 
 const TYPE_SPEED = 35;
+const LAST_CHARACTER_KEY = "lastCharacter";
 
-// ★ 追加：初回フラグ
-function hasSeenFirst() {
-  return localStorage.getItem("seen_first") === "true";
+// =====================
+// localStorage キー（常に現在のキャラクター基準で組み立てる）
+// =====================
+function keyFor(name) {
+  return `${name}_${currentCharacter}`;
 }
+
+function saveMainIndex() {
+  localStorage.setItem(keyFor("mainIndex"), mainIndex);
+}
+
+function saveTalkCount() {
+  localStorage.setItem(keyFor("talkCount"), talkCount);
+}
+
+function saveSeen() {
+  localStorage.setItem(keyFor("seen"), JSON.stringify(seenIds));
+}
+
+function hasSeenFirst() {
+  return localStorage.getItem(keyFor("seen_first")) === "true";
+}
+
 function markSeenFirst() {
-  localStorage.setItem("seen_first", "true");
+  localStorage.setItem(keyFor("seen_first"), "true");
+}
+
+// 現在のキャラクターの保存済み進行状況をメモリに読み込む
+function loadProgressFromStorage() {
+  mainIndex = Number(localStorage.getItem(keyFor("mainIndex")) || 0);
+  talkCount = Number(localStorage.getItem(keyFor("talkCount")) || 0);
+  seenIds = JSON.parse(localStorage.getItem(keyFor("seen")) || "[]");
 }
 
 // =====================
 // 読み込み
 // =====================
+async function fetchJson(path) {
+  const res = await fetch(path);
+  if (!res.ok) {
+    throw new Error(`Failed to load ${path}: ${res.status}`);
+  }
+  return res.json();
+}
+
 async function load(category) {
   const key = `${currentCharacter}_${category}`;
   if (cache[key]) return cache[key];
 
-  const res = await fetch(`data/${currentCharacter}/${category}.json`);
-  const data = await res.json();
+  const data = await fetchJson(`data/${currentCharacter}/${category}.json`);
   cache[key] = data;
   return data;
 }
 
-async function loadCharacter() {
-  const res = await fetch(`data/${currentCharacter}/config.json`);
-  charConfig = await res.json();
+async function loadCharacterConfig(id) {
+  return fetchJson(`data/${id}/config.json`);
+}
+
+async function loadCharacterList() {
+  return fetchJson("characters.json");
 }
 
 // =====================
@@ -82,6 +111,96 @@ function closeBox() {
   document.getElementById("message-box").classList.remove("active");
 }
 
+function clearIndicator() {
+  const old = document.getElementById("indicator");
+  if (old) old.remove();
+}
+
+function clearChoices() {
+  const box = document.getElementById("choices");
+  box.innerHTML = "";
+  box.style.display = "none";
+}
+
+// =====================
+// キャラクター選択画面
+// =====================
+async function renderSelectScreen() {
+  const box = document.getElementById("character-select");
+  box.innerHTML = "";
+
+  for (const c of characterList) {
+    const config = await loadCharacterConfig(c.id);
+
+    const card = document.createElement("div");
+    card.className = "character-card";
+    card.dataset.id = c.id;
+
+    const img = document.createElement("img");
+    img.src = config.basePath + (config.images.idle || config.images.normal);
+    img.alt = c.name;
+
+    const label = document.createElement("div");
+    label.className = "character-name";
+    label.textContent = c.name;
+
+    card.appendChild(img);
+    card.appendChild(label);
+    card.addEventListener("click", () => enterCharacter(c.id));
+
+    box.appendChild(card);
+  }
+}
+
+function showSelectScreen() {
+  document.getElementById("select-screen").classList.remove("hidden");
+  document.getElementById("game-screen").classList.add("hidden");
+}
+
+function showGameScreen() {
+  document.getElementById("select-screen").classList.add("hidden");
+  document.getElementById("game-screen").classList.remove("hidden");
+}
+
+// 選択画面からキャラクターを選んでゲーム画面に入る
+async function enterCharacter(id) {
+  await switchCharacter(id);
+  showGameScreen();
+}
+
+// 現在のキャラクターのゲームを終了して選択画面に戻る
+function backToSelectScreen() {
+  clearTimeout(typingTimer);
+  isTyping = false;
+  clearIndicator();
+  clearChoices();
+  closeBox();
+
+  currentCharacter = null;
+  showSelectScreen();
+}
+
+async function switchCharacter(id) {
+  // 進行中のタイピングやタイマーを止めてから切り替える
+  clearTimeout(typingTimer);
+  isTyping = false;
+  clearIndicator();
+  clearChoices();
+  closeBox();
+
+  currentCharacter = id;
+  localStorage.setItem(LAST_CHARACTER_KEY, id);
+
+  charConfig = await loadCharacterConfig(id);
+  document.getElementById("name").textContent = charConfig.name || "";
+
+  loadProgressFromStorage();
+
+  state = "idle";
+  currentNode = null;
+  showIdle();
+}
+
 // =====================
 // セリフ表示
 // =====================
@@ -99,41 +218,6 @@ function showChunk() {
   typeLine(currentChunks[chunkIndex]);
 }
 
-
-
-
-function skipTyping() {
-  if (!isTyping) return false;
-
-  isTyping = false;
-
-  const textEl = document.getElementById("text");
-  const clean = fullText.replace(/{.*?}/g, "");
-
-  textEl.innerText = clean;
-
-  const span = document.createElement("span");
-  span.id = "indicator";
-  span.innerText = "▼";
-  textEl.appendChild(span);
-
-  return true;
-}
-// =====================
-// 会話開始
-// =====================
-/*
-async function startFirst() {
-  const data = await load("first");
-  const line = pickRandom(data.lines);
-
-  openBox();
-  startLine(line);
-  state = "first";
-}
-*/
-
-
 // =====================
 // 進行
 // =====================
@@ -150,7 +234,7 @@ function nextChunk() {
 
   // ===== セリフ終了 =====
 
-  // ▼ 分岐ノード対応（最優先）
+  // 分岐ノード対応（最優先）
   if (currentNode) {
 
     // 選択肢がある
@@ -166,8 +250,7 @@ function nextChunk() {
     }
   }
 
-  // ▼ 従来処理（fallback）
-
+  // 従来処理（fallback）
   if (state === "first") {
     state = "first_end";
     closeBox();
@@ -182,77 +265,77 @@ function nextChunk() {
     closeBox();
     showIdle();
   }
-
 }
+
 // =====================
 // タップ操作
 // =====================
-document.addEventListener("click", async () => {
-if (document.getElementById("choices").children.length > 0) return;
+document.addEventListener("click", async (e) => {
+  // キャラクター選択・リセット・戻るボタン自体のクリックはゲーム進行として扱わない
+  if (e.target.closest("#character-select") || e.target.closest("#reset-button") || e.target.closest("#back-button")) {
+    return;
+  }
+
+  if (document.getElementById("choices").children.length > 0) return;
+
   if (isTyping) {
     skipTyping();
     return;
   }
 
   switch (state) {
-
-case "idle":
-  if (!hasSeenFirst()) {
-    runNode("first_root");
-    markSeenFirst();
-  } else if (talkCount > 0 && talkCount % 5 === 0) {
-    runNode("main_root");
-  } else {
-    runNodeByTalkCount();
-  }
-  break;
-
-
-
-
+    case "idle":
+      if (!hasSeenFirst()) {
+        runNode("first_root");
+        markSeenFirst();
+      } else if (talkCount > 0 && talkCount % 5 === 0) {
+        runNode("main_root");
+      } else {
+        runNodeByTalkCount();
+      }
+      break;
 
     case "first":
       nextChunk();
       break;
 
-   case "first_end":
-  runNode("main_root"); // ←これに変更
-  break;
+    case "first_end":
+      runNode("main_root");
+      break;
 
     case "talk":
       nextChunk();
       break;
 
-case "node":
-  nextChunk();
-  break;
+    case "node":
+      nextChunk();
+      break;
 
-case "talk_end":
-  state = "idle";
-  showIdle(); // ←追加
-  break;
+    case "talk_end":
+      state = "idle";
+      showIdle();
+      break;
   }
 });
-
-
-
 
 // =====================
 // 初期化
 // =====================
 async function init() {
-  await loadCharacter();
+  document.getElementById("reset-button").addEventListener("click", resetGame);
+  document.getElementById("back-button").addEventListener("click", backToSelectScreen);
 
-  showIdle();   // ←これだけでいい
-  closeBox();
+  characterList = await loadCharacterList();
+
+  if (characterList.length === 0) {
+    console.error("characters.json にキャラクターが登録されていません");
+    return;
+  }
+
+  await renderSelectScreen();
+  showSelectScreen();
 }
 
-const SEEN_KEY = `seen_${currentCharacter}`;
-let seenIds = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
-
-function saveSeen() {
-  localStorage.setItem(SEEN_KEY, JSON.stringify(seenIds));
-}
 function selectTable(data) {
   if (talkCount === 0) return data.tables.first;
   if (talkCount < 10) return data.tables.early;
@@ -296,17 +379,19 @@ function parseText(text) {
 
   return result;
 }
+
 function resetGame() {
-  localStorage.removeItem(`talkCount_${currentCharacter}`);
-  localStorage.removeItem(`seen_${currentCharacter}`);
-  localStorage.removeItem(`mainIndex_${currentCharacter}`); // ← 追加
-  localStorage.removeItem("seen_first");
+  // 現在選択中のキャラクターの進行状況だけをリセットする
+  localStorage.removeItem(keyFor("talkCount"));
+  localStorage.removeItem(keyFor("seen"));
+  localStorage.removeItem(keyFor("mainIndex"));
+  localStorage.removeItem(keyFor("seen_first"));
   location.reload();
 }
 
-
 function showIdle() {
   const charEl = document.getElementById("character");
+  charEl.alt = charConfig.name ? `${charConfig.name}（待機）` : "character";
 
   if (charConfig.images.idle) {
     charEl.src = resolveImage("idle");
@@ -316,11 +401,6 @@ function showIdle() {
   }
 }
 
-function clearIndicator() {
-  const old = document.getElementById("indicator");
-  if (old) old.remove();
-}
-
 function typeLine(text) {
   const textEl = document.getElementById("text");
 
@@ -328,7 +408,7 @@ function typeLine(text) {
   isTyping = true;
   fullText = text;
 
-  clearIndicator(); // ←追加
+  clearIndicator();
   textEl.innerText = "";
 
   const tokens = parseText(text);
@@ -337,12 +417,12 @@ function typeLine(text) {
   let charIndex = 0;
 
   function loop() {
-    if (!isTyping) return; // ←追加（暴走防止）
+    if (!isTyping) return; // 暴走防止
 
     if (tokenIndex >= tokens.length) {
       isTyping = false;
 
-      clearIndicator(); // 念のため
+      clearIndicator();
       const span = document.createElement("span");
       span.id = "indicator";
       span.innerText = "▼";
@@ -399,7 +479,7 @@ function skipTyping() {
 
   const textEl = document.getElementById("text");
 
-  clearIndicator(); // ←追加
+  clearIndicator();
 
   const clean = fullText.replace(/{.*?}/g, "");
   textEl.innerText = clean;
@@ -411,8 +491,6 @@ function skipTyping() {
 
   return true;
 }
-
-let currentNode = null;
 
 async function runNode(id) {
 
@@ -470,10 +548,6 @@ async function runNode(id) {
   state = "node";
 }
 
-
-
-
-
 function runNodeByTalkCount() {
   if (talkCount < 10) runNode("early_root");
   else if (talkCount < 30) runNode("normal_root");
@@ -481,16 +555,12 @@ function runNodeByTalkCount() {
 }
 
 function handleChoice(next) {
-  const box = document.getElementById("choices");
-  box.innerHTML = "";
-  box.style.display = "none";
-  
+  clearChoices();
+
   // クリックイベントの伝播を止める必要があるので
   // 少し遅延してrunNodeを呼ぶ
   setTimeout(() => runNode(next), 0);
 }
-
-
 
 function renderChoices(choices) {
   const box = document.getElementById("choices");
@@ -503,7 +573,7 @@ function renderChoices(choices) {
     box.appendChild(btn);
   });
 
-  box.style.display = "block"; // ←これも追加
+  box.style.display = "block";
 }
 
 init();
