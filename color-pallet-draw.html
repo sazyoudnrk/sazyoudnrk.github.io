@@ -3,15 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>4色おえかき</title>
+<title>おえかき</title>
 <style>
   :root{
     --bg: #1b1b1f;
     --panel: #232329;
+    --panel-2: #2c2c33;
     --ink: #f2f0ea;
     --muted: #8b8a94;
+    --accent: #f2f0ea;
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
   html, body {
     height: 100%;
     margin: 0;
@@ -26,21 +28,33 @@
     height: 100dvh;
   }
   header {
-    padding: 14px 16px 8px;
+    padding: 12px 14px 6px;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
   }
   h1 {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.02em;
     margin: 0;
   }
-  h1 span { color: var(--muted); font-weight: 500; }
+  h1 span { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 6px; }
+  #save {
+    background: var(--panel);
+    border: none;
+    color: var(--ink);
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 17px;
+    cursor: pointer;
+  }
+  #save:active { background: var(--panel-2); }
+
   #canvas-wrap {
     flex: 1;
-    margin: 0 12px;
+    margin: 4px 12px;
     border-radius: 18px;
     overflow: hidden;
     background: #ffffff;
@@ -48,127 +62,299 @@
     position: relative;
     touch-action: none;
   }
-  canvas {
-    display: block;
+  #canvas-wrap canvas {
+    position: absolute;
+    top: 0; left: 0;
     width: 100%;
     height: 100%;
     touch-action: none;
   }
+
   #dock {
-    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .swatches {
-    display: flex;
-    gap: 8px;
-    background: var(--panel);
-    padding: 6px;
-    border-radius: 16px;
-  }
-  .swatch {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    transition: transform .12s ease;
-  }
-  .swatch.active {
-    transform: scale(1.08);
-    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
-  }
-  .tools {
+  .row::-webkit-scrollbar { display: none; }
+
+  .group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     background: var(--panel);
-    padding: 6px 10px;
-    border-radius: 16px;
-    flex: 1;
+    padding: 5px;
+    border-radius: 14px;
+    flex-shrink: 0;
   }
-  .tools button {
+
+  .icon-btn {
     background: none;
     border: none;
     color: var(--ink);
-    font-size: 18px;
-    width: 36px;
-    height: 36px;
+    font-size: 15px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:active { background: var(--panel-2); }
+  .icon-btn.active {
+    background: var(--ink);
+    color: #16161a;
+  }
+
+  .layer-tab {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    width: 30px;
+    height: 34px;
     border-radius: 10px;
     cursor: pointer;
   }
-  .tools button:active { background: #33333a; }
+  .layer-tab.active { background: var(--ink); color: #16161a; }
+  .eye-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    width: 26px;
+    height: 34px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .eye-btn.off { opacity: 0.35; }
+
+  .pen-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 10px;
+    width: auto;
+  }
+
+  .swatches {
+    display: flex;
+    gap: 6px;
+    background: var(--panel);
+    padding: 5px;
+    border-radius: 14px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .swatches::-webkit-scrollbar { display: none; }
+  .swatch {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+  }
+  .swatch.active {
+    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
+  }
+
+  #mode-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0 10px;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .size-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel);
+    padding: 5px 10px;
+    border-radius: 14px;
+    flex: 1;
+    min-width: 90px;
+  }
+  .size-wrap span { font-size: 11px; color: var(--muted); flex-shrink: 0; }
   input[type="range"] {
     flex: 1;
-    accent-color: #f2f0ea;
+    accent-color: var(--ink);
+    min-width: 40px;
   }
-  #shuffle {
-    background: var(--panel);
-    border: none;
-    color: var(--ink);
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    font-size: 18px;
-    cursor: pointer;
-  }
-  #shuffle:active { background: #33333a; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>4色おえかき <span>random palette</span></h1>
+  <h1>おえかき <span id="mode-label">random 4</span></h1>
+  <button id="save" title="保存">💾</button>
 </header>
 
-<div id="canvas-wrap">
-  <canvas id="canvas"></canvas>
-</div>
+<div id="canvas-wrap"></div>
 
 <div id="dock">
-  <button id="shuffle" title="パレットを変える">🎲</button>
-  <div class="swatches" id="swatches"></div>
-  <div class="tools">
-    <button id="undo">↺</button>
-    <input type="range" id="size" min="2" max="40" value="8">
-    <button id="clear">🗑</button>
+
+  <div class="row">
+    <div class="group" id="layers"></div>
+    <div class="group">
+      <button class="icon-btn" id="undo" title="戻す">↺</button>
+      <button class="icon-btn" id="redo" title="進む">↻</button>
+      <button class="icon-btn" id="clear-layer" title="このレイヤーを消す">🗑</button>
+    </div>
   </div>
+
+  <div class="row">
+    <button class="icon-btn pen-btn" id="mode-btn"></button>
+    <button class="icon-btn" id="shuffle" title="パレットを変える">🎲</button>
+    <div class="swatches" id="swatches"></div>
+  </div>
+
+  <div class="row">
+    <div class="group">
+      <button class="icon-btn pen-btn" data-pen="pencil">鉛筆</button>
+      <button class="icon-btn pen-btn" data-pen="marker">マーカー</button>
+      <button class="icon-btn pen-btn" data-pen="brush">筆</button>
+      <button class="icon-btn" id="eraser" title="消しゴム">🧽</button>
+    </div>
+    <div class="size-wrap">
+      <span>太さ</span>
+      <input type="range" id="size" min="2" max="50" value="10">
+    </div>
+    <button class="icon-btn pen-btn" id="smoothing-btn"></button>
+  </div>
+
 </div>
 
 <script>
 (function(){
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
   const wrap = document.getElementById('canvas-wrap');
+  const layersDock = document.getElementById('layers');
   const swatchWrap = document.getElementById('swatches');
   const sizeSlider = document.getElementById('size');
   const shuffleBtn = document.getElementById('shuffle');
-  const clearBtn = document.getElementById('clear');
+  const modeBtn = document.getElementById('mode-btn');
+  const modeLabel = document.getElementById('mode-label');
+  const saveBtn = document.getElementById('save');
   const undoBtn = document.getElementById('undo');
+  const redoBtn = document.getElementById('redo');
+  const clearLayerBtn = document.getElementById('clear-layer');
+  const eraserBtn = document.getElementById('eraser');
+  const penBtns = [...document.querySelectorAll('[data-pen]')];
+  const smoothingBtn = document.getElementById('smoothing-btn');
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let currentColor = null;
+  let currentTool = 'pencil'; // 'pencil' | 'marker' | 'brush' | 'eraser'
   let drawing = false;
-  let lastX = 0, lastY = 0;
-  let history = [];
+  let lastTime = 0;
+  let rawPoint = null;    // 生の指の位置
+  let smoothPoint = null; // 補正後の描画位置
 
-  // --- ランダムパレット生成 ---
-  function randomPalette() {
-    // ランダムだけど破綻しない色相にする: ベース色相をランダムに決めて散らす
-    const baseHue = Math.floor(Math.random() * 360);
-    const hues = [0, 1, 2, 3].map(i => (baseHue + i * (60 + Math.random()*40) + Math.random()*20) % 360);
-    return hues.map((h, i) => {
-      const sat = 55 + Math.random() * 35;
-      const light = i === 3 ? 12 + Math.random()*10 : 40 + Math.random() * 25; // 1色は暗め(線用)にしがち
-      return `hsl(${h.toFixed(0)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%)`;
+  // 手ぶれ補正: 大きいほど生の位置に近い(遅延が少ない) = 補正弱い
+  const SMOOTHING_LEVELS = [
+    { key: 'off',   label: '補正:なし', factor: 1 },
+    { key: 'light', label: '補正:弱',   factor: 0.6 },
+    { key: 'heavy', label: '補正:強',   factor: 0.28 },
+  ];
+  let smoothingIndex = 1; // デフォルトは「弱」
+
+  const PEN_STYLES = {
+    pencil: { opacity: 1, widthMul: 0.5, soft: 0 },
+    marker: { opacity: 1, widthMul: 1.3, soft: 0 },
+    brush:  { opacity: 1, widthMul: 1.0, soft: 0.35 },
+  };
+
+  // ---------- レイヤー管理 ----------
+  const LAYER_COUNT = 3;
+  const layers = []; // {canvas, ctx, visible, undoStack, redoStack}
+  let activeLayerIndex = LAYER_COUNT - 1;
+
+  function makeCanvas(z) {
+    const c = document.createElement('canvas');
+    c.style.zIndex = z;
+    wrap.appendChild(c);
+    return c;
+  }
+
+  for (let i = 0; i < LAYER_COUNT; i++) {
+    const canvas = makeCanvas(i);
+    layers.push({
+      canvas,
+      ctx: canvas.getContext('2d'),
+      visible: true,
+      undoStack: [],
+      redoStack: [],
     });
+  }
+
+  function activeLayer() { return layers[activeLayerIndex]; }
+
+  function buildLayerTabs() {
+    layersDock.innerHTML = '';
+    layers.forEach((layer, i) => {
+      const tab = document.createElement('button');
+      tab.className = 'layer-tab' + (i === activeLayerIndex ? ' active' : '');
+      tab.textContent = (i + 1);
+      tab.addEventListener('click', () => {
+        activeLayerIndex = i;
+        buildLayerTabs();
+      });
+      const eye = document.createElement('button');
+      eye.className = 'eye-btn' + (layer.visible ? '' : ' off');
+      eye.textContent = layer.visible ? '👁' : '🚫';
+      eye.addEventListener('click', (e) => {
+        e.stopPropagation();
+        layer.visible = !layer.visible;
+        layer.canvas.style.opacity = layer.visible ? '1' : '0';
+        buildLayerTabs();
+      });
+      layersDock.appendChild(tab);
+      layersDock.appendChild(eye);
+    });
+  }
+
+  // ---------- カラーパレット ----------
+  const DEFAULT_PALETTE = [
+    '#111111', '#f2f0ea', '#e63946', '#f4a261',
+    '#ffd166', '#2a9d8f', '#264653', '#4361ee',
+    '#7b2cbf', '#ff70a6', '#8d6a4f', '#adb5bd'
+  ];
+
+  const MODES = ['random4', 'random3', 'default'];
+  const MODE_LABELS = { random4: 'ランダム4色', random3: 'ランダム3色', default: '定番パレット' };
+  let modeIndex = 0;
+
+  function currentMode() { return MODES[modeIndex]; }
+
+  function randomPalette(n) {
+    const baseHue = Math.floor(Math.random() * 360);
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      const h = (baseHue + i * (360 / n) + (Math.random() * 20 - 10)) % 360;
+      const sat = 55 + Math.random() * 35;
+      const isDark = i === n - 1;
+      const light = isDark ? 12 + Math.random() * 10 : 38 + Math.random() * 28;
+      arr.push(`hsl(${h.toFixed(0)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%)`);
+    }
+    return arr;
   }
 
   function buildSwatches(colors) {
     swatchWrap.innerHTML = '';
-    colors.forEach((c, i) => {
+    colors.forEach((c) => {
       const b = document.createElement('button');
       b.className = 'swatch';
       b.style.background = c;
@@ -182,98 +368,301 @@
   function selectColor(c, btn) {
     currentColor = c;
     [...swatchWrap.children].forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
+    // 色を選んだら自動的にペンツールに戻す(消しゴムのままだと分かりにくいので)
+    if (currentTool === 'eraser') setTool('pencil');
   }
 
-  function newPalette() {
-    buildSwatches(randomPalette());
+  function applyMode() {
+    const m = currentMode();
+    modeLabel.textContent = MODE_LABELS[m];
+    shuffleBtn.style.display = m === 'default' ? 'none' : 'flex';
+    if (m === 'random4') buildSwatches(randomPalette(4));
+    else if (m === 'random3') buildSwatches(randomPalette(3));
+    else buildSwatches(DEFAULT_PALETTE);
   }
 
-  // --- キャンバスサイズ調整（リサイズ時も絵を保持） ---
-  function resizeCanvas() {
+  modeBtn.addEventListener('click', () => {
+    modeIndex = (modeIndex + 1) % MODES.length;
+    applyMode();
+  });
+  shuffleBtn.addEventListener('click', () => {
+    const m = currentMode();
+    if (m === 'random4') buildSwatches(randomPalette(4));
+    if (m === 'random3') buildSwatches(randomPalette(3));
+  });
+
+  // ---------- ツール切り替え ----------
+  function setTool(tool) {
+    currentTool = tool;
+    penBtns.forEach(b => b.classList.toggle('active', b.dataset.pen === tool));
+    eraserBtn.classList.toggle('active', tool === 'eraser');
+  }
+  penBtns.forEach(b => b.addEventListener('click', () => setTool(b.dataset.pen)));
+  eraserBtn.addEventListener('click', () => setTool('eraser'));
+
+  function applySmoothingLabel() {
+    smoothingBtn.textContent = SMOOTHING_LEVELS[smoothingIndex].label;
+  }
+  smoothingBtn.addEventListener('click', () => {
+    smoothingIndex = (smoothingIndex + 1) % SMOOTHING_LEVELS.length;
+    applySmoothingLabel();
+  });
+
+  // ---------- キャンバスサイズ ----------
+  function resizeAllCanvases() {
     const rect = wrap.getBoundingClientRect();
-    const prev = document.createElement('canvas');
-    prev.width = canvas.width;
-    prev.height = canvas.height;
-    prev.getContext('2d').drawImage(canvas, 0, 0);
-
     dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
 
-    if (prev.width > 0) {
-      ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
-    }
+    layers.forEach(layer => {
+      const prev = document.createElement('canvas');
+      prev.width = layer.canvas.width;
+      prev.height = layer.canvas.height;
+      if (prev.width > 0) prev.getContext('2d').drawImage(layer.canvas, 0, 0);
+
+      layer.canvas.width = rect.width * dpr;
+      layer.canvas.height = rect.height * dpr;
+      layer.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      layer.ctx.lineCap = 'round';
+      layer.ctx.lineJoin = 'round';
+
+      if (prev.width > 0) {
+        layer.ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
+      }
+    });
   }
-
+  // ---------- ストローク描画: レイヤーへ直接描いてリアルタイムに見えるようにする ----------
   function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
+    const rect = wrap.getBoundingClientRect();
     const t = e.touches ? e.touches[0] : e;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top, t: Date.now() };
   }
 
-  function saveHistory() {
-    history.push(canvas.toDataURL());
-    if (history.length > 20) history.shift();
+  function strokeWidthFor(dist, dt) {
+    const base = Number(sizeSlider.value);
+    if (currentTool !== 'brush') return base * (PEN_STYLES[currentTool] ? PEN_STYLES[currentTool].widthMul : 1);
+    // 筆: 速く動かすほど細く、ゆっくりなほど太く
+    const speed = dt > 0 ? dist / dt : 0;
+    const mul = Math.max(0.5, Math.min(1.6, 1.3 - speed * 0.06));
+    return base * mul;
+  }
+
+  function pushHistory(layer) {
+    layer.undoStack.push(layer.canvas.toDataURL());
+    if (layer.undoStack.length > 20) layer.undoStack.shift();
+    layer.redoStack = [];
+  }
+
+  function restoreFromDataURL(layer, dataUrl) {
+    const img = new Image();
+    img.onload = () => {
+      const rect = wrap.getBoundingClientRect();
+      layer.ctx.save();
+      layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+      layer.ctx.restore();
+      layer.ctx.drawImage(img, 0, 0, rect.width, rect.height);
+    };
+    img.src = dataUrl;
   }
 
   function start(e) {
     e.preventDefault();
     drawing = true;
-    saveHistory();
+    const layer = activeLayer();
+    pushHistory(layer);
     const p = getPos(e);
-    lastX = p.x; lastY = p.y;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, (sizeSlider.value/2), 0, Math.PI*2);
-    ctx.fillStyle = currentColor;
-    ctx.fill();
+    rawPoint = { x: p.x, y: p.y };
+    smoothPoint = { x: p.x, y: p.y };
+    lastTime = p.t;
+
+    if (currentTool === 'eraser') {
+      layer.ctx.save();
+      layer.ctx.globalCompositeOperation = 'destination-out';
+      layer.ctx.lineWidth = Number(sizeSlider.value) * 1.4;
+      layer.ctx.beginPath();
+      layer.ctx.moveTo(p.x, p.y);
+      layer.ctx.lineTo(p.x + 0.01, p.y + 0.01);
+      layer.ctx.stroke();
+      layer.ctx.restore();
+    } else {
+      const style = PEN_STYLES[currentTool];
+      layer.ctx.save();
+      layer.ctx.globalAlpha = style.opacity;
+      if (style.soft > 0) {
+        layer.ctx.shadowBlur = Number(sizeSlider.value) * style.soft;
+        layer.ctx.shadowColor = currentColor;
+      }
+      layer.ctx.beginPath();
+      layer.ctx.arc(p.x, p.y, strokeWidthFor(0, 1) / 2, 0, Math.PI * 2);
+      layer.ctx.fillStyle = currentColor;
+      layer.ctx.fill();
+      layer.ctx.restore();
+    }
   }
 
   function move(e) {
     if (!drawing) return;
     e.preventDefault();
     const p = getPos(e);
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = sizeSlider.value;
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    lastX = p.x; lastY = p.y;
+    const dt = Math.max(1, p.t - lastTime);
+    lastTime = p.t;
+
+    // 指数移動平均(EMA)で補正: factorが大きいほど生の位置に近く遅延が少ない
+    const factor = SMOOTHING_LEVELS[smoothingIndex].factor;
+    const prevSmooth = { x: smoothPoint.x, y: smoothPoint.y };
+    smoothPoint.x += (p.x - smoothPoint.x) * factor;
+    smoothPoint.y += (p.y - smoothPoint.y) * factor;
+
+    const dx = smoothPoint.x - prevSmooth.x;
+    const dy = smoothPoint.y - prevSmooth.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const layer = activeLayer();
+
+    if (currentTool === 'eraser') {
+      layer.ctx.save();
+      layer.ctx.globalCompositeOperation = 'destination-out';
+      layer.ctx.lineWidth = Number(sizeSlider.value) * 1.4;
+      layer.ctx.beginPath();
+      layer.ctx.moveTo(prevSmooth.x, prevSmooth.y);
+      layer.ctx.lineTo(smoothPoint.x, smoothPoint.y);
+      layer.ctx.stroke();
+      layer.ctx.restore();
+    } else {
+      const style = PEN_STYLES[currentTool];
+      layer.ctx.save();
+      layer.ctx.globalAlpha = style.opacity;
+      if (style.soft > 0) {
+        layer.ctx.shadowBlur = Number(sizeSlider.value) * style.soft;
+        layer.ctx.shadowColor = currentColor;
+      }
+      layer.ctx.strokeStyle = currentColor;
+      layer.ctx.lineWidth = strokeWidthFor(dist, dt);
+      layer.ctx.beginPath();
+      layer.ctx.moveTo(prevSmooth.x, prevSmooth.y);
+      layer.ctx.lineTo(smoothPoint.x, smoothPoint.y);
+      layer.ctx.stroke();
+      layer.ctx.restore();
+    }
   }
 
-  function end() { drawing = false; }
+  function end() {
+    drawing = false;
+  }
 
-  canvas.addEventListener('mousedown', start);
-  canvas.addEventListener('mousemove', move);
+  wrap.addEventListener('mousedown', start);
+  wrap.addEventListener('mousemove', move);
   window.addEventListener('mouseup', end);
-  canvas.addEventListener('touchstart', start, { passive: false });
-  canvas.addEventListener('touchmove', move, { passive: false });
-  canvas.addEventListener('touchend', end);
+  wrap.addEventListener('touchstart', start, { passive: false });
+  wrap.addEventListener('touchmove', move, { passive: false });
+  wrap.addEventListener('touchend', end);
+  wrap.addEventListener('touchcancel', end);
 
-  shuffleBtn.addEventListener('click', newPalette);
-  clearBtn.addEventListener('click', () => {
-    saveHistory();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  });
+  // ---------- Undo / Redo / Clear ----------
   undoBtn.addEventListener('click', () => {
-    if (!history.length) return;
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      const rect = wrap.getBoundingClientRect();
-      ctx.drawImage(img, 0, 0, rect.width, rect.height);
-    };
-    img.src = history.pop();
+    const layer = activeLayer();
+    if (!layer.undoStack.length) return;
+    layer.redoStack.push(layer.canvas.toDataURL());
+    const prev = layer.undoStack.pop();
+    restoreFromDataURL(layer, prev);
+  });
+  redoBtn.addEventListener('click', () => {
+    const layer = activeLayer();
+    if (!layer.redoStack.length) return;
+    layer.undoStack.push(layer.canvas.toDataURL());
+    const next = layer.redoStack.pop();
+    restoreFromDataURL(layer, next);
+  });
+  clearLayerBtn.addEventListener('click', () => {
+    const layer = activeLayer();
+    pushHistory(layer);
+    layer.ctx.save();
+    layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+    layer.ctx.restore();
   });
 
-  window.addEventListener('resize', resizeCanvas);
+  // ---------- 保存 ----------
+  // iOS Safari は <a download> を無視するため、
+  // 1) Web Share API (ファイル共有) → 「画像を保存」で写真アプリに保存できる
+  // 2) だめな場合は新しいタブで画像を開き、長押しで保存してもらう
+  // という順でフォールバックする
+  function mergeCanvas() {
+    const rect = wrap.getBoundingClientRect();
+    const out = document.createElement('canvas');
+    out.width = rect.width * dpr;
+    out.height = rect.height * dpr;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#ffffff';
+    octx.fillRect(0, 0, out.width, out.height);
+    layers.forEach(layer => {
+      if (layer.visible) octx.drawImage(layer.canvas, 0, 0);
+    });
+    return out;
+  }
 
-  resizeCanvas();
-  newPalette();
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  saveBtn.addEventListener('click', () => {
+    const out = mergeCanvas();
+    const filename = `oekaki-${Date.now()}.png`;
+
+    out.toBlob(async (blob) => {
+      if (!blob) return fallbackOpenTab(out);
+
+      const file = new File([blob], filename, { type: 'image/png' });
+      const canUseShare = navigator.canShare && navigator.canShare({ files: [file] });
+
+      if (canUseShare) {
+        try {
+          await navigator.share({ files: [file], title: 'おえかき' });
+          return; // 共有シートから「画像を保存」で写真アプリへ
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // ユーザーがキャンセルしただけ
+          // それ以外のエラーは下のフォールバックへ進む
+        }
+      }
+
+      if (isIOS) {
+        // iOS Safariは <a download> を無視するため、新しいタブで開いて長押し保存してもらう
+        fallbackOpenTab(out);
+      } else {
+        // デスクトップ/Androidは通常のダウンロードで問題なし
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+    }, 'image/png');
+  });
+
+  function fallbackOpenTab(canvasEl) {
+    const w = window.open('', '_blank');
+    if (!w) return; // ポップアップブロック時は何もできない
+    const dataUrl = canvasEl.toDataURL('image/png');
+    w.document.write(
+      `<title>おえかき保存</title>
+       <body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+       <p style="position:fixed;top:12px;left:0;right:0;text-align:center;color:#fff;font-family:sans-serif;font-size:14px;">画像を長押しして「写真に保存」を選んでください</p>
+       <img src="${dataUrl}" style="max-width:100%;height:auto;">
+       </body>`
+    );
+  }
+
+  window.addEventListener('resize', resizeAllCanvases);
+
+  // ---------- 初期化 ----------
+  buildLayerTabs();
+  resizeAllCanvases();
+  applyMode();
+  applySmoothingLabel();
+  setTool('pencil');
 })();
 </script>
 
