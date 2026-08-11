@@ -62,12 +62,20 @@
     position: relative;
     touch-action: none;
   }
-  #canvas-wrap canvas {
+  #stage {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: 0 0;
+  }
+  #stage canvas {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     touch-action: none;
+    image-rendering: pixelated;
   }
 
   #dock {
@@ -178,6 +186,15 @@
     white-space: nowrap;
   }
 
+  .zoom-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink);
+    min-width: 40px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
   .size-wrap {
     display: flex;
     align-items: center;
@@ -199,11 +216,11 @@
 <body>
 
 <header>
-  <h1>おえかき <span id="mode-label">random 4</span></h1>
+  <h1>おえかき <span id="mode-label"></span></h1>
   <button id="save" title="保存">💾</button>
 </header>
 
-<div id="canvas-wrap"></div>
+<div id="canvas-wrap"><div id="stage"></div></div>
 
 <div id="dock">
 
@@ -213,6 +230,12 @@
       <button class="icon-btn" id="undo" title="戻す">↺</button>
       <button class="icon-btn" id="redo" title="進む">↻</button>
       <button class="icon-btn" id="clear-layer" title="このレイヤーを消す">🗑</button>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="zoom-out" title="縮小">−</button>
+      <span class="zoom-label" id="zoom-label">100%</span>
+      <button class="icon-btn" id="zoom-in" title="拡大">＋</button>
+      <button class="icon-btn" id="zoom-reset" title="表示をリセット">⟲</button>
     </div>
   </div>
 
@@ -228,10 +251,11 @@
       <button class="icon-btn pen-btn" data-pen="marker">マーカー</button>
       <button class="icon-btn" id="eraser" title="消しゴム">🧽</button>
       <button class="icon-btn" id="bucket" title="バケツ塗り">🪣</button>
+      <button class="icon-btn" id="pan-tool" title="移動(パン)">✋</button>
     </div>
     <div class="size-wrap">
       <span>太さ</span>
-      <input type="range" id="size" min="2" max="50" value="10">
+      <input type="range" id="size" min="1" max="50" value="10">
     </div>
     <button class="icon-btn pen-btn" id="smoothing-btn"></button>
   </div>
@@ -241,6 +265,7 @@
 <script>
 (function(){
   const wrap = document.getElementById('canvas-wrap');
+  const stage = document.getElementById('stage');
   const layersDock = document.getElementById('layers');
   const swatchWrap = document.getElementById('swatches');
   const sizeSlider = document.getElementById('size');
@@ -253,16 +278,22 @@
   const clearLayerBtn = document.getElementById('clear-layer');
   const eraserBtn = document.getElementById('eraser');
   const bucketBtn = document.getElementById('bucket');
+  const panToolBtn = document.getElementById('pan-tool');
   const penBtns = [...document.querySelectorAll('[data-pen]')];
   const smoothingBtn = document.getElementById('smoothing-btn');
+  const zoomInBtn = document.getElementById('zoom-in');
+  const zoomOutBtn = document.getElementById('zoom-out');
+  const zoomResetBtn = document.getElementById('zoom-reset');
+  const zoomLabel = document.getElementById('zoom-label');
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let currentColor = null;
-  let currentTool = 'pencil'; // 'pencil' | 'marker' | 'eraser' | 'bucket'
+  let currentTool = 'pencil'; // 'pencil' | 'marker' | 'eraser' | 'bucket' | 'pan'
   let drawing = false;
   let lastTime = 0;
-  let rawPoint = null;    // 生の指の位置
-  let smoothPoint = null; // 補正後の描画位置
+  let rawPoint = null;    // 生の指の位置(キャンバス座標系)
+  let smoothPoint = null; // 補正後の描画位置(キャンバス座標系)
+  let panStart = null;    // パン開始時の情報
 
   // 手ぶれ補正: 大きいほど生の位置に近い(遅延が少ない) = 補正弱い
   const SMOOTHING_LEVELS = [
@@ -273,10 +304,37 @@
   let smoothingIndex = 1; // デフォルトは「弱」
 
   const PEN_STYLES = {
-    marker: { widthMul: 1.0 }, // 現行の「鉛筆」相当: くっきり一定の太さの線
+    marker: { widthMul: 1.0 }, // くっきり一定の太さの線(不透明度は常に100%)
   };
-  // 鉛筆はコード側で個別処理する(ストローク内でランダムに太さが変わるボコボコした線)
-  const PENCIL_BASE_MUL = 0.6;
+
+  function clampNum(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function snap(v) { return Math.round(v); } // アンチエイリアス低減のため整数pxへスナップ
+
+  // ---------- ズーム / パン(表示倍率のみを変更し、キャンバス解像度は変えない) ----------
+  const ZOOM_LEVELS = [1, 2, 4, 8];
+  let zoomIndex = 0;
+  let panX = 0, panY = 0;
+
+  function zoomLevel() { return ZOOM_LEVELS[zoomIndex]; }
+
+  function applyZoom() {
+    const z = zoomLevel();
+    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${z})`;
+    zoomLabel.textContent = `${z * 100}%`;
+  }
+  zoomInBtn.addEventListener('click', () => {
+    zoomIndex = Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1);
+    applyZoom();
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    zoomIndex = Math.max(0, zoomIndex - 1);
+    if (zoomIndex === 0) { panX = 0; panY = 0; }
+    applyZoom();
+  });
+  zoomResetBtn.addEventListener('click', () => {
+    zoomIndex = 0; panX = 0; panY = 0;
+    applyZoom();
+  });
 
   // ---------- レイヤー管理 ----------
   const LAYER_COUNT = 3;
@@ -286,7 +344,7 @@
   function makeCanvas(z) {
     const c = document.createElement('canvas');
     c.style.zIndex = z;
-    wrap.appendChild(c);
+    stage.appendChild(c);
     return c;
   }
 
@@ -327,31 +385,124 @@
     });
   }
 
-  // ---------- カラーパレット ----------
+  // ========================================================================
+  // カラーパレット生成
+  // 内部表現: 既存実装(HSL文字列)を踏襲。色相は必ず0〜360°へ正規化する。
+  // 不透明度(Alpha)はここでは一切ランダム化しない(常に不透明な色を生成)。
+  // ========================================================================
+
+  function normHue(h) { return ((h % 360) + 360) % 360; }
+  function rnd(min, max) { return min + Math.random() * (max - min); }
+  function pm(delta) { return delta * (Math.random() < 0.5 ? -1 : 1); } // ±delta
+
+  function hslColor(h, s, l) {
+    return `hsl(${normHue(h).toFixed(1)}, ${clampNum(s, 0, 100).toFixed(0)}%, ${clampNum(l, 0, 100).toFixed(0)}%)`;
+  }
+
+  function randomCount() { return 2 + Math.floor(Math.random() * 7); } // 2〜8色
+
+  // 1) 完全ランダム: 色相・彩度・明度を独立してランダム生成(2〜8色)
+  function generateRandomPalette() {
+    const n = randomCount();
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      arr.push(hslColor(rnd(0, 360), rnd(20, 100), rnd(15, 85)));
+    }
+    return arr;
+  }
+
+  // 2) 線ランダム: 補色関係の2色
+  function generateLinePalette() {
+    const H1 = rnd(0, 360);
+    const H2 = H1 + 180 + pm(rnd(5, 15));
+    const baseS = rnd(40, 85), baseL = rnd(35, 70);
+    return [
+      hslColor(H1, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))),
+      hslColor(H2, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))),
+    ];
+  }
+
+  // 3) 三角ランダム: 120°ずつ離れた3色
+  function generateTrianglePalette() {
+    const H1 = rnd(0, 360);
+    const H2 = H1 + 120 + pm(rnd(5, 20));
+    const H3 = H1 + 240 + pm(rnd(5, 20));
+    const baseS = rnd(45, 90), baseL = rnd(35, 75);
+    return [H1, H2, H3].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
+  }
+
+  // 4) 四角ランダム: 90°ずつ離れた4色
+  function generateSquarePalette() {
+    const H1 = rnd(0, 360);
+    const H2 = H1 + 90 + pm(rnd(5, 20));
+    const H3 = H1 + 180 + pm(rnd(5, 20));
+    const H4 = H1 + 270 + pm(rnd(5, 20));
+    const baseS = rnd(45, 90), baseL = rnd(35, 75);
+    return [H1, H2, H3, H4].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
+  }
+
+  // 5) 箒ランダム: 基準色+補色+基準から±A度の2色(4色固定)
+  function generateBroomPalette() {
+    const H1 = rnd(0, 360);
+    const H2 = H1 + 180;
+    const A = rnd(20, 60);
+    const H3 = H1 + A + pm(rnd(5, 10));
+    const H4 = H1 - A + pm(rnd(5, 10));
+    const baseS = rnd(45, 90), baseL = rnd(35, 75);
+    return [H1, H2, H3, H4].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
+  }
+
+  // 6) パステルランダム: 低彩度・高明度(2〜8色)
+  function generatePastelPalette() {
+    const n = randomCount();
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      arr.push(hslColor(rnd(0, 360), rnd(20, 55), rnd(80, 100)));
+    }
+    return arr;
+  }
+
+  // 7) くすみランダム: 低〜中彩度・中間明度(2〜8色)
+  function generateMutedPalette() {
+    const n = randomCount();
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      arr.push(hslColor(rnd(0, 360), rnd(20, 60), rnd(40, 75)));
+    }
+    return arr;
+  }
+
+  // 8) 定番パレット(固定色。既存機能をそのまま維持)
   const DEFAULT_PALETTE = [
     '#111111', '#f2f0ea', '#e63946', '#f4a261',
     '#ffd166', '#2a9d8f', '#264653', '#4361ee',
     '#7b2cbf', '#ff70a6', '#8d6a4f', '#adb5bd'
   ];
 
-  const MODES = ['random4', 'random3', 'default'];
-  const MODE_LABELS = { random4: 'ランダム4色', random3: 'ランダム3色', default: '定番パレット' };
+  const MODES = ['random_full', 'line', 'triangle', 'square', 'broom', 'pastel', 'muted', 'default'];
+  const MODE_LABELS = {
+    random_full: '完全ランダム',
+    line: '線ランダム',
+    triangle: '三角ランダム',
+    square: '四角ランダム',
+    broom: '箒ランダム',
+    pastel: 'パステルランダム',
+    muted: 'くすみランダム',
+    default: '定番パレット',
+  };
+  const MODE_GENERATORS = {
+    random_full: generateRandomPalette,
+    line: generateLinePalette,
+    triangle: generateTrianglePalette,
+    square: generateSquarePalette,
+    broom: generateBroomPalette,
+    pastel: generatePastelPalette,
+    muted: generateMutedPalette,
+    default: () => DEFAULT_PALETTE,
+  };
   let modeIndex = 0;
 
   function currentMode() { return MODES[modeIndex]; }
-
-  function randomPalette(n) {
-    const baseHue = Math.floor(Math.random() * 360);
-    const arr = [];
-    for (let i = 0; i < n; i++) {
-      const h = (baseHue + i * (360 / n) + (Math.random() * 20 - 10)) % 360;
-      const sat = 55 + Math.random() * 35;
-      const isDark = i === n - 1;
-      const light = isDark ? 12 + Math.random() * 10 : 38 + Math.random() * 28;
-      arr.push(`hsl(${h.toFixed(0)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%)`);
-    }
-    return arr;
-  }
 
   function buildSwatches(colors) {
     swatchWrap.innerHTML = '';
@@ -378,9 +529,7 @@
     const m = currentMode();
     modeLabel.textContent = MODE_LABELS[m];
     shuffleBtn.style.display = m === 'default' ? 'none' : 'flex';
-    if (m === 'random4') buildSwatches(randomPalette(4));
-    else if (m === 'random3') buildSwatches(randomPalette(3));
-    else buildSwatches(DEFAULT_PALETTE);
+    buildSwatches(MODE_GENERATORS[m]());
   }
 
   modeBtn.addEventListener('click', () => {
@@ -389,8 +538,7 @@
   });
   shuffleBtn.addEventListener('click', () => {
     const m = currentMode();
-    if (m === 'random4') buildSwatches(randomPalette(4));
-    if (m === 'random3') buildSwatches(randomPalette(3));
+    if (m !== 'default') buildSwatches(MODE_GENERATORS[m]());
   });
 
   // ---------- ツール切り替え ----------
@@ -399,10 +547,12 @@
     penBtns.forEach(b => b.classList.toggle('active', b.dataset.pen === tool));
     eraserBtn.classList.toggle('active', tool === 'eraser');
     bucketBtn.classList.toggle('active', tool === 'bucket');
+    panToolBtn.classList.toggle('active', tool === 'pan');
   }
   penBtns.forEach(b => b.addEventListener('click', () => setTool(b.dataset.pen)));
   eraserBtn.addEventListener('click', () => setTool('eraser'));
   bucketBtn.addEventListener('click', () => setTool('bucket'));
+  panToolBtn.addEventListener('click', () => setTool('pan'));
 
   function applySmoothingLabel() {
     smoothingBtn.textContent = SMOOTHING_LEVELS[smoothingIndex].label;
@@ -412,7 +562,7 @@
     applySmoothingLabel();
   });
 
-  // ---------- キャンバスサイズ ----------
+  // ---------- キャンバスサイズ(解像度はズームに関係なくwrapの実サイズに固定) ----------
   function resizeAllCanvases() {
     const rect = wrap.getBoundingClientRect();
     dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -428,27 +578,34 @@
       layer.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       layer.ctx.lineCap = 'round';
       layer.ctx.lineJoin = 'round';
+      layer.ctx.imageSmoothingEnabled = false; // アンチエイリアスの影響を可能な範囲で抑える
 
       if (prev.width > 0) {
         layer.ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
       }
     });
   }
-  // ---------- ストローク描画: レイヤーへ直接描いてリアルタイムに見えるようにする ----------
+
+  // ---------- 座標変換: 画面座標 → ズーム/パンを考慮したキャンバス座標 ----------
   function getPos(e) {
     const rect = wrap.getBoundingClientRect();
     const t = e.touches ? e.touches[0] : e;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top, t: Date.now() };
+    const screenX = t.clientX - rect.left;
+    const screenY = t.clientY - rect.top;
+    const z = zoomLevel();
+    // stageには transform: translate(panX,panY) scale(z) がかかっているので、
+    // 逆変換でキャンバス座標(ズーム前と同じ座標系)に戻す
+    return { x: (screenX - panX) / z, y: (screenY - panY) / z, t: Date.now() };
   }
 
   function strokeWidthFor() {
     const base = Number(sizeSlider.value);
-    if (currentTool === 'marker') return base * PEN_STYLES.marker.widthMul;
+    if (currentTool === 'marker') return Math.max(1, base * PEN_STYLES.marker.widthMul);
     if (currentTool === 'pencil') {
-      // 数ピクセル程度ランダムに太さを揺らして、ボコボコした鉛筆線にする
-      const jitter = Math.min(6, Math.max(1.5, base * 0.25));
-      const w = base * PENCIL_BASE_MUL + (Math.random() - 0.5) * jitter * 2;
-      return Math.max(1, w);
+      // ストローク内でごくわずかに太さを揺らす(数px以内、ほぼ一定)
+      const jitter = clampNum(base * 0.08, 0.15, 0.8);
+      const w = base + (Math.random() - 0.5) * 2 * jitter;
+      return Math.max(1, Math.round(w)); // 最小1px
     }
     return base;
   }
@@ -553,8 +710,17 @@
     img.src = dataUrl;
   }
 
+  // ---------- 描画 / パン ----------
   function start(e) {
     e.preventDefault();
+    const t = e.touches ? e.touches[0] : e;
+
+    if (currentTool === 'pan') {
+      panStart = { x: t.clientX, y: t.clientY, panX, panY };
+      drawing = true;
+      return;
+    }
+
     const layer = activeLayer();
     const p = getPos(e);
 
@@ -574,19 +740,14 @@
     if (currentTool === 'eraser') {
       layer.ctx.save();
       layer.ctx.globalCompositeOperation = 'destination-out';
-      layer.ctx.lineWidth = Number(sizeSlider.value) * 1.4;
       layer.ctx.beginPath();
-      layer.ctx.moveTo(p.x, p.y);
-      layer.ctx.lineTo(p.x + 0.01, p.y + 0.01);
-      layer.ctx.stroke();
+      layer.ctx.arc(snap(p.x), snap(p.y), (Number(sizeSlider.value) * 1.4) / 2, 0, Math.PI * 2);
+      layer.ctx.fill();
       layer.ctx.restore();
     } else {
       layer.ctx.save();
-      if (currentTool === 'pencil') {
-        layer.ctx.globalAlpha = 0.82 + Math.random() * 0.18;
-      }
       layer.ctx.beginPath();
-      layer.ctx.arc(p.x, p.y, strokeWidthFor() / 2, 0, Math.PI * 2);
+      layer.ctx.arc(snap(p.x), snap(p.y), strokeWidthFor() / 2, 0, Math.PI * 2);
       layer.ctx.fillStyle = currentColor;
       layer.ctx.fill();
       layer.ctx.restore();
@@ -594,6 +755,15 @@
   }
 
   function move(e) {
+    if (currentTool === 'pan') {
+      if (!drawing || !panStart) return;
+      e.preventDefault();
+      const t = e.touches ? e.touches[0] : e;
+      panX = panStart.panX + (t.clientX - panStart.x);
+      panY = panStart.panY + (t.clientY - panStart.y);
+      applyZoom();
+      return;
+    }
     if (currentTool === 'bucket') return; // バケツはタップのみ、ドラッグでは何もしない
     if (!drawing) return;
     e.preventDefault();
@@ -607,36 +777,31 @@
     smoothPoint.x += (p.x - smoothPoint.x) * factor;
     smoothPoint.y += (p.y - smoothPoint.y) * factor;
 
-    let toX = smoothPoint.x;
-    let toY = smoothPoint.y;
     if (currentTool === 'pencil') {
       // ほんの少し位置も揺らして手描きのザラつきを足す(次のセグメントにも引き継ぐ)
       smoothPoint.x += (Math.random() - 0.5) * 1.2;
       smoothPoint.y += (Math.random() - 0.5) * 1.2;
-      toX = smoothPoint.x;
-      toY = smoothPoint.y;
     }
 
     const layer = activeLayer();
+    const fromX = snap(prevSmooth.x), fromY = snap(prevSmooth.y);
+    const toX = snap(smoothPoint.x), toY = snap(smoothPoint.y);
 
     if (currentTool === 'eraser') {
       layer.ctx.save();
       layer.ctx.globalCompositeOperation = 'destination-out';
       layer.ctx.lineWidth = Number(sizeSlider.value) * 1.4;
       layer.ctx.beginPath();
-      layer.ctx.moveTo(prevSmooth.x, prevSmooth.y);
-      layer.ctx.lineTo(smoothPoint.x, smoothPoint.y);
+      layer.ctx.moveTo(fromX, fromY);
+      layer.ctx.lineTo(toX, toY);
       layer.ctx.stroke();
       layer.ctx.restore();
     } else {
       layer.ctx.save();
-      if (currentTool === 'pencil') {
-        layer.ctx.globalAlpha = 0.82 + Math.random() * 0.18;
-      }
       layer.ctx.strokeStyle = currentColor;
       layer.ctx.lineWidth = strokeWidthFor();
       layer.ctx.beginPath();
-      layer.ctx.moveTo(prevSmooth.x, prevSmooth.y);
+      layer.ctx.moveTo(fromX, fromY);
       layer.ctx.lineTo(toX, toY);
       layer.ctx.stroke();
       layer.ctx.restore();
@@ -645,6 +810,7 @@
 
   function end() {
     drawing = false;
+    panStart = null;
   }
 
   wrap.addEventListener('mousedown', start);
@@ -690,6 +856,7 @@
     out.width = rect.width * dpr;
     out.height = rect.height * dpr;
     const octx = out.getContext('2d');
+    octx.imageSmoothingEnabled = false;
     octx.fillStyle = '#ffffff';
     octx.fillRect(0, 0, out.width, out.height);
     layers.forEach(layer => {
@@ -758,6 +925,7 @@
   resizeAllCanvases();
   applyMode();
   applySmoothingLabel();
+  applyZoom();
   setTool('pencil');
 })();
 </script>
