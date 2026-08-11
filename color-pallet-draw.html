@@ -21,6 +21,7 @@
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
     overscroll-behavior: none;
+    touch-action: manipulation; /* ダブルタップでのページズームを抑止 */
   }
   body {
     display: flex;
@@ -52,12 +53,13 @@
   }
   #save:active { background: var(--panel-2); }
 
+  /* キャンバス外はグレー、キャンバス自体(#paper)は白 */
   #canvas-wrap {
     flex: 1;
     margin: 4px 12px;
     border-radius: 18px;
     overflow: hidden;
-    background: #ffffff;
+    background: #4a4a52;
     box-shadow: 0 0 0 1px #33333a;
     position: relative;
     touch-action: none;
@@ -68,6 +70,14 @@
     width: 100%;
     height: 100%;
     transform-origin: 0 0;
+  }
+  #paper {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    z-index: -1;
   }
   #stage canvas {
     position: absolute;
@@ -122,30 +132,7 @@
     background: var(--ink);
     color: #16161a;
   }
-
-  .layer-tab {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    width: 30px;
-    height: 34px;
-    border-radius: 10px;
-    cursor: pointer;
-  }
-  .layer-tab.active { background: var(--ink); color: #16161a; }
-  .eye-btn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 13px;
-    width: 26px;
-    height: 34px;
-    cursor: pointer;
-    padding: 0;
-  }
-  .eye-btn.off { opacity: 0.35; }
+  .icon-btn.off { opacity: 0.35; }
 
   .pen-btn {
     font-size: 12px;
@@ -212,11 +199,75 @@
     min-width: 90px;
   }
   .size-wrap span { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  #size-value {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink) !important;
+    min-width: 34px;
+    text-align: right;
+  }
   input[type="range"] {
     flex: 1;
     accent-color: var(--ink);
     min-width: 40px;
   }
+
+  /* ---------- 汎用ポップアップ(レイヤー/設定/色相環で共用) ---------- */
+  .popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup-panel {
+    background: var(--panel);
+    width: 100%;
+    max-width: 420px;
+    border-radius: 20px 20px 0 0;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+  .popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .popup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 2px;
+    border-bottom: 1px solid var(--panel-2);
+  }
+  .popup-row:last-child { border-bottom: none; }
+  .popup-row-label {
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    flex: 1;
+  }
+  .popup-row-label.active { background: var(--panel-2); }
+  .popup-slider-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 2px; border-bottom: 1px solid var(--panel-2); }
+  .popup-slider-row:last-child { border-bottom: none; }
+  .popup-slider-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .popup-slider-row input[type="range"] { width: 100%; }
+  .popup-hsl-info { font-size: 12px; color: var(--ink); line-height: 1.8; }
+  .wheel-canvas, .sl-canvas { border-radius: 12px; display: block; margin: 0 auto 10px; }
+  .colorwheel-flex { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 </style>
 </head>
 <body>
@@ -226,12 +277,14 @@
   <button id="save" title="保存">💾</button>
 </header>
 
-<div id="canvas-wrap"><div id="stage"></div></div>
+<div id="canvas-wrap"><div id="stage"><div id="paper"></div></div></div>
 
 <div id="dock">
 
   <div class="row">
-    <div class="group" id="layers"></div>
+    <div class="group">
+      <button class="icon-btn" id="layers-btn" title="レイヤー">📑</button>
+    </div>
     <div class="group">
       <button class="icon-btn" id="undo" title="戻す">↺</button>
       <button class="icon-btn" id="redo" title="進む">↻</button>
@@ -242,6 +295,9 @@
       <span class="zoom-label" id="zoom-label">100%</span>
       <button class="icon-btn" id="zoom-in" title="拡大">＋</button>
       <button class="icon-btn" id="zoom-reset" title="表示をリセット">⟲</button>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="settings-btn" title="詳細設定">⚙️</button>
     </div>
   </div>
 
@@ -261,6 +317,7 @@
     </select>
     <button class="icon-btn" id="shuffle" title="パレットを生成">🎲</button>
     <button class="icon-btn pen-btn" id="default-toggle" title="定番パレット">定番</button>
+    <button class="icon-btn" id="colorwheel-btn" title="色相環で確認">🎨</button>
   </div>
   <div class="row">
     <div class="swatches" id="swatches"></div>
@@ -277,6 +334,7 @@
     <div class="size-wrap">
       <span>太さ</span>
       <input type="range" id="size" min="1" max="50" value="10">
+      <span id="size-value">10px</span>
     </div>
     <button class="icon-btn pen-btn" id="smoothing-btn"></button>
   </div>
@@ -287,13 +345,14 @@
 (function(){
   const wrap = document.getElementById('canvas-wrap');
   const stage = document.getElementById('stage');
-  const layersDock = document.getElementById('layers');
   const swatchWrap = document.getElementById('swatches');
   const sizeSlider = document.getElementById('size');
+  const sizeValueLabel = document.getElementById('size-value');
   const shuffleBtn = document.getElementById('shuffle');
   const colorTypeSelect = document.getElementById('color-type-select');
   const hueTypeSelect = document.getElementById('hue-type-select');
   const defaultToggleBtn = document.getElementById('default-toggle');
+  const colorwheelBtn = document.getElementById('colorwheel-btn');
   const modeLabel = document.getElementById('mode-label');
   const saveBtn = document.getElementById('save');
   const undoBtn = document.getElementById('undo');
@@ -308,15 +367,18 @@
   const zoomOutBtn = document.getElementById('zoom-out');
   const zoomResetBtn = document.getElementById('zoom-reset');
   const zoomLabel = document.getElementById('zoom-label');
+  const layersBtn = document.getElementById('layers-btn');
+  const settingsBtn = document.getElementById('settings-btn');
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let currentColor = null;
+  let currentPaletteColors = [];
   let currentTool = 'pencil'; // 'pencil' | 'marker' | 'eraser' | 'bucket' | 'pan'
   let drawing = false;
   let lastTime = 0;
   let rawPoint = null;    // 生の指の位置(キャンバス座標系)
   let smoothPoint = null; // 補正後の描画位置(キャンバス座標系)
-  let panStart = null;    // パン開始時の情報
+  let panStart = null;    // 単指パンツール用の開始情報
 
   // 手ぶれ補正: 大きいほど生の位置に近い(遅延が少ない) = 補正弱い
   const SMOOTHING_LEVELS = [
@@ -333,30 +395,41 @@
   function clampNum(v, min, max) { return Math.min(max, Math.max(min, v)); }
   function snap(v) { return Math.round(v); } // アンチエイリアス低減のため整数pxへスナップ
 
-  // ---------- ズーム / パン(表示倍率のみを変更し、キャンバス解像度は変えない) ----------
-  const ZOOM_LEVELS = [1, 2, 4, 8];
-  let zoomIndex = 0;
+  // ========================================================================
+  // ズーム / パン
+  // 表示倍率(CSS transform)のみを変更し、キャンバスの実解像度は変えない。
+  // 1本指=描画 / 2本指ドラッグ=パン / 2本指ピンチ=ズーム、を想定。
+  // ========================================================================
+  const ZOOM_MIN = 1, ZOOM_MAX = 8;
+  let zoom = 1;
   let panX = 0, panY = 0;
 
-  function zoomLevel() { return ZOOM_LEVELS[zoomIndex]; }
-
   function applyZoom() {
-    const z = zoomLevel();
-    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${z})`;
-    zoomLabel.textContent = `${z * 100}%`;
+    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
   }
+
+  // キャンバス(#paper/#stage)が完全に画面外へ消えないよう、
+  // 常に一定量(margin)は画面内に残るようパン位置を制限する
+  function clampPan() {
+    const rect = wrap.getBoundingClientRect();
+    const dispW = rect.width * zoom, dispH = rect.height * zoom;
+    const margin = Math.min(80, dispW / 2, dispH / 2);
+    panX = clampNum(panX, margin - dispW, rect.width - margin);
+    panY = clampNum(panY, margin - dispH, rect.height - margin);
+  }
+
   zoomInBtn.addEventListener('click', () => {
-    zoomIndex = Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1);
-    applyZoom();
+    zoom = clampNum(zoom * 1.6, ZOOM_MIN, ZOOM_MAX);
+    clampPan(); applyZoom();
   });
   zoomOutBtn.addEventListener('click', () => {
-    zoomIndex = Math.max(0, zoomIndex - 1);
-    if (zoomIndex === 0) { panX = 0; panY = 0; }
-    applyZoom();
+    zoom = clampNum(zoom / 1.6, ZOOM_MIN, ZOOM_MAX);
+    if (zoom <= ZOOM_MIN) { zoom = ZOOM_MIN; panX = 0; panY = 0; }
+    clampPan(); applyZoom();
   });
   zoomResetBtn.addEventListener('click', () => {
-    zoomIndex = 0; panX = 0; panY = 0;
-    applyZoom();
+    zoom = 1; panX = 0; panY = 0; applyZoom();
   });
 
   // ---------- レイヤー管理 ----------
@@ -384,29 +457,248 @@
 
   function activeLayer() { return layers[activeLayerIndex]; }
 
-  function buildLayerTabs() {
-    layersDock.innerHTML = '';
+  // ========================================================================
+  // 汎用ポップアップ(レイヤー選択・詳細設定・色相環 で共用する土台)
+  // ========================================================================
+  let currentPopup = null;
+  let currentPopupType = null;
+
+  function closePopup() {
+    if (currentPopup) currentPopup.remove();
+    currentPopup = null;
+    currentPopupType = null;
+  }
+
+  function openPopup(type, titleText, buildFn) {
+    closePopup();
+    currentPopupType = type;
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePopup(); });
+
+    const panel = document.createElement('div');
+    panel.className = 'popup-panel';
+
+    const header = document.createElement('div');
+    header.className = 'popup-header';
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = titleText;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'icon-btn';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', closePopup);
+    header.appendChild(titleSpan);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.id = 'popup-body';
+    buildFn(body);
+
+    panel.appendChild(header);
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    currentPopup = overlay;
+  }
+
+  function refreshPopupIfType(type) {
+    if (currentPopup && currentPopupType === type) {
+      const body = currentPopup.querySelector('#popup-body');
+      body.innerHTML = '';
+      if (type === 'layers') buildLayersPopupContent(body);
+      if (type === 'settings') buildSettingsPopupContent(body);
+      if (type === 'colorwheel') buildColorWheelPopupContent(body);
+    }
+  }
+
+  // ---- レイヤーポップアップ ----
+  function buildLayersPopupContent(container) {
     layers.forEach((layer, i) => {
-      const tab = document.createElement('button');
-      tab.className = 'layer-tab' + (i === activeLayerIndex ? ' active' : '');
-      tab.textContent = (i + 1);
-      tab.addEventListener('click', () => {
+      const row = document.createElement('div');
+      row.className = 'popup-row';
+      const label = document.createElement('button');
+      label.className = 'popup-row-label' + (i === activeLayerIndex ? ' active' : '');
+      label.textContent = `レイヤー ${i + 1}`;
+      label.addEventListener('click', () => {
         activeLayerIndex = i;
-        buildLayerTabs();
+        refreshPopupIfType('layers');
       });
       const eye = document.createElement('button');
-      eye.className = 'eye-btn' + (layer.visible ? '' : ' off');
+      eye.className = 'icon-btn' + (layer.visible ? '' : ' off');
       eye.textContent = layer.visible ? '👁' : '🚫';
       eye.addEventListener('click', (e) => {
         e.stopPropagation();
         layer.visible = !layer.visible;
         layer.canvas.style.opacity = layer.visible ? '1' : '0';
-        buildLayerTabs();
+        refreshPopupIfType('layers');
       });
-      layersDock.appendChild(tab);
-      layersDock.appendChild(eye);
+      row.appendChild(label);
+      row.appendChild(eye);
+      container.appendChild(row);
     });
   }
+  layersBtn.addEventListener('click', () => openPopup('layers', 'レイヤー', buildLayersPopupContent));
+
+  // ---- 詳細設定ポップアップ(今後の設定項目もここに追加していく) ----
+  let matchLightness = false; // 「明度を揃える」: ONなら全色で明度を完全一致させる
+  // 色相のランダム変動量(初期値は改修前の実装値をそのまま踏襲)
+  const hueJitterSettings = { square: 20, triangle: 20, complement: 15, broom: 10 };
+
+  function buildSettingsPopupContent(container) {
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'popup-row';
+    const toggleLabel = document.createElement('span');
+    toggleLabel.textContent = '明度を揃える';
+    toggleLabel.style.fontSize = '13px';
+    toggleLabel.style.fontWeight = '600';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'icon-btn pen-btn' + (matchLightness ? ' active' : '');
+    toggleBtn.textContent = matchLightness ? 'ON' : 'OFF';
+    toggleBtn.addEventListener('click', () => {
+      matchLightness = !matchLightness;
+      refreshPopupIfType('settings');
+    });
+    toggleRow.appendChild(toggleLabel);
+    toggleRow.appendChild(toggleBtn);
+    container.appendChild(toggleRow);
+
+    [['square', '四角'], ['triangle', '三角'], ['complement', '補色'], ['broom', 'ほうき']].forEach(([key, label]) => {
+      const row = document.createElement('div');
+      row.className = 'popup-slider-row';
+      const head = document.createElement('div');
+      head.className = 'popup-slider-head';
+      head.innerHTML = `<span>${label}の色相ランダム幅</span><span>±${hueJitterSettings[key]}°</span>`;
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '5';
+      slider.max = '45';
+      slider.value = String(hueJitterSettings[key]);
+      slider.addEventListener('input', () => {
+        hueJitterSettings[key] = Number(slider.value);
+        head.querySelector('span:last-child').textContent = `±${slider.value}°`;
+      });
+      row.appendChild(head);
+      row.appendChild(slider);
+      container.appendChild(row);
+    });
+  }
+  settingsBtn.addEventListener('click', () => openPopup('settings', '詳細設定', buildSettingsPopupContent));
+
+  // ---- 色相環 / S・Lグラデーション ポップアップ ----
+  function parseColorToHSL(str) {
+    if (str.startsWith('#')) return hexToHsl(str);
+    const m = str.match(/hsl\(([-\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)/);
+    if (m) return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) };
+    return { h: 0, s: 0, l: 50 };
+  }
+  function hexToHsl(hex) {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0; const l = (max + min) / 2;
+    const d = max - min;
+    if (d !== 0) {
+      s = d / (1 - Math.abs(2 * l - 1));
+      switch (max) {
+        case r: h = ((g - b) / d) % 6; break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h *= 60;
+    }
+    return { h: normHue(h), s: s * 100, l: l * 100 };
+  }
+  function hslToRgb(h, s, l) {
+    h = normHue(h); s /= 100; l /= 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r1, g1, b1;
+    if (h < 60) [r1, g1, b1] = [c, x, 0];
+    else if (h < 120) [r1, g1, b1] = [x, c, 0];
+    else if (h < 180) [r1, g1, b1] = [0, c, x];
+    else if (h < 240) [r1, g1, b1] = [0, x, c];
+    else if (h < 300) [r1, g1, b1] = [x, 0, c];
+    else [r1, g1, b1] = [c, 0, x];
+    return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)];
+  }
+
+  function drawHueWheel(canvas, colors, selected) {
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width, cx = size / 2, cy = size / 2;
+    const outerR = size / 2 - 4, innerR = outerR - 16;
+    ctx.clearRect(0, 0, size, size);
+    for (let a = 0; a < 360; a++) {
+      ctx.beginPath();
+      ctx.strokeStyle = `hsl(${a},75%,55%)`;
+      ctx.lineWidth = outerR - innerR;
+      ctx.arc(cx, cy, (outerR + innerR) / 2, (a - 0.6) * Math.PI / 180, (a + 0.6) * Math.PI / 180);
+      ctx.stroke();
+    }
+    colors.forEach((c) => {
+      const { h } = parseColorToHSL(c);
+      const rad = (h - 90) * Math.PI / 180;
+      const r = (outerR + innerR) / 2;
+      const mx = cx + Math.cos(rad) * r, my = cy + Math.sin(rad) * r;
+      const isSelected = c === selected;
+      ctx.beginPath();
+      ctx.arc(mx, my, isSelected ? 8 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = c;
+      ctx.fill();
+      ctx.lineWidth = isSelected ? 3 : 1.5;
+      ctx.strokeStyle = isSelected ? '#ffffff' : '#00000080';
+      ctx.stroke();
+    });
+  }
+
+  function drawSLGradient(canvas, h, s, l) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, hgt = canvas.height;
+    const imgData = ctx.createImageData(w, hgt);
+    for (let y = 0; y < hgt; y++) {
+      const L = 100 - (y / (hgt - 1)) * 100;
+      for (let x = 0; x < w; x++) {
+        const S = (x / (w - 1)) * 100;
+        const [r, g, b] = hslToRgb(h, S, L);
+        const idx = (y * w + x) * 4;
+        imgData.data[idx] = r; imgData.data[idx + 1] = g; imgData.data[idx + 2] = b; imgData.data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const mx = (s / 100) * (w - 1), my = (1 - l / 100) * (hgt - 1);
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  function buildColorWheelPopupContent(container) {
+    const hsl = parseColorToHSL(currentColor || '#000000');
+    const flex = document.createElement('div');
+    flex.className = 'colorwheel-flex';
+
+    const wheelCanvas = document.createElement('canvas');
+    wheelCanvas.width = 170; wheelCanvas.height = 170;
+    wheelCanvas.className = 'wheel-canvas';
+
+    const slCanvas = document.createElement('canvas');
+    slCanvas.width = 170; slCanvas.height = 130;
+    slCanvas.className = 'sl-canvas';
+
+    flex.appendChild(wheelCanvas);
+    flex.appendChild(slCanvas);
+    container.appendChild(flex);
+
+    const info = document.createElement('div');
+    info.className = 'popup-hsl-info';
+    info.innerHTML = `選択中の色<br>H: ${Math.round(hsl.h)}°　S: ${Math.round(hsl.s)}%　L: ${Math.round(hsl.l)}%`;
+    container.appendChild(info);
+
+    drawHueWheel(wheelCanvas, currentPaletteColors, currentColor);
+    drawSLGradient(slCanvas, hsl.h, hsl.s, hsl.l);
+  }
+  colorwheelBtn.addEventListener('click', () => openPopup('colorwheel', '色相環 / 選択色', buildColorWheelPopupContent));
 
   // ========================================================================
   // カラーパレット生成
@@ -422,56 +714,72 @@
     return `hsl(${normHue(h).toFixed(1)}, ${clampNum(s, 0, 100).toFixed(0)}%, ${clampNum(l, 0, 100).toFixed(0)}%)`;
   }
 
-  function randomCount() { return 2 + Math.floor(Math.random() * 7); } // 2〜8色 (「全色」等の可変色数モードで使用)
-
   // ---- 「色の種類」: 彩度・明度の範囲を決定 ----
+  // ※パステルの s/l レンジは手動調整済みのため変更しない
   const COLOR_TYPES = {
     full:   { label: '全色',       s: [20, 100], l: [15, 85] },
     vivid:  { label: 'ビビット',   s: [70, 100], l: [40, 70] },
     muted:  { label: 'くすみ',     s: [20, 60],  l: [40, 75] },
-    pastel: { label: 'パステル',   s: [45, 80],  l: [65, 85] },
+    pastel: { label: 'パステル',   s: [20, 55],  l: [80, 100] },
   };
 
   // ---- 「色相の選択」: 色相環上の関係と色数を決定 ----
+  // ランダム幅は hueJitterSettings を見て都度参照する(設定パネルから変更可能)
   const HUE_TYPES = {
     square: {
       label: '四角(4色)', count: 4,
-      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 90 + pm(rnd(5, 20)), H1 + 180 + pm(rnd(5, 20)), H1 + 270 + pm(rnd(5, 20))]; },
+      gen: () => {
+        const d = hueJitterSettings.square;
+        const H1 = rnd(0, 360);
+        return [H1, H1 + 90 + pm(rnd(5, d)), H1 + 180 + pm(rnd(5, d)), H1 + 270 + pm(rnd(5, d))];
+      },
     },
     triangle: {
       label: '三角(3色)', count: 3,
-      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 120 + pm(rnd(5, 20)), H1 + 240 + pm(rnd(5, 20))]; },
+      gen: () => {
+        const d = hueJitterSettings.triangle;
+        const H1 = rnd(0, 360);
+        return [H1, H1 + 120 + pm(rnd(5, d)), H1 + 240 + pm(rnd(5, d))];
+      },
     },
     complement: {
       label: '補色(2色)', count: 2,
-      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 180 + pm(rnd(5, 15))]; },
+      gen: () => {
+        const d = hueJitterSettings.complement;
+        const H1 = rnd(0, 360);
+        return [H1, H1 + 180 + pm(rnd(5, d))];
+      },
     },
     broom: {
       label: 'ほうき(4色)', count: 4,
       gen: () => {
+        const d = hueJitterSettings.broom;
         const H1 = rnd(0, 360), A = rnd(20, 60);
-        return [H1, H1 + 180, H1 + A + pm(rnd(5, 10)), H1 - A + pm(rnd(5, 10))];
+        return [H1, H1 + 180, H1 + A + pm(rnd(5, d)), H1 - A + pm(rnd(5, d))];
       },
     },
     random: {
       label: 'ランダム(4色)', count: 4,
-      gen: () => [rnd(0, 360), rnd(0, 360), rnd(0, 360), rnd(0, 360)],
+      gen: () => [rnd(0, 360), rnd(0, 360), rnd(0, 360), rnd(0, 360)], // 色相関係を持たせない。ランダム幅設定の対象外
     },
   };
 
   // ---- 2軸を組み合わせて最終パレットを生成 ----
   // 色の種類 → 彩度・明度の範囲 / 色相の選択 → 色相環上の関係、を独立に決定する
+  // 明度(L)は「明度を揃える」がOFFなら色ごとに独立してレンジ全体からランダム、
+  // ONならパレット全体で1回だけ決定して全色に適用する。
+  // 彩度(S)は既存仕様どおり、ベース値を1回決め各色に±10のジッターを乗せる。
   function generatePalette(colorTypeKey, hueTypeKey) {
     const ct = COLOR_TYPES[colorTypeKey];
     const ht = HUE_TYPES[hueTypeKey];
     const hues = ht.gen();
     const baseS = rnd(ct.s[0], ct.s[1]);
-    const baseL = rnd(ct.l[0], ct.l[1]);
-    return hues.map(H => hslColor(
-      H,
-      clampNum(baseS + pm(rnd(0, 10)), ct.s[0], ct.s[1]),
-      clampNum(baseL + pm(rnd(0, 10)), ct.l[0], ct.l[1])
-    ));
+    const sharedL = matchLightness ? rnd(ct.l[0], ct.l[1]) : null;
+    return hues.map(H => {
+      const S = clampNum(baseS + pm(rnd(0, 10)), ct.s[0], ct.s[1]);
+      const L = matchLightness ? sharedL : rnd(ct.l[0], ct.l[1]);
+      return hslColor(H, S, L);
+    });
   }
 
   // 定番パレット(固定色。既存機能をそのまま維持)
@@ -482,6 +790,7 @@
   ];
 
   function buildSwatches(colors) {
+    currentPaletteColors = colors;
     swatchWrap.innerHTML = '';
     colors.forEach((c) => {
       const b = document.createElement('button');
@@ -552,6 +861,10 @@
     applySmoothingLabel();
   });
 
+  sizeSlider.addEventListener('input', () => {
+    sizeValueLabel.textContent = `${sizeSlider.value}px`;
+  });
+
   // ---------- キャンバスサイズ(解像度はズームに関係なくwrapの実サイズに固定) ----------
   function resizeAllCanvases() {
     const rect = wrap.getBoundingClientRect();
@@ -574,6 +887,8 @@
         layer.ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
       }
     });
+    clampPan();
+    applyZoom();
   }
 
   // ---------- 座標変換: 画面座標 → ズーム/パンを考慮したキャンバス座標 ----------
@@ -582,10 +897,9 @@
     const t = e.touches ? e.touches[0] : e;
     const screenX = t.clientX - rect.left;
     const screenY = t.clientY - rect.top;
-    const z = zoomLevel();
-    // stageには transform: translate(panX,panY) scale(z) がかかっているので、
+    // stageには transform: translate(panX,panY) scale(zoom) がかかっているので、
     // 逆変換でキャンバス座標(ズーム前と同じ座標系)に戻す
-    return { x: (screenX - panX) / z, y: (screenY - panY) / z, t: Date.now() };
+    return { x: (screenX - panX) / zoom, y: (screenY - panY) / zoom, t: Date.now() };
   }
 
   function strokeWidthFor() {
@@ -631,7 +945,6 @@
     const startIdx = (py * w + px) * 4;
     const target = [data[startIdx], data[startIdx + 1], data[startIdx + 2], data[startIdx + 3]];
 
-    // 既に塗りたい色とほぼ同じ場所ならなにもしない
     if (Math.abs(target[0] - fillColor[0]) <= 4 &&
         Math.abs(target[1] - fillColor[1]) <= 4 &&
         Math.abs(target[2] - fillColor[2]) <= 4 &&
@@ -655,7 +968,6 @@
       data[idx + 3] = fillColor[3];
     }
 
-    // スキャンライン方式のフラッドフィル(素朴な1px単位より高速)
     const stack = [[px, py]];
     while (stack.length) {
       const [cx, cy] = stack.pop();
@@ -700,7 +1012,7 @@
     img.src = dataUrl;
   }
 
-  // ---------- 描画 / パン ----------
+  // ---------- 描画 / 単指パン(ツール選択時) ----------
   function start(e) {
     e.preventDefault();
     const t = e.touches ? e.touches[0] : e;
@@ -751,24 +1063,23 @@
       const t = e.touches ? e.touches[0] : e;
       panX = panStart.panX + (t.clientX - panStart.x);
       panY = panStart.panY + (t.clientY - panStart.y);
+      clampPan();
       applyZoom();
       return;
     }
-    if (currentTool === 'bucket') return; // バケツはタップのみ、ドラッグでは何もしない
+    if (currentTool === 'bucket') return; // バケツはタップのみ
     if (!drawing) return;
     e.preventDefault();
     const p = getPos(e);
     const dt = Math.max(1, p.t - lastTime);
     lastTime = p.t;
 
-    // 指数移動平均(EMA)で補正: factorが大きいほど生の位置に近く遅延が少ない
     const factor = SMOOTHING_LEVELS[smoothingIndex].factor;
     const prevSmooth = { x: smoothPoint.x, y: smoothPoint.y };
     smoothPoint.x += (p.x - smoothPoint.x) * factor;
     smoothPoint.y += (p.y - smoothPoint.y) * factor;
 
     if (currentTool === 'pencil') {
-      // ほんの少し位置も揺らして手描きのザラつきを足す(次のセグメントにも引き継ぐ)
       smoothPoint.x += (Math.random() - 0.5) * 1.2;
       smoothPoint.y += (Math.random() - 0.5) * 1.2;
     }
@@ -803,13 +1114,101 @@
     panStart = null;
   }
 
+  // 描画中に(実際に何か描く前の)ストロークが2本指操作へ切り替わった場合、
+  // start()で積んだ履歴を巻き戻して「うっかり点が残る」のを防ぐ
+  function cancelActiveStroke() {
+    if (!drawing || currentTool === 'pan') { drawing = false; panStart = null; return; }
+    const layer = activeLayer();
+    if (layer.undoStack.length) {
+      const snapshot = layer.undoStack.pop();
+      restoreFromDataURL(layer, snapshot);
+    }
+    drawing = false;
+  }
+
+  // ---------- マウス(デスクトップ用、単指相当) ----------
   wrap.addEventListener('mousedown', start);
   wrap.addEventListener('mousemove', move);
   window.addEventListener('mouseup', end);
-  wrap.addEventListener('touchstart', start, { passive: false });
-  wrap.addEventListener('touchmove', move, { passive: false });
-  wrap.addEventListener('touchend', end);
-  wrap.addEventListener('touchcancel', end);
+
+  // ========================================================================
+  // タッチ: 1本指=描画 / 2本指=パン+ピンチズーム(同時対応)
+  // ========================================================================
+  const touchPoints = new Map(); // identifier -> {x,y}
+  let gestureMode = null; // null | 'draw' | 'pinch'
+  let pinchState = null;
+
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+  function onTouchStart(e) {
+    for (const t of e.changedTouches) touchPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+
+    if (touchPoints.size === 1 && gestureMode === null) {
+      e.preventDefault();
+      gestureMode = 'draw';
+      start(e);
+    } else if (touchPoints.size === 2) {
+      e.preventDefault();
+      if (gestureMode === 'draw') cancelActiveStroke();
+      gestureMode = 'pinch';
+      const pts = [...touchPoints.values()];
+      pinchState = {
+        startDist: dist(pts[0], pts[1]),
+        startZoom: zoom,
+        startMid: mid(pts[0], pts[1]),
+        startPanX: panX,
+        startPanY: panY,
+      };
+    } else if (touchPoints.size > 2) {
+      e.preventDefault(); // 3本目以降は無視(既存の2本指ジェスチャーを継続)
+    }
+  }
+
+  function onTouchMove(e) {
+    for (const t of e.changedTouches) if (touchPoints.has(t.identifier)) touchPoints.set(t.identifier, { x: t.clientX, y: t.clientY });
+
+    if (gestureMode === 'draw' && touchPoints.size === 1) {
+      e.preventDefault();
+      move(e);
+    } else if (gestureMode === 'pinch' && touchPoints.size >= 2 && pinchState) {
+      e.preventDefault();
+      const pts = [...touchPoints.values()].slice(0, 2);
+      const newDist = dist(pts[0], pts[1]);
+      const newMid = mid(pts[0], pts[1]);
+      const ratio = newDist / Math.max(1, pinchState.startDist);
+      zoom = clampNum(pinchState.startZoom * ratio, ZOOM_MIN, ZOOM_MAX);
+
+      const rect = wrap.getBoundingClientRect();
+      const anchorX = pinchState.startMid.x - rect.left;
+      const anchorY = pinchState.startMid.y - rect.top;
+      // ピンチ開始点(アンカー)のステージ座標を維持しつつ、中点の移動量をパンとして反映する
+      const stageLocalX = (anchorX - pinchState.startPanX) / pinchState.startZoom;
+      const stageLocalY = (anchorY - pinchState.startPanY) / pinchState.startZoom;
+      const newAnchorX = newMid.x - rect.left;
+      const newAnchorY = newMid.y - rect.top;
+      panX = newAnchorX - stageLocalX * zoom;
+      panY = newAnchorY - stageLocalY * zoom;
+      clampPan();
+      applyZoom();
+    }
+  }
+
+  function onTouchEnd(e) {
+    for (const t of e.changedTouches) touchPoints.delete(t.identifier);
+
+    if (gestureMode === 'draw') {
+      end();
+    } else if (gestureMode === 'pinch' && touchPoints.size < 2) {
+      pinchState = null;
+    }
+    if (touchPoints.size === 0) { gestureMode = null; pinchState = null; }
+  }
+
+  wrap.addEventListener('touchstart', onTouchStart, { passive: false });
+  wrap.addEventListener('touchmove', onTouchMove, { passive: false });
+  wrap.addEventListener('touchend', onTouchEnd, { passive: false });
+  wrap.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
   // ---------- Undo / Redo / Clear ----------
   undoBtn.addEventListener('click', () => {
@@ -836,10 +1235,6 @@
   });
 
   // ---------- 保存 ----------
-  // iOS Safari は <a download> を無視するため、
-  // 1) Web Share API (ファイル共有) → 「画像を保存」で写真アプリに保存できる
-  // 2) だめな場合は新しいタブで画像を開き、長押しで保存してもらう
-  // という順でフォールバックする
   function mergeCanvas() {
     const rect = wrap.getBoundingClientRect();
     const out = document.createElement('canvas');
@@ -871,18 +1266,15 @@
       if (canUseShare) {
         try {
           await navigator.share({ files: [file], title: 'おえかき' });
-          return; // 共有シートから「画像を保存」で写真アプリへ
+          return;
         } catch (err) {
-          if (err && err.name === 'AbortError') return; // ユーザーがキャンセルしただけ
-          // それ以外のエラーは下のフォールバックへ進む
+          if (err && err.name === 'AbortError') return;
         }
       }
 
       if (isIOS) {
-        // iOS Safariは <a download> を無視するため、新しいタブで開いて長押し保存してもらう
         fallbackOpenTab(out);
       } else {
-        // デスクトップ/Androidは通常のダウンロードで問題なし
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -897,7 +1289,7 @@
 
   function fallbackOpenTab(canvasEl) {
     const w = window.open('', '_blank');
-    if (!w) return; // ポップアップブロック時は何もできない
+    if (!w) return;
     const dataUrl = canvasEl.toDataURL('image/png');
     w.document.write(
       `<title>おえかき保存</title>
@@ -911,7 +1303,6 @@
   window.addEventListener('resize', resizeAllCanvases);
 
   // ---------- 初期化 ----------
-  buildLayerTabs();
   resizeAllCanvases();
   applyPalette();
   applySmoothingLabel();
