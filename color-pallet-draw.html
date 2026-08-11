@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>4色おえかき</title>
+<style>
+  :root{
+    --bg: #1b1b1f;
+    --panel: #232329;
+    --ink: #f2f0ea;
+    --muted: #8b8a94;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+  header {
+    padding: 14px 16px 8px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+  h1 span { color: var(--muted); font-weight: 500; }
+  #canvas-wrap {
+    flex: 1;
+    margin: 0 12px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #33333a;
+    position: relative;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  #dock {
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .swatches {
+    display: flex;
+    gap: 8px;
+    background: var(--panel);
+    padding: 6px;
+    border-radius: 16px;
+  }
+  .swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: transform .12s ease;
+  }
+  .swatch.active {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
+  }
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel);
+    padding: 6px 10px;
+    border-radius: 16px;
+    flex: 1;
+  }
+  .tools button {
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .tools button:active { background: #33333a; }
+  input[type="range"] {
+    flex: 1;
+    accent-color: #f2f0ea;
+  }
+  #shuffle {
+    background: var(--panel);
+    border: none;
+    color: var(--ink);
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  #shuffle:active { background: #33333a; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>4色おえかき <span>random palette</span></h1>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="dock">
+  <button id="shuffle" title="パレットを変える">🎲</button>
+  <div class="swatches" id="swatches"></div>
+  <div class="tools">
+    <button id="undo">↺</button>
+    <input type="range" id="size" min="2" max="40" value="8">
+    <button id="clear">🗑</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvas-wrap');
+  const swatchWrap = document.getElementById('swatches');
+  const sizeSlider = document.getElementById('size');
+  const shuffleBtn = document.getElementById('shuffle');
+  const clearBtn = document.getElementById('clear');
+  const undoBtn = document.getElementById('undo');
+
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+  let currentColor = null;
+  let drawing = false;
+  let lastX = 0, lastY = 0;
+  let history = [];
+
+  // --- ランダムパレット生成 ---
+  function randomPalette() {
+    // ランダムだけど破綻しない色相にする: ベース色相をランダムに決めて散らす
+    const baseHue = Math.floor(Math.random() * 360);
+    const hues = [0, 1, 2, 3].map(i => (baseHue + i * (60 + Math.random()*40) + Math.random()*20) % 360);
+    return hues.map((h, i) => {
+      const sat = 55 + Math.random() * 35;
+      const light = i === 3 ? 12 + Math.random()*10 : 40 + Math.random() * 25; // 1色は暗め(線用)にしがち
+      return `hsl(${h.toFixed(0)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%)`;
+    });
+  }
+
+  function buildSwatches(colors) {
+    swatchWrap.innerHTML = '';
+    colors.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.style.background = c;
+      b.style.color = c;
+      b.addEventListener('click', () => selectColor(c, b));
+      swatchWrap.appendChild(b);
+    });
+    selectColor(colors[0], swatchWrap.children[0]);
+  }
+
+  function selectColor(c, btn) {
+    currentColor = c;
+    [...swatchWrap.children].forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function newPalette() {
+    buildSwatches(randomPalette());
+  }
+
+  // --- キャンバスサイズ調整（リサイズ時も絵を保持） ---
+  function resizeCanvas() {
+    const rect = wrap.getBoundingClientRect();
+    const prev = document.createElement('canvas');
+    prev.width = canvas.width;
+    prev.height = canvas.height;
+    prev.getContext('2d').drawImage(canvas, 0, 0);
+
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (prev.width > 0) {
+      ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
+    }
+  }
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+
+  function saveHistory() {
+    history.push(canvas.toDataURL());
+    if (history.length > 20) history.shift();
+  }
+
+  function start(e) {
+    e.preventDefault();
+    drawing = true;
+    saveHistory();
+    const p = getPos(e);
+    lastX = p.x; lastY = p.y;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (sizeSlider.value/2), 0, Math.PI*2);
+    ctx.fillStyle = currentColor;
+    ctx.fill();
+  }
+
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = sizeSlider.value;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  }
+
+  function end() { drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+
+  shuffleBtn.addEventListener('click', newPalette);
+  clearBtn.addEventListener('click', () => {
+    saveHistory();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+  undoBtn.addEventListener('click', () => {
+    if (!history.length) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const rect = wrap.getBoundingClientRect();
+      ctx.drawImage(img, 0, 0, rect.width, rect.height);
+    };
+    img.src = history.pop();
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  resizeCanvas();
+  newPalette();
+})();
+</script>
+
+</body>
+</html>
