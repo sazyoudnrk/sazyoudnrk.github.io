@@ -178,13 +178,19 @@
     box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
   }
 
-  #mode-btn {
-    font-size: 11px;
+  .dropdown {
+    background: var(--panel);
+    color: var(--ink);
+    border: none;
+    border-radius: 14px;
+    padding: 8px 8px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 0 10px;
-    width: auto;
-    white-space: nowrap;
+    -webkit-appearance: none;
+    appearance: none;
+    flex-shrink: 0;
   }
+  .dropdown:disabled { opacity: 0.4; }
 
   .zoom-label {
     font-size: 11px;
@@ -240,8 +246,23 @@
   </div>
 
   <div class="row">
-    <button class="icon-btn pen-btn" id="mode-btn"></button>
-    <button class="icon-btn" id="shuffle" title="パレットを変える">🎲</button>
+    <select class="dropdown" id="color-type-select">
+      <option value="full">全色</option>
+      <option value="vivid">ビビット</option>
+      <option value="muted">くすみ</option>
+      <option value="pastel">パステル</option>
+    </select>
+    <select class="dropdown" id="hue-type-select">
+      <option value="square">四角(4色)</option>
+      <option value="triangle">三角(3色)</option>
+      <option value="complement">補色(2色)</option>
+      <option value="broom">ほうき(4色)</option>
+      <option value="random">ランダム(4色)</option>
+    </select>
+    <button class="icon-btn" id="shuffle" title="パレットを生成">🎲</button>
+    <button class="icon-btn pen-btn" id="default-toggle" title="定番パレット">定番</button>
+  </div>
+  <div class="row">
     <div class="swatches" id="swatches"></div>
   </div>
 
@@ -270,7 +291,9 @@
   const swatchWrap = document.getElementById('swatches');
   const sizeSlider = document.getElementById('size');
   const shuffleBtn = document.getElementById('shuffle');
-  const modeBtn = document.getElementById('mode-btn');
+  const colorTypeSelect = document.getElementById('color-type-select');
+  const hueTypeSelect = document.getElementById('hue-type-select');
+  const defaultToggleBtn = document.getElementById('default-toggle');
   const modeLabel = document.getElementById('mode-label');
   const saveBtn = document.getElementById('save');
   const undoBtn = document.getElementById('undo');
@@ -399,110 +422,64 @@
     return `hsl(${normHue(h).toFixed(1)}, ${clampNum(s, 0, 100).toFixed(0)}%, ${clampNum(l, 0, 100).toFixed(0)}%)`;
   }
 
-  function randomCount() { return 2 + Math.floor(Math.random() * 7); } // 2〜8色
+  function randomCount() { return 2 + Math.floor(Math.random() * 7); } // 2〜8色 (「全色」等の可変色数モードで使用)
 
-  // 1) 完全ランダム: 色相・彩度・明度を独立してランダム生成(2〜8色)
-  function generateRandomPalette() {
-    const n = randomCount();
-    const arr = [];
-    for (let i = 0; i < n; i++) {
-      arr.push(hslColor(rnd(0, 360), rnd(20, 100), rnd(15, 85)));
-    }
-    return arr;
+  // ---- 「色の種類」: 彩度・明度の範囲を決定 ----
+  const COLOR_TYPES = {
+    full:   { label: '全色',       s: [20, 100], l: [15, 85] },
+    vivid:  { label: 'ビビット',   s: [70, 100], l: [40, 70] },
+    muted:  { label: 'くすみ',     s: [20, 60],  l: [40, 75] },
+    pastel: { label: 'パステル',   s: [20, 55],  l: [80, 100] },
+  };
+
+  // ---- 「色相の選択」: 色相環上の関係と色数を決定 ----
+  const HUE_TYPES = {
+    square: {
+      label: '四角(4色)', count: 4,
+      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 90 + pm(rnd(5, 20)), H1 + 180 + pm(rnd(5, 20)), H1 + 270 + pm(rnd(5, 20))]; },
+    },
+    triangle: {
+      label: '三角(3色)', count: 3,
+      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 120 + pm(rnd(5, 20)), H1 + 240 + pm(rnd(5, 20))]; },
+    },
+    complement: {
+      label: '補色(2色)', count: 2,
+      gen: () => { const H1 = rnd(0, 360); return [H1, H1 + 180 + pm(rnd(5, 15))]; },
+    },
+    broom: {
+      label: 'ほうき(4色)', count: 4,
+      gen: () => {
+        const H1 = rnd(0, 360), A = rnd(20, 60);
+        return [H1, H1 + 180, H1 + A + pm(rnd(5, 10)), H1 - A + pm(rnd(5, 10))];
+      },
+    },
+    random: {
+      label: 'ランダム(4色)', count: 4,
+      gen: () => [rnd(0, 360), rnd(0, 360), rnd(0, 360), rnd(0, 360)],
+    },
+  };
+
+  // ---- 2軸を組み合わせて最終パレットを生成 ----
+  // 色の種類 → 彩度・明度の範囲 / 色相の選択 → 色相環上の関係、を独立に決定する
+  function generatePalette(colorTypeKey, hueTypeKey) {
+    const ct = COLOR_TYPES[colorTypeKey];
+    const ht = HUE_TYPES[hueTypeKey];
+    const hues = ht.gen();
+    const baseS = rnd(ct.s[0], ct.s[1]);
+    const baseL = rnd(ct.l[0], ct.l[1]);
+    return hues.map(H => hslColor(
+      H,
+      clampNum(baseS + pm(rnd(0, 10)), ct.s[0], ct.s[1]),
+      clampNum(baseL + pm(rnd(0, 10)), ct.l[0], ct.l[1])
+    ));
   }
 
-  // 2) 線ランダム: 補色関係の2色
-  function generateLinePalette() {
-    const H1 = rnd(0, 360);
-    const H2 = H1 + 180 + pm(rnd(5, 15));
-    const baseS = rnd(40, 85), baseL = rnd(35, 70);
-    return [
-      hslColor(H1, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))),
-      hslColor(H2, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))),
-    ];
-  }
-
-  // 3) 三角ランダム: 120°ずつ離れた3色
-  function generateTrianglePalette() {
-    const H1 = rnd(0, 360);
-    const H2 = H1 + 120 + pm(rnd(5, 20));
-    const H3 = H1 + 240 + pm(rnd(5, 20));
-    const baseS = rnd(45, 90), baseL = rnd(35, 75);
-    return [H1, H2, H3].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
-  }
-
-  // 4) 四角ランダム: 90°ずつ離れた4色
-  function generateSquarePalette() {
-    const H1 = rnd(0, 360);
-    const H2 = H1 + 90 + pm(rnd(5, 20));
-    const H3 = H1 + 180 + pm(rnd(5, 20));
-    const H4 = H1 + 270 + pm(rnd(5, 20));
-    const baseS = rnd(45, 90), baseL = rnd(35, 75);
-    return [H1, H2, H3, H4].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
-  }
-
-  // 5) 箒ランダム: 基準色+補色+基準から±A度の2色(4色固定)
-  function generateBroomPalette() {
-    const H1 = rnd(0, 360);
-    const H2 = H1 + 180;
-    const A = rnd(20, 60);
-    const H3 = H1 + A + pm(rnd(5, 10));
-    const H4 = H1 - A + pm(rnd(5, 10));
-    const baseS = rnd(45, 90), baseL = rnd(35, 75);
-    return [H1, H2, H3, H4].map(H => hslColor(H, baseS + pm(rnd(0, 10)), baseL + pm(rnd(0, 10))));
-  }
-
-  // 6) パステルランダム: 低彩度・高明度(2〜8色)
-  function generatePastelPalette() {
-    const n = randomCount();
-    const arr = [];
-    for (let i = 0; i < n; i++) {
-      arr.push(hslColor(rnd(0, 360), rnd(20, 55), rnd(80, 100)));
-    }
-    return arr;
-  }
-
-  // 7) くすみランダム: 低〜中彩度・中間明度(2〜8色)
-  function generateMutedPalette() {
-    const n = randomCount();
-    const arr = [];
-    for (let i = 0; i < n; i++) {
-      arr.push(hslColor(rnd(0, 360), rnd(20, 60), rnd(40, 75)));
-    }
-    return arr;
-  }
-
-  // 8) 定番パレット(固定色。既存機能をそのまま維持)
+  // 定番パレット(固定色。既存機能をそのまま維持)
   const DEFAULT_PALETTE = [
     '#111111', '#f2f0ea', '#e63946', '#f4a261',
     '#ffd166', '#2a9d8f', '#264653', '#4361ee',
     '#7b2cbf', '#ff70a6', '#8d6a4f', '#adb5bd'
   ];
-
-  const MODES = ['random_full', 'line', 'triangle', 'square', 'broom', 'pastel', 'muted', 'default'];
-  const MODE_LABELS = {
-    random_full: '完全ランダム',
-    line: '線ランダム',
-    triangle: '三角ランダム',
-    square: '四角ランダム',
-    broom: '箒ランダム',
-    pastel: 'パステルランダム',
-    muted: 'くすみランダム',
-    default: '定番パレット',
-  };
-  const MODE_GENERATORS = {
-    random_full: generateRandomPalette,
-    line: generateLinePalette,
-    triangle: generateTrianglePalette,
-    square: generateSquarePalette,
-    broom: generateBroomPalette,
-    pastel: generatePastelPalette,
-    muted: generateMutedPalette,
-    default: () => DEFAULT_PALETTE,
-  };
-  let modeIndex = 0;
-
-  function currentMode() { return MODES[modeIndex]; }
 
   function buildSwatches(colors) {
     swatchWrap.innerHTML = '';
@@ -525,20 +502,33 @@
     if (currentTool === 'eraser') setTool('pencil');
   }
 
-  function applyMode() {
-    const m = currentMode();
-    modeLabel.textContent = MODE_LABELS[m];
-    shuffleBtn.style.display = m === 'default' ? 'none' : 'flex';
-    buildSwatches(MODE_GENERATORS[m]());
+  let useDefaultPalette = false;
+
+  function applyPalette() {
+    if (useDefaultPalette) {
+      modeLabel.textContent = '定番パレット';
+      shuffleBtn.style.display = 'none';
+      colorTypeSelect.disabled = true;
+      hueTypeSelect.disabled = true;
+      buildSwatches(DEFAULT_PALETTE);
+    } else {
+      const colorTypeKey = colorTypeSelect.value;
+      const hueTypeKey = hueTypeSelect.value;
+      modeLabel.textContent = `${COLOR_TYPES[colorTypeKey].label}・${HUE_TYPES[hueTypeKey].label}`;
+      shuffleBtn.style.display = 'flex';
+      colorTypeSelect.disabled = false;
+      hueTypeSelect.disabled = false;
+      buildSwatches(generatePalette(colorTypeKey, hueTypeKey));
+    }
   }
 
-  modeBtn.addEventListener('click', () => {
-    modeIndex = (modeIndex + 1) % MODES.length;
-    applyMode();
-  });
-  shuffleBtn.addEventListener('click', () => {
-    const m = currentMode();
-    if (m !== 'default') buildSwatches(MODE_GENERATORS[m]());
+  colorTypeSelect.addEventListener('change', applyPalette);
+  hueTypeSelect.addEventListener('change', applyPalette);
+  shuffleBtn.addEventListener('click', applyPalette);
+  defaultToggleBtn.addEventListener('click', () => {
+    useDefaultPalette = !useDefaultPalette;
+    defaultToggleBtn.classList.toggle('active', useDefaultPalette);
+    applyPalette();
   });
 
   // ---------- ツール切り替え ----------
@@ -923,7 +913,7 @@
   // ---------- 初期化 ----------
   buildLayerTabs();
   resizeAllCanvases();
-  applyMode();
+  applyPalette();
   applySmoothingLabel();
   applyZoom();
   setTool('pencil');
