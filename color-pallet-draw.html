@@ -226,8 +226,8 @@
     <div class="group">
       <button class="icon-btn pen-btn" data-pen="pencil">鉛筆</button>
       <button class="icon-btn pen-btn" data-pen="marker">マーカー</button>
-      <button class="icon-btn pen-btn" data-pen="brush">筆</button>
       <button class="icon-btn" id="eraser" title="消しゴム">🧽</button>
+      <button class="icon-btn" id="bucket" title="バケツ塗り">🪣</button>
     </div>
     <div class="size-wrap">
       <span>太さ</span>
@@ -252,12 +252,13 @@
   const redoBtn = document.getElementById('redo');
   const clearLayerBtn = document.getElementById('clear-layer');
   const eraserBtn = document.getElementById('eraser');
+  const bucketBtn = document.getElementById('bucket');
   const penBtns = [...document.querySelectorAll('[data-pen]')];
   const smoothingBtn = document.getElementById('smoothing-btn');
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let currentColor = null;
-  let currentTool = 'pencil'; // 'pencil' | 'marker' | 'brush' | 'eraser'
+  let currentTool = 'pencil'; // 'pencil' | 'marker' | 'eraser' | 'bucket'
   let drawing = false;
   let lastTime = 0;
   let rawPoint = null;    // 生の指の位置
@@ -272,10 +273,10 @@
   let smoothingIndex = 1; // デフォルトは「弱」
 
   const PEN_STYLES = {
-    pencil: { opacity: 1, widthMul: 0.5, soft: 0 },
-    marker: { opacity: 1, widthMul: 1.3, soft: 0 },
-    brush:  { opacity: 1, widthMul: 1.0, soft: 0.35 },
+    marker: { widthMul: 1.0 }, // 現行の「鉛筆」相当: くっきり一定の太さの線
   };
+  // 鉛筆はコード側で個別処理する(ストローク内でランダムに太さが変わるボコボコした線)
+  const PENCIL_BASE_MUL = 0.6;
 
   // ---------- レイヤー管理 ----------
   const LAYER_COUNT = 3;
@@ -397,9 +398,11 @@
     currentTool = tool;
     penBtns.forEach(b => b.classList.toggle('active', b.dataset.pen === tool));
     eraserBtn.classList.toggle('active', tool === 'eraser');
+    bucketBtn.classList.toggle('active', tool === 'bucket');
   }
   penBtns.forEach(b => b.addEventListener('click', () => setTool(b.dataset.pen)));
   eraserBtn.addEventListener('click', () => setTool('eraser'));
+  bucketBtn.addEventListener('click', () => setTool('bucket'));
 
   function applySmoothingLabel() {
     smoothingBtn.textContent = SMOOTHING_LEVELS[smoothingIndex].label;
@@ -438,19 +441,103 @@
     return { x: t.clientX - rect.left, y: t.clientY - rect.top, t: Date.now() };
   }
 
-  function strokeWidthFor(dist, dt) {
+  function strokeWidthFor() {
     const base = Number(sizeSlider.value);
-    if (currentTool !== 'brush') return base * (PEN_STYLES[currentTool] ? PEN_STYLES[currentTool].widthMul : 1);
-    // 筆: 速く動かすほど細く、ゆっくりなほど太く
-    const speed = dt > 0 ? dist / dt : 0;
-    const mul = Math.max(0.5, Math.min(1.6, 1.3 - speed * 0.06));
-    return base * mul;
+    if (currentTool === 'marker') return base * PEN_STYLES.marker.widthMul;
+    if (currentTool === 'pencil') {
+      // 数ピクセル程度ランダムに太さを揺らして、ボコボコした鉛筆線にする
+      const jitter = Math.min(6, Math.max(1.5, base * 0.25));
+      const w = base * PENCIL_BASE_MUL + (Math.random() - 0.5) * jitter * 2;
+      return Math.max(1, w);
+    }
+    return base;
   }
 
   function pushHistory(layer) {
     layer.undoStack.push(layer.canvas.toDataURL());
     if (layer.undoStack.length > 20) layer.undoStack.shift();
     layer.redoStack = [];
+  }
+
+  // ---------- バケツ塗り ----------
+  const colorProbe = document.createElement('canvas');
+  colorProbe.width = 1; colorProbe.height = 1;
+  const colorProbeCtx = colorProbe.getContext('2d');
+  function colorToRGBA(str) {
+    colorProbeCtx.clearRect(0, 0, 1, 1);
+    colorProbeCtx.fillStyle = str;
+    colorProbeCtx.fillRect(0, 0, 1, 1);
+    return colorProbeCtx.getImageData(0, 0, 1, 1).data;
+  }
+
+  function floodFillAt(layer, cssX, cssY, fillColorStr) {
+    const canvas = layer.canvas;
+    const w = canvas.width, h = canvas.height;
+    const px = Math.floor(cssX * dpr);
+    const py = Math.floor(cssY * dpr);
+    if (px < 0 || py < 0 || px >= w || py >= h) return;
+
+    const imgData = layer.ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    const fillColor = colorToRGBA(fillColorStr);
+
+    const startIdx = (py * w + px) * 4;
+    const target = [data[startIdx], data[startIdx + 1], data[startIdx + 2], data[startIdx + 3]];
+
+    // 既に塗りたい色とほぼ同じ場所ならなにもしない
+    if (Math.abs(target[0] - fillColor[0]) <= 4 &&
+        Math.abs(target[1] - fillColor[1]) <= 4 &&
+        Math.abs(target[2] - fillColor[2]) <= 4 &&
+        Math.abs(target[3] - fillColor[3]) <= 4) {
+      return;
+    }
+
+    const tolerance = 32;
+    const tol2 = tolerance * tolerance;
+    function matches(idx) {
+      const dr = data[idx] - target[0];
+      const dg = data[idx + 1] - target[1];
+      const db = data[idx + 2] - target[2];
+      const da = data[idx + 3] - target[3];
+      return dr * dr + dg * dg + db * db + da * da <= tol2;
+    }
+    function setPixel(idx) {
+      data[idx] = fillColor[0];
+      data[idx + 1] = fillColor[1];
+      data[idx + 2] = fillColor[2];
+      data[idx + 3] = fillColor[3];
+    }
+
+    // スキャンライン方式のフラッドフィル(素朴な1px単位より高速)
+    const stack = [[px, py]];
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      const rowIdx = cy * w;
+      if (!matches((rowIdx + cx) * 4)) continue;
+
+      let xl = cx;
+      while (xl > 0 && matches((rowIdx + xl - 1) * 4)) xl--;
+      let xr = cx;
+      while (xr < w - 1 && matches((rowIdx + xr + 1) * 4)) xr++;
+
+      for (let i = xl; i <= xr; i++) setPixel((rowIdx + i) * 4);
+
+      [cy - 1, cy + 1].forEach(ny => {
+        if (ny < 0 || ny >= h) return;
+        const nRowIdx = ny * w;
+        let i = xl;
+        while (i <= xr) {
+          if (matches((nRowIdx + i) * 4)) {
+            stack.push([i, ny]);
+            while (i <= xr && matches((nRowIdx + i) * 4)) i++;
+          } else {
+            i++;
+          }
+        }
+      });
+    }
+
+    layer.ctx.putImageData(imgData, 0, 0);
   }
 
   function restoreFromDataURL(layer, dataUrl) {
@@ -468,10 +555,18 @@
 
   function start(e) {
     e.preventDefault();
-    drawing = true;
     const layer = activeLayer();
-    pushHistory(layer);
     const p = getPos(e);
+
+    if (currentTool === 'bucket') {
+      pushHistory(layer);
+      floodFillAt(layer, p.x, p.y, currentColor);
+      drawing = false;
+      return;
+    }
+
+    drawing = true;
+    pushHistory(layer);
     rawPoint = { x: p.x, y: p.y };
     smoothPoint = { x: p.x, y: p.y };
     lastTime = p.t;
@@ -486,15 +581,12 @@
       layer.ctx.stroke();
       layer.ctx.restore();
     } else {
-      const style = PEN_STYLES[currentTool];
       layer.ctx.save();
-      layer.ctx.globalAlpha = style.opacity;
-      if (style.soft > 0) {
-        layer.ctx.shadowBlur = Number(sizeSlider.value) * style.soft;
-        layer.ctx.shadowColor = currentColor;
+      if (currentTool === 'pencil') {
+        layer.ctx.globalAlpha = 0.82 + Math.random() * 0.18;
       }
       layer.ctx.beginPath();
-      layer.ctx.arc(p.x, p.y, strokeWidthFor(0, 1) / 2, 0, Math.PI * 2);
+      layer.ctx.arc(p.x, p.y, strokeWidthFor() / 2, 0, Math.PI * 2);
       layer.ctx.fillStyle = currentColor;
       layer.ctx.fill();
       layer.ctx.restore();
@@ -502,6 +594,7 @@
   }
 
   function move(e) {
+    if (currentTool === 'bucket') return; // バケツはタップのみ、ドラッグでは何もしない
     if (!drawing) return;
     e.preventDefault();
     const p = getPos(e);
@@ -514,9 +607,15 @@
     smoothPoint.x += (p.x - smoothPoint.x) * factor;
     smoothPoint.y += (p.y - smoothPoint.y) * factor;
 
-    const dx = smoothPoint.x - prevSmooth.x;
-    const dy = smoothPoint.y - prevSmooth.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    let toX = smoothPoint.x;
+    let toY = smoothPoint.y;
+    if (currentTool === 'pencil') {
+      // ほんの少し位置も揺らして手描きのザラつきを足す(次のセグメントにも引き継ぐ)
+      smoothPoint.x += (Math.random() - 0.5) * 1.2;
+      smoothPoint.y += (Math.random() - 0.5) * 1.2;
+      toX = smoothPoint.x;
+      toY = smoothPoint.y;
+    }
 
     const layer = activeLayer();
 
@@ -530,18 +629,15 @@
       layer.ctx.stroke();
       layer.ctx.restore();
     } else {
-      const style = PEN_STYLES[currentTool];
       layer.ctx.save();
-      layer.ctx.globalAlpha = style.opacity;
-      if (style.soft > 0) {
-        layer.ctx.shadowBlur = Number(sizeSlider.value) * style.soft;
-        layer.ctx.shadowColor = currentColor;
+      if (currentTool === 'pencil') {
+        layer.ctx.globalAlpha = 0.82 + Math.random() * 0.18;
       }
       layer.ctx.strokeStyle = currentColor;
-      layer.ctx.lineWidth = strokeWidthFor(dist, dt);
+      layer.ctx.lineWidth = strokeWidthFor();
       layer.ctx.beginPath();
       layer.ctx.moveTo(prevSmooth.x, prevSmooth.y);
-      layer.ctx.lineTo(smoothPoint.x, smoothPoint.y);
+      layer.ctx.lineTo(toX, toY);
       layer.ctx.stroke();
       layer.ctx.restore();
     }
