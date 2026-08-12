@@ -74,16 +74,12 @@
   #paper {
     position: absolute;
     top: 0; left: 0;
-    width: 100%;
-    height: 100%;
     background: #ffffff;
     z-index: -1;
   }
   #stage canvas {
     position: absolute;
     top: 0; left: 0;
-    width: 100%;
-    height: 100%;
     touch-action: none;
     image-rendering: pixelated;
   }
@@ -268,6 +264,12 @@
   .popup-hsl-info { font-size: 12px; color: var(--ink); line-height: 1.8; }
   .wheel-canvas, .sl-canvas { border-radius: 12px; display: block; margin: 0 auto 10px; }
   .colorwheel-flex { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .mini-wheel-canvas, .mini-sl-canvas {
+    border-radius: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    background: var(--panel);
+  }
 </style>
 </head>
 <body>
@@ -320,6 +322,10 @@
     <button class="icon-btn" id="colorwheel-btn" title="色相環で確認">🎨</button>
   </div>
   <div class="row">
+    <canvas id="mini-wheel" width="56" height="56" class="mini-wheel-canvas" title="色相環(タップで詳細)"></canvas>
+    <canvas id="mini-sl" width="120" height="56" class="mini-sl-canvas" title="彩度・明度(タップで詳細)"></canvas>
+  </div>
+  <div class="row">
     <div class="swatches" id="swatches"></div>
   </div>
 
@@ -345,6 +351,7 @@
 (function(){
   const wrap = document.getElementById('canvas-wrap');
   const stage = document.getElementById('stage');
+  const paper = document.getElementById('paper');
   const swatchWrap = document.getElementById('swatches');
   const sizeSlider = document.getElementById('size');
   const sizeValueLabel = document.getElementById('size-value');
@@ -369,6 +376,8 @@
   const zoomLabel = document.getElementById('zoom-label');
   const layersBtn = document.getElementById('layers-btn');
   const settingsBtn = document.getElementById('settings-btn');
+  const miniWheelCanvas = document.getElementById('mini-wheel');
+  const miniSLCanvas = document.getElementById('mini-sl');
 
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let currentColor = null;
@@ -419,15 +428,26 @@
     panY = clampNum(panY, margin - dispH, rect.height - margin);
   }
 
-  zoomInBtn.addEventListener('click', () => {
-    zoom = clampNum(zoom * 1.6, ZOOM_MIN, ZOOM_MAX);
-    clampPan(); applyZoom();
-  });
-  zoomOutBtn.addEventListener('click', () => {
-    zoom = clampNum(zoom / 1.6, ZOOM_MIN, ZOOM_MAX);
-    if (zoom <= ZOOM_MIN) { zoom = ZOOM_MIN; panX = 0; panY = 0; }
-    clampPan(); applyZoom();
-  });
+  // ズームボタンは「画面中心」を基点にズームする(ピンチ操作と同じアンカー方式)。
+  // 従来はキャンバス左上を基点にしていたため、ボタンを押すたびに表示が
+  // 予期せずジャンプし、結果的に「タッチ位置と描画位置がズレる」ように感じる原因になっていた。
+  function zoomAroundCenter(newZoom) {
+    const rect = wrap.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const stageLocalX = (cx - panX) / zoom;
+    const stageLocalY = (cy - panY) / zoom;
+    zoom = clampNum(newZoom, ZOOM_MIN, ZOOM_MAX);
+    if (zoom <= ZOOM_MIN) {
+      zoom = ZOOM_MIN; panX = 0; panY = 0;
+    } else {
+      panX = cx - stageLocalX * zoom;
+      panY = cy - stageLocalY * zoom;
+    }
+    clampPan();
+    applyZoom();
+  }
+  zoomInBtn.addEventListener('click', () => zoomAroundCenter(zoom * 1.6));
+  zoomOutBtn.addEventListener('click', () => zoomAroundCenter(zoom / 1.6));
   zoomResetBtn.addEventListener('click', () => {
     zoom = 1; panX = 0; panY = 0; applyZoom();
   });
@@ -541,8 +561,20 @@
 
   // ---- 詳細設定ポップアップ(今後の設定項目もここに追加していく) ----
   let matchLightness = false; // 「明度を揃える」: ONなら全色で明度を完全一致させる
+  let showDefaultButton = false; // 「定番」ボタンの表示/非表示。デフォルトはOFF(非表示)
   // 色相のランダム変動量(初期値は改修前の実装値をそのまま踏襲)
   const hueJitterSettings = { square: 20, triangle: 20, complement: 15, broom: 10 };
+
+  // 「定番」ボタンの表示状態を反映する。非表示にする場合、定番パレットが
+  // 選択されたままだと操作不能になるため、通常のパレット生成に戻す。
+  function applyDefaultButtonVisibility() {
+    defaultToggleBtn.style.display = showDefaultButton ? 'flex' : 'none';
+    if (!showDefaultButton && useDefaultPalette) {
+      useDefaultPalette = false;
+      defaultToggleBtn.classList.remove('active');
+      applyPalette();
+    }
+  }
 
   function buildSettingsPopupContent(container) {
     const toggleRow = document.createElement('div');
@@ -561,6 +593,24 @@
     toggleRow.appendChild(toggleLabel);
     toggleRow.appendChild(toggleBtn);
     container.appendChild(toggleRow);
+
+    const dtRow = document.createElement('div');
+    dtRow.className = 'popup-row';
+    const dtLabel = document.createElement('span');
+    dtLabel.textContent = '「定番」ボタンを表示';
+    dtLabel.style.fontSize = '13px';
+    dtLabel.style.fontWeight = '600';
+    const dtBtn = document.createElement('button');
+    dtBtn.className = 'icon-btn pen-btn' + (showDefaultButton ? ' active' : '');
+    dtBtn.textContent = showDefaultButton ? 'ON' : 'OFF';
+    dtBtn.addEventListener('click', () => {
+      showDefaultButton = !showDefaultButton;
+      applyDefaultButtonVisibility();
+      refreshPopupIfType('settings');
+    });
+    dtRow.appendChild(dtLabel);
+    dtRow.appendChild(dtBtn);
+    container.appendChild(dtRow);
 
     [['square', '四角'], ['triangle', '三角'], ['complement', '補色'], ['broom', 'ほうき']].forEach(([key, label]) => {
       const row = document.createElement('div');
@@ -629,11 +679,13 @@
     const size = canvas.width, cx = size / 2, cy = size / 2;
     const outerR = size / 2 - 4, innerR = outerR - 16;
     ctx.clearRect(0, 0, size, size);
+    // マーカー側の角度計算(下記)と必ず同じ基準(-90度オフセット)を使うこと。
+    // ここがズレるとリングの色とマーカー位置が一致しなくなる。
     for (let a = 0; a < 360; a++) {
       ctx.beginPath();
       ctx.strokeStyle = `hsl(${a},75%,55%)`;
       ctx.lineWidth = outerR - innerR;
-      ctx.arc(cx, cy, (outerR + innerR) / 2, (a - 0.6) * Math.PI / 180, (a + 0.6) * Math.PI / 180);
+      ctx.arc(cx, cy, (outerR + innerR) / 2, (a - 90 - 0.6) * Math.PI / 180, (a - 90 + 0.6) * Math.PI / 180);
       ctx.stroke();
     }
     colors.forEach((c) => {
@@ -699,6 +751,17 @@
     drawSLGradient(slCanvas, hsl.h, hsl.s, hsl.l);
   }
   colorwheelBtn.addEventListener('click', () => openPopup('colorwheel', '色相環 / 選択色', buildColorWheelPopupContent));
+
+  // 常時表示のミニ色相環・SLグラデーション。詳細ポップアップと同じ描画関数を使うことで
+  // H/S/Lの計算結果が常時表示・詳細表示のあいだでズレないようにする。
+  function updateMiniColorWidgets() {
+    if (!currentColor) return;
+    const hsl = parseColorToHSL(currentColor);
+    drawHueWheel(miniWheelCanvas, currentPaletteColors, currentColor);
+    drawSLGradient(miniSLCanvas, hsl.h, hsl.s, hsl.l);
+  }
+  miniWheelCanvas.addEventListener('click', () => openPopup('colorwheel', '色相環 / 選択色', buildColorWheelPopupContent));
+  miniSLCanvas.addEventListener('click', () => openPopup('colorwheel', '色相環 / 選択色', buildColorWheelPopupContent));
 
   // ========================================================================
   // カラーパレット生成
@@ -807,6 +870,7 @@
     currentColor = c;
     [...swatchWrap.children].forEach(el => el.classList.remove('active'));
     if (btn) btn.classList.add('active');
+    updateMiniColorWidgets();
     // 色を選んだら自動的にペンツールに戻す(消しゴムのままだと分かりにくいので)
     if (currentTool === 'eraser') setTool('pencil');
   }
@@ -869,6 +933,10 @@
   function resizeAllCanvases() {
     const rect = wrap.getBoundingClientRect();
     dpr = Math.max(1, window.devicePixelRatio || 1);
+    // サブピクセルの端数があるとCSS表示サイズと内部解像度の比率がdprからズレ、
+    // 座標変換に誤差が出る(特にflex:1で高さが決まる縦方向)。整数pxに固定して防ぐ。
+    const cssW = Math.round(rect.width);
+    const cssH = Math.round(rect.height);
 
     layers.forEach(layer => {
       const prev = document.createElement('canvas');
@@ -876,30 +944,44 @@
       prev.height = layer.canvas.height;
       if (prev.width > 0) prev.getContext('2d').drawImage(layer.canvas, 0, 0);
 
-      layer.canvas.width = rect.width * dpr;
-      layer.canvas.height = rect.height * dpr;
+      layer.canvas.width = cssW * dpr;
+      layer.canvas.height = cssH * dpr;
+      // CSSの表示サイズも明示的に固定し、内部解像度との比率を必ずdprに保つ
+      layer.canvas.style.width = cssW + 'px';
+      layer.canvas.style.height = cssH + 'px';
       layer.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       layer.ctx.lineCap = 'round';
       layer.ctx.lineJoin = 'round';
       layer.ctx.imageSmoothingEnabled = false; // アンチエイリアスの影響を可能な範囲で抑える
 
       if (prev.width > 0) {
-        layer.ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, rect.width, rect.height);
+        // 生ピクセル同士で1:1に貼り戻す(拡大縮小を挟まずズレを防ぐ)
+        layer.ctx.save();
+        layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        layer.ctx.drawImage(prev, 0, 0);
+        layer.ctx.restore();
       }
     });
+    // #paperもキャンバスと同じ整数サイズに揃える
+    paper.style.width = cssW + 'px';
+    paper.style.height = cssH + 'px';
     clampPan();
     applyZoom();
   }
 
   // ---------- 座標変換: 画面座標 → ズーム/パンを考慮したキャンバス座標 ----------
+  // 位置(原点)は実際の描画結果から測り、スケールはzoom変数をそのまま使う。
+  // 以前は縦横それぞれの実測サイズを基準サイズで割ってスケールを求めていたが、
+  // #canvas-wrapはflex:1で高さが決まるためサブピクセルの端数を持ちやすく、
+  // その除算結果がzoomからわずかにズレて縦方向だけ誤差が拡大していた。
   function getPos(e) {
-    const rect = wrap.getBoundingClientRect();
+    const canvasRect = layers[0].canvas.getBoundingClientRect(); // transform適用後の実表示矩形
     const t = e.touches ? e.touches[0] : e;
-    const screenX = t.clientX - rect.left;
-    const screenY = t.clientY - rect.top;
-    // stageには transform: translate(panX,panY) scale(zoom) がかかっているので、
-    // 逆変換でキャンバス座標(ズーム前と同じ座標系)に戻す
-    return { x: (screenX - panX) / zoom, y: (screenY - panY) / zoom, t: Date.now() };
+    return {
+      x: (t.clientX - canvasRect.left) / zoom,
+      y: (t.clientY - canvasRect.top) / zoom,
+      t: Date.now(),
+    };
   }
 
   function strokeWidthFor() {
@@ -1002,12 +1084,13 @@
   function restoreFromDataURL(layer, dataUrl) {
     const img = new Image();
     img.onload = () => {
-      const rect = wrap.getBoundingClientRect();
+      // CSS座標を経由せず生ピクセルのまま1:1で貼り戻す。
+      // rect基準で貼り直すと、undoのたびに端数分の拡大縮小が入りズレが蓄積する。
       layer.ctx.save();
       layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
       layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+      layer.ctx.drawImage(img, 0, 0);
       layer.ctx.restore();
-      layer.ctx.drawImage(img, 0, 0, rect.width, rect.height);
     };
     img.src = dataUrl;
   }
@@ -1236,10 +1319,9 @@
 
   // ---------- 保存 ----------
   function mergeCanvas() {
-    const rect = wrap.getBoundingClientRect();
     const out = document.createElement('canvas');
-    out.width = rect.width * dpr;
-    out.height = rect.height * dpr;
+    out.width = layers[0].canvas.width;
+    out.height = layers[0].canvas.height;
     const octx = out.getContext('2d');
     octx.imageSmoothingEnabled = false;
     octx.fillStyle = '#ffffff';
@@ -1304,6 +1386,7 @@
 
   // ---------- 初期化 ----------
   resizeAllCanvases();
+  applyDefaultButtonVisibility();
   applyPalette();
   applySmoothingLabel();
   applyZoom();
