@@ -270,6 +270,45 @@
     flex-shrink: 0;
     background: var(--panel);
   }
+
+  /* ---------- おすすめ配色バー ---------- */
+  .scheme-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
+  }
+  .scheme-bar {
+    display: flex;
+    height: 30px;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    flex-shrink: 0;
+  }
+  .scheme-bar.active { border-color: var(--ink); }
+  .scheme-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .scheme-empty {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 2px;
+  }
+  .role-picker-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .role-picker-swatch {
+    width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer;
+  }
+  .role-picker-swatch.active { border-color: var(--ink); }
+  .role-mode-btns { display: flex; gap: 6px; }
 </style>
 </head>
 <body>
@@ -327,6 +366,10 @@
   </div>
   <div class="row">
     <div class="swatches" id="swatches"></div>
+  </div>
+  <div class="row" id="scheme-row">
+    <div class="scheme-wrap" id="scheme-wrap"></div>
+    <button class="icon-btn" id="scheme-config-btn" title="配色を指定">🎚</button>
   </div>
 
   <div class="row">
@@ -528,6 +571,7 @@
       if (type === 'layers') buildLayersPopupContent(body);
       if (type === 'settings') buildSettingsPopupContent(body);
       if (type === 'colorwheel') buildColorWheelPopupContent(body);
+      if (type === 'scheme') buildSchemeConfigContent(body);
     }
   }
 
@@ -864,6 +908,13 @@
       swatchWrap.appendChild(b);
     });
     selectColor(colors[0], swatchWrap.children[0]);
+    // 新しいパレットになったら、セレクト指定のうち今のパレットに無い色は解除する
+    ROLE_KEYS.forEach(key => {
+      const cfg = roleConfig[key];
+      if (cfg.mode === 'select' && cfg.color && !colors.includes(cfg.color)) cfg.color = null;
+    });
+    activeSchemeIndex = 0;
+    refreshColorSchemes();
   }
 
   function selectColor(c, btn) {
@@ -874,6 +925,219 @@
     // 色を選んだら自動的にペンツールに戻す(消しゴムのままだと分かりにくいので)
     if (currentTool === 'eraser') setTool('pencil');
   }
+
+  // ========================================================================
+  // おすすめ配色(ベース60% / アソート30% / アクセント10%)
+  // 既存のパレット生成ロジックには手を加えず、その結果を評価して提案するだけ。
+  // 選抜されなかった色もパレットからは削除せず、引き続き使用可能なままにする。
+  // ========================================================================
+  const schemeWrap = document.getElementById('scheme-wrap');
+  const schemeConfigBtn = document.getElementById('scheme-config-btn');
+
+  let colorSchemes = [];      // [{colors:[...], ratios:[...]}, ...]
+  let activeSchemeIndex = 0;
+  // 各役割の決定方法。mode: 'random' | 'select'、colorはselect時に固定する色
+  const roleConfig = {
+    base:   { mode: 'random', color: null },
+    assort: { mode: 'random', color: null },
+    accent: { mode: 'random', color: null },
+  };
+  const ROLE_KEYS = ['base', 'assort', 'accent'];
+  const ROLE_LABELS = { base: 'ベース', assort: 'アソート', accent: 'アクセント' };
+
+  // 色同士の距離。色相だけでなく彩度・明度も加味する。
+  // 色相が近くても明度/彩度が大きく違えば「使い分けられる色」とみなす。
+  function colorDistance(c1, c2) {
+    const a = parseColorToHSL(c1), b = parseColorToHSL(c2);
+    let dh = Math.abs(a.h - b.h);
+    if (dh > 180) dh = 360 - dh;      // 色相環上の最短距離(0〜180)
+    const hueTerm = (dh / 180) * 100;  // 0〜100に正規化
+    const ds = Math.abs(a.s - b.s);
+    const dl = Math.abs(a.l - b.l);
+    // 彩度・明度の差は絵の中での使い分けやすさに直結するため重みを高めにとる
+    return Math.sqrt(hueTerm * hueTerm + ds * ds * 1.4 + dl * dl * 1.6);
+  }
+
+  // 候補の中から、互いの距離が大きくなる3色を貪欲法で選ぶ。
+  // fixed には select 指定で固定された色が入り、必ず結果に含める。
+  function pickDistinctColors(candidates, count, fixed = []) {
+    const picked = [...fixed];
+    const pool = candidates.filter(c => !picked.includes(c));
+    while (picked.length < count && pool.length) {
+      let bestColor = null, bestScore = -1;
+      pool.forEach(c => {
+        // 既に選んだ色との最小距離が最大になる色を選ぶ(同系色の重複を避ける)
+        const score = picked.length
+          ? Math.min(...picked.map(p => colorDistance(c, p)))
+          : parseColorToHSL(c).s; // 最初の1色は彩度が高いものを主役に選びやすくする
+        if (score > bestScore) { bestScore = score; bestColor = c; }
+      });
+      picked.push(bestColor);
+      pool.splice(pool.indexOf(bestColor), 1);
+    }
+    return picked;
+  }
+
+  // 色数に応じた比率を返す
+  function ratiosFor(n) {
+    if (n <= 1) return [100];
+    if (n === 2) return [70, 30];
+    return [60, 30, 10];
+  }
+
+  // roleConfigのselect指定を反映しつつ、残りをランダム(=自動選抜)で埋める
+  function applyRoleConfig(autoColors, palette) {
+    if (autoColors.length < 3) return autoColors; // 2色以下は役割割当をしない
+    const result = [null, null, null];
+    ROLE_KEYS.forEach((key, i) => {
+      const cfg = roleConfig[key];
+      if (cfg.mode === 'select' && cfg.color && palette.includes(cfg.color)) {
+        result[i] = cfg.color;
+      }
+    });
+    const fixed = result.filter(Boolean);
+    // 固定色を含めたうえで、残りの枠を差の大きい色で埋める
+    const filled = pickDistinctColors(palette, 3, fixed);
+    const rest = filled.filter(c => !fixed.includes(c));
+    let ri = 0;
+    for (let i = 0; i < 3; i++) if (!result[i]) result[i] = rest[ri++];
+    return result.filter(Boolean);
+  }
+
+  function buildColorSchemes(palette) {
+    const n = palette.length;
+    if (n === 0) return [];
+
+    // 3色以下は生成色をそのまま使う(補色2色に第三色を作ったりはしない)
+    if (n <= 3) {
+      const colors = applyRoleConfig(palette, palette);
+      return [{ colors, ratios: ratiosFor(colors.length) }];
+    }
+
+    // 4色以上は、差の大きい3色で案1を作る
+    const plan1 = applyRoleConfig(pickDistinctColors(palette, 3), palette);
+    // 案2は案1で使わなかった色を中心に構成し、足りなければ案1の色も借りる
+    const leftovers = palette.filter(c => !plan1.includes(c));
+    let plan2Source = leftovers;
+    if (leftovers.length < 3) {
+      plan2Source = [...leftovers, ...palette.filter(c => !leftovers.includes(c))];
+    }
+    const plan2 = pickDistinctColors(plan2Source, 3);
+
+    const schemes = [{ colors: plan1, ratios: ratiosFor(plan1.length) }];
+    // 案1と全く同じ組み合わせにならない場合のみ案2を追加する
+    const same = plan2.length === plan1.length && plan2.every(c => plan1.includes(c));
+    if (!same) schemes.push({ colors: plan2, ratios: ratiosFor(plan2.length) });
+    return schemes;
+  }
+
+  function renderColorSchemes() {
+    schemeWrap.innerHTML = '';
+    if (!colorSchemes.length) {
+      const p = document.createElement('div');
+      p.className = 'scheme-empty';
+      p.textContent = 'おすすめ配色なし';
+      schemeWrap.appendChild(p);
+      return;
+    }
+    colorSchemes.forEach((scheme, idx) => {
+      const bar = document.createElement('div');
+      bar.className = 'scheme-bar' + (idx === activeSchemeIndex ? ' active' : '');
+      scheme.colors.forEach((c, i) => {
+        const seg = document.createElement('div');
+        seg.className = 'scheme-seg';
+        seg.style.background = c;
+        seg.style.width = `${scheme.ratios[i]}%`;
+        // 明度に応じて読みやすい文字色を選ぶ
+        seg.style.color = parseColorToHSL(c).l > 55 ? '#00000099' : '#ffffffcc';
+        seg.textContent = `${scheme.ratios[i]}%`;
+        // バーの色をタップすると、その色を描画色として選べる
+        seg.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeSchemeIndex = idx;
+          selectColorByValue(c);
+          renderColorSchemes();
+        });
+        bar.appendChild(seg);
+      });
+      bar.addEventListener('click', () => {
+        activeSchemeIndex = idx;
+        renderColorSchemes();
+      });
+      schemeWrap.appendChild(bar);
+    });
+  }
+
+  function refreshColorSchemes() {
+    colorSchemes = buildColorSchemes(currentPaletteColors);
+    if (activeSchemeIndex >= colorSchemes.length) activeSchemeIndex = 0;
+    renderColorSchemes();
+  }
+
+  // パレット上の色を値で選択する(配色バーからの選択用)
+  function selectColorByValue(c) {
+    const idx = currentPaletteColors.indexOf(c);
+    if (idx >= 0 && swatchWrap.children[idx]) {
+      selectColor(c, swatchWrap.children[idx]);
+    } else {
+      selectColor(c, null);
+    }
+  }
+
+  // ---- 配色の指定パネル(役割ごとに ランダム / セレクト を切り替える) ----
+  function buildSchemeConfigContent(container) {
+    const note = document.createElement('div');
+    note.className = 'scheme-empty';
+    note.textContent = '各役割を「セレクト」にすると色を固定でき、「ランダム」の枠はアプリが自動で選びます。';
+    container.appendChild(note);
+
+    ROLE_KEYS.forEach(key => {
+      const cfg = roleConfig[key];
+      const row = document.createElement('div');
+      row.className = 'popup-slider-row';
+
+      const head = document.createElement('div');
+      head.className = 'popup-slider-head';
+      const name = document.createElement('span');
+      name.textContent = ROLE_LABELS[key];
+      const modeBtns = document.createElement('span');
+      modeBtns.className = 'role-mode-btns';
+      [['random', 'ランダム'], ['select', 'セレクト']].forEach(([mode, label]) => {
+        const b = document.createElement('button');
+        b.className = 'icon-btn pen-btn' + (cfg.mode === mode ? ' active' : '');
+        b.textContent = label;
+        b.addEventListener('click', () => {
+          cfg.mode = mode;
+          if (mode === 'random') cfg.color = null;
+          refreshColorSchemes();
+          refreshPopupIfType('scheme');
+        });
+        modeBtns.appendChild(b);
+      });
+      head.appendChild(name);
+      head.appendChild(modeBtns);
+      row.appendChild(head);
+
+      if (cfg.mode === 'select') {
+        const sw = document.createElement('div');
+        sw.className = 'role-picker-swatches';
+        currentPaletteColors.forEach(c => {
+          const b = document.createElement('button');
+          b.className = 'role-picker-swatch' + (cfg.color === c ? ' active' : '');
+          b.style.background = c;
+          b.addEventListener('click', () => {
+            cfg.color = c;
+            refreshColorSchemes();
+            refreshPopupIfType('scheme');
+          });
+          sw.appendChild(b);
+        });
+        row.appendChild(sw);
+      }
+      container.appendChild(row);
+    });
+  }
+  schemeConfigBtn.addEventListener('click', () => openPopup('scheme', 'おすすめ配色の指定', buildSchemeConfigContent));
 
   let useDefaultPalette = false;
 
