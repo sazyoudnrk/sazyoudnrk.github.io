@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Pages 公開リンク作成ツール</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.7;
+    color: #222;
+    background: #f6f6f6;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  }
+  h1 { font-size: 1.5rem; margin-top: 0; }
+  h2 { font-size: 1.15rem; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+  label { display: block; font-weight: 600; margin-top: 16px; }
+  input {
+    width: 100%;
+    padding: 11px 12px;
+    margin-top: 5px;
+    border: 1px solid #bbb;
+    border-radius: 7px;
+    font-size: 16px;
+  }
+  button, a.button {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: #24292f;
+    color: white;
+    text-decoration: none;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .result {
+    margin-top: 20px;
+    padding: 14px;
+    background: #f1f3f5;
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+  }
+  .result a { color: #0969da; }
+  code {
+    background: #f1f3f5;
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  ol { padding-left: 24px; }
+  .note {
+    padding: 12px;
+    background: #fff8c5;
+    border-radius: 7px;
+  }
+  .small { color: #666; font-size: .9rem; }
+  .step-link { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>GitHub Pages 公開リンク作成ツール</h1>
+  <p>
+    GitHubのユーザー名・リポジトリ名・HTMLファイル名を入力すると、
+    リポジトリ作成用URLと、HTMLファイル作成用URLを自動生成します。
+  </p>
+
+  <label for="user">GitHubユーザー名</label>
+  <input id="user" value="sazyoudnrk" placeholder="例：sazyoudnrk">
+
+  <label for="repo">リポジトリ名</label>
+  <input id="repo" placeholder="例：color-cage">
+
+  <label for="file">HTMLファイル名</label>
+  <input id="file" value="index.html" placeholder="例：index.html">
+
+  <button type="button" onclick="generate()">リンクを作成</button>
+
+  <div id="result" class="result" hidden></div>
+
+  <h2>スマホだけでGitHub Pagesに公開する手順</h2>
+
+  <ol>
+    <li>
+      GitHubで新しいリポジトリを作成します。
+      <br>
+      <a id="repoLink" class="button" href="#" target="_blank" rel="noopener" hidden>
+        リポジトリ作成ページを開く
+      </a>
+      <div class="small">Repository nameを入力し、Publicと「Add a README file」を選んで作成します。</div>
+    </li>
+
+    <li>
+      リポジトリができたら、HTMLファイルを作成します。
+      <br>
+      <a id="fileLink" class="button" href="#" target="_blank" rel="noopener" hidden>
+        HTMLファイル作成画面を開く
+      </a>
+      <div class="small">
+        HTMLコードを入力し、<code>Commit changes</code>で保存します。
+      </div>
+    </li>
+
+    <li>
+      リポジトリの <code>Settings → Pages</code> を開きます。
+      <br>
+      <a id="pagesLink" class="button" href="#" target="_blank" rel="noopener" hidden>
+        GitHub Pages設定を開く
+      </a>
+    </li>
+
+    <li>
+      <code>Build and deployment</code> の設定を次のようにします。
+      <ul>
+        <li>Source：<code>Deploy from a branch</code></li>
+        <li>Branch：<code>main</code></li>
+        <li>Folder：<code>/ (root)</code></li>
+      </ul>
+      <code>Save</code>を押します。
+    </li>
+
+    <li>
+      しばらく待つとサイトが公開されます。
+      <br>
+      公開URLは
+      <code>https://ユーザー名.github.io/リポジトリ名/</code>
+      です。
+    </li>
+  </ol>
+
+  <div class="note">
+    <strong>index.htmlについて</strong><br>
+    ファイル名を <code>index.html</code> にすると、
+    公開URLの末尾にファイル名を付けずにアクセスできます。
+    例：<code>https://ユーザー名.github.io/リポジトリ名/</code>
+  </div>
+
+  <h2>注意</h2>
+  <ul>
+    <li>GitHub Pagesで公開するファイルは基本的に誰でも閲覧できます。</li>
+    <li>HTMLやJavaScriptにAPIキー、パスワード、アクセストークンなどの秘密情報を入れないでください。</li>
+    <li>独自ドメインを使わない場合、GitHub Pagesの「Custom domain」は設定不要です。</li>
+  </ul>
+</main>
+
+<script>
+function generate() {
+  const user = document.getElementById('user').value.trim();
+  const repo = document.getElementById('repo').value.trim();
+  const file = document.getElementById('file').value.trim();
+
+  if (!user || !repo || !file) {
+    alert('GitHubユーザー名、リポジトリ名、HTMLファイル名をすべて入力してください。');
+    return;
+  }
+
+  const userE = encodeURIComponent(user);
+  const repoE = encodeURIComponent(repo);
+  const fileE = file.split('/').map(encodeURIComponent).join('/');
+
+  const repoUrl = `https://github.com/new?name=${encodeURIComponent(repo)}`;
+  const fileUrl = `https://github.com/${userE}/${repoE}/new/main/${fileE}`;
+  const pagesUrl = `https://github.com/${userE}/${repoE}/settings/pages`;
+  const siteUrl = `https://${user}.github.io/${repo}/`;
+
+  const repoLink = document.getElementById('repoLink');
+  const fileLink = document.getElementById('fileLink');
+  const pagesLink = document.getElementById('pagesLink');
+  const result = document.getElementById('result');
+
+  repoLink.href = repoUrl;
+  fileLink.href = fileUrl;
+  pagesLink.href = pagesUrl;
+
+  repoLink.hidden = false;
+  fileLink.hidden = false;
+  pagesLink.hidden = false;
+
+  result.hidden = false;
+  result.innerHTML = `
+    <strong>生成されたリンク</strong><br><br>
+    リポジトリ作成：
+    <a href="${repoUrl}" target="_blank" rel="noopener">${repoUrl}</a><br><br>
+    HTMLファイル作成：
+    <a href="${fileUrl}" target="_blank" rel="noopener">${fileUrl}</a><br><br>
+    Pages設定：
+    <a href="${pagesUrl}" target="_blank" rel="noopener">${pagesUrl}</a><br><br>
+    公開予定URL：<br>
+    <a href="${siteUrl}" target="_blank" rel="noopener">${siteUrl}</a>
+  `;
+}
+</script>
+</body>
+</html>
