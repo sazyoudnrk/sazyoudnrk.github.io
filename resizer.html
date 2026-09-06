@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>画像リサイズ台</title>
+<style>
+:root{
+  --bench:#d7dbd4;      /* 作業台 */
+  --panel:#fbfcfa;
+  --ink:#17222a;
+  --sub:#5d6b70;
+  --line:#bfc6bd;
+  --tape:#f2bf1f;       /* メジャーの黄 */
+  --blue:#2f6183;
+  --warn:#a8452c;
+  --r:5px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bench);
+  color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.7;
+  -webkit-text-size-adjust:100%;
+  padding:0 14px calc(28px + env(safe-area-inset-bottom));
+}
+.wrap{max-width:520px;margin:0 auto}
+
+header{padding:26px 2px 18px}
+h1{
+  margin:0;
+  font-size:27px;
+  font-weight:800;
+  letter-spacing:.04em;
+  line-height:1.25;
+}
+header p{margin:.5em 0 0;color:var(--sub);font-size:13.5px}
+
+/* ---- ステージ ---- */
+.stage{
+  position:relative;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:14px 14px 16px;
+}
+.stage::before{ /* 目盛り */
+  content:"";
+  position:absolute;left:0;right:0;top:0;height:7px;
+  background:
+    repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px 12px);
+  opacity:.85;
+  border-radius:var(--r) var(--r) 0 0;
+}
+.drop{
+  margin-top:6px;
+  border:1.5px dashed var(--line);
+  border-radius:4px;
+  min-height:170px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;text-align:center;padding:22px 16px;
+}
+.drop.over{border-color:var(--tape);background:#fdf8e6}
+.drop p{margin:0;color:var(--sub);font-size:13px}
+.pick{
+  font:inherit;font-weight:700;
+  background:var(--ink);color:#fff;border:0;border-radius:3px;
+  padding:11px 20px;cursor:pointer;
+}
+.pick:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2.5px solid var(--blue);outline-offset:2px;
+}
+#preview{display:none;margin-top:6px}
+#preview img{
+  display:block;width:100%;height:auto;border-radius:3px;
+  background:
+    conic-gradient(#e9ece8 25%,#fff 0 50%,#e9ece8 0 75%,#fff 0) 0 0/16px 16px;
+}
+.srcline{
+  margin:10px 0 0;font-size:12.5px;color:var(--sub);
+  display:flex;flex-wrap:wrap;gap:4px 10px;
+  font-variant-numeric:tabular-nums;
+}
+.srcline b{font-weight:600;color:var(--ink)}
+.relink{
+  margin-top:10px;background:none;border:1px solid var(--line);
+  border-radius:3px;font:inherit;font-size:12.5px;color:var(--sub);
+  padding:6px 12px;cursor:pointer;
+}
+
+/* ---- モード ---- */
+.tabs{display:flex;gap:0;margin:22px 0 0;border-bottom:1px solid var(--line)}
+.tabs button{
+  flex:1;font:inherit;font-weight:700;font-size:14px;
+  background:none;border:0;border-bottom:3px solid transparent;
+  color:var(--sub);padding:11px 4px 9px;cursor:pointer;
+}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--tape)}
+
+.panel{
+  display:none;background:var(--panel);
+  border:1px solid var(--line);border-top:0;
+  border-radius:0 0 var(--r) var(--r);
+  padding:16px 14px;
+}
+.panel.on{display:block}
+.panel .hint{margin:12px 0 0;font-size:12.5px;color:var(--sub)}
+
+.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.row+.row{margin-top:12px}
+label.f{font-size:13.5px;font-weight:600;min-width:5.2em}
+input[type=number],input[type=text],select{
+  font:inherit;font-size:16px;
+  border:1px solid var(--line);border-radius:3px;background:#fff;
+  padding:9px 10px;color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+input[type=number]{width:7.2em;text-align:right}
+select{padding:9px 8px}
+.unit{font-size:13px;color:var(--sub)}
+.chk{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--sub)}
+.chk input{width:17px;height:17px;accent-color:var(--blue)}
+input[type=range]{flex:1;min-width:130px;accent-color:var(--blue)}
+.mm{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+
+/* ---- 出力設定 ---- */
+.out-settings{
+  margin-top:16px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);padding:14px
+}
+
+/* ---- 結果 ---- */
+.result{
+  margin-top:16px;border:1px solid var(--ink);border-radius:var(--r);
+  background:var(--ink);color:#fff;padding:15px 15px 16px;
+}
+.result[hidden]{display:none}
+.numbers{
+  font-size:23px;font-weight:800;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;margin:0;
+}
+.sub2{margin:5px 0 0;font-size:13px;color:#b8c4ca;font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:9px;margin-top:14px}
+.acts a,.acts button{
+  flex:1;text-align:center;font:inherit;font-weight:700;font-size:15px;
+  padding:12px 8px;border-radius:3px;text-decoration:none;cursor:pointer;border:0;
+}
+.save{background:var(--tape);color:#17222a}
+.share{background:transparent;color:#fff;border:1px solid #55646c!important}
+.msg{margin:12px 0 0;font-size:13px;color:var(--warn)}
+.msg:empty{display:none}
+.busy{
+  margin-top:16px;font-size:13px;color:var(--sub);
+}
+.busy[hidden]{display:none}
+@media (prefers-reduced-motion:no-preference){
+  .result{animation:pop .18s ease-out}
+  @keyframes pop{from{transform:translateY(4px);opacity:.4}to{transform:none;opacity:1}}
+}
+footer{margin-top:22px;font-size:12px;color:var(--sub);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>画像リサイズ台</h1>
+  <p>長辺・容量・印刷サイズのどれかを決めると、その通りに作り直します。</p>
+</header>
+
+<section class="stage">
+  <div class="drop" id="drop">
+    <button class="pick" id="pick">画像を選ぶ</button>
+    <p>ドラッグ、ペーストでも読み込めます</p>
+  </div>
+  <div id="preview">
+    <img id="prevImg" alt="変換後のプレビュー">
+    <p class="srcline" id="srcline"></p>
+    <button class="relink" id="relink">別の画像に差し替える</button>
+  </div>
+  <input type="file" id="file" accept="image/*" hidden>
+</section>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-m="long">長辺</button>
+  <button role="tab" aria-selected="false" data-m="size">容量</button>
+  <button role="tab" aria-selected="false" data-m="print">印刷サイズ</button>
+</nav>
+
+<section class="panel on" id="p-long">
+  <div class="row">
+    <label class="f" for="longPx">長辺</label>
+    <input type="number" id="longPx" value="1600" min="1" max="20000" inputmode="numeric">
+    <span class="unit">px</span>
+  </div>
+  <div class="row">
+    <label class="chk"><input type="checkbox" id="noUp" checked>元より大きくしない</label>
+  </div>
+  <p class="hint" id="longHint"></p>
+</section>
+
+<section class="panel" id="p-size">
+  <div class="row">
+    <label class="f" for="maxSize">上限</label>
+    <input type="number" id="maxSize" value="500" min="1" step="1" inputmode="numeric">
+    <select id="sizeUnit"><option value="1024">KB</option><option value="1048576">MB</option></select>
+  </div>
+  <p class="hint">画質を下げて足りなければ、自動で縮小します。PNGは画質を下げられないので縮小だけで合わせます。</p>
+</section>
+
+<section class="panel" id="p-print">
+  <div class="row">
+    <label class="f" for="pw">幅</label>
+    <input type="number" id="pw" value="100" min="0.1" step="0.1" inputmode="decimal">
+    <label class="f" for="ph" style="min-width:2.2em">高さ</label>
+    <input type="number" id="ph" value="150" min="0.1" step="0.1" inputmode="decimal">
+    <select id="pUnit">
+      <option value="mm">mm</option><option value="cm">cm</option><option value="inch">inch</option>
+    </select>
+  </div>
+  <div class="row">
+    <label class="f" for="dpi">解像度</label>
+    <input type="number" id="dpi" value="350" min="1" max="9600" inputmode="numeric">
+    <span class="unit">dpi</span>
+    <label class="chk"><input type="checkbox" id="keepAR" checked>縦横比を保つ</label>
+  </div>
+  <p class="hint" id="printHint"></p>
+</section>
+
+<section class="out-settings">
+  <div class="row">
+    <label class="f" for="fmt">保存形式</label>
+    <select id="fmt">
+      <option value="auto">元と同じ</option>
+      <option value="image/jpeg">JPEG</option>
+      <option value="image/png">PNG</option>
+      <option value="image/webp">WebP</option>
+    </select>
+  </div>
+  <div class="row" id="qRow">
+    <label class="f" for="q">画質</label>
+    <input type="range" id="q" min="40" max="100" value="90">
+    <span class="mm" id="qv">90</span>
+  </div>
+</section>
+
+<p class="busy" id="busy" hidden>作成中…</p>
+
+<section class="result" id="result" hidden>
+  <p class="numbers" id="outDim">—</p>
+  <p class="sub2" id="outMeta"></p>
+  <div class="acts">
+    <a class="save" id="save" download>保存</a>
+    <button class="share" id="share" hidden>共有</button>
+  </div>
+  <p class="msg" id="msg"></p>
+</section>
+
+<footer>画像はすべて端末内で処理されます。どこにも送信されません。</footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => Math.min(b,Math.max(a,v));
+
+/* ===== 状態 ===== */
+let img = null;          // HTMLImageElement（EXIF向きは img が解決）
+let srcFile = null;
+let srcDpi = null;
+let srcObjURL = null;
+let outObjURL = null;
+let mode = 'long';
+let seq = 0;
+
+/* ===== 形式 ===== */
+const webpOK = (function(){
+  const c = document.createElement('canvas'); c.width=c.height=1;
+  return c.toDataURL('image/webp').indexOf('image/webp') === 5;
+})();
+if(!webpOK){ const o = $('#fmt').querySelector('[value="image/webp"]'); if(o) o.remove(); }
+
+function outType(){
+  const v = $('#fmt').value;
+  if(v !== 'auto') return v;
+  const t = (srcFile && srcFile.type) || '';
+  if(t === 'image/png') return 'image/png';
+  if(t === 'image/webp' && webpOK) return 'image/webp';
+  return 'image/jpeg';
+}
+const lossy = t => t === 'image/jpeg' || t === 'image/webp';
+const ext = t => t === 'image/png' ? 'png' : t === 'image/webp' ? 'webp' : 'jpg';
+
+/* ===== 読み込み ===== */
+$('#pick').onclick = () => $('#file').click();
+$('#relink').onclick = () => $('#file').click();
+$('#file').onchange = e => { if(e.target.files[0]) load(e.target.files[0]); };
+
+const drop = $('#drop');
+['dragenter','dragover'].forEach(k => document.addEventListener(k, e => {
+  e.preventDefault(); drop.classList.add('over');
+}));
+['dragleave','drop'].forEach(k => document.addEventListener(k, e => {
+  e.preventDefault(); if(k === 'dragleave' && e.target !== drop) return; drop.classList.remove('over');
+}));
+document.addEventListener('drop', e => {
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if(f && f.type.startsWith('image/')) load(f);
+});
+document.addEventListener('paste', e => {
+  const items = e.clipboardData && e.clipboardData.files;
+  if(items && items[0] && items[0].type.startsWith('image/')) load(items[0]);
+});
+
+function load(file){
+  srcFile = file;
+  if(srcObjURL) URL.revokeObjectURL(srcObjURL);
+  srcObjURL = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = async () => {
+    img = im;
+    srcDpi = await readDpi(file).catch(() => null);
+    $('#drop').style.display = 'none';
+    $('#preview').style.display = 'block';
+    updateQRow();
+    syncPrintFromImage();
+    showSrc();
+    run();
+  };
+  im.onerror = () => {
+    $('#msg').textContent = 'この画像は読み込めませんでした。別のファイルで試してください。';
+    $('#result').hidden = false;
+  };
+  im.src = srcObjURL;
+}
+
+function showSrc(){
+  const bits = [
+    '<b>' + escapeHTML(srcFile.name) + '</b>',
+    img.naturalWidth + ' × ' + img.naturalHeight + ' px',
+    fmtBytes(srcFile.size)
+  ];
+  if(srcDpi) bits.push(srcDpi + ' dpi');
+  $('#srcline').innerHTML = bits.join('<span>/</span>');
+}
+function escapeHTML(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtBytes(b){
+  if(b < 1024) return b + ' B';
+  if(b < 1024*1024) return (b/1024).toFixed(b < 10240 ? 1 : 0) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+/* ===== タブ ===== */
+document.querySelectorAll('.tabs button').forEach(b => {
+  b.onclick = () => {
+    mode = b.dataset.m;
+    document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+    ['long','size','print'].forEach(m => $('#p-' + m).classList.toggle('on', m === mode));
+    updateQRow();
+    run();
+  };
+});
+
+/* ===== 入力 ===== */
+let timer = null;
+function schedule(){ clearTimeout(timer); timer = setTimeout(run, 260); }
+['#longPx','#maxSize','#sizeUnit','#dpi','#pUnit','#noUp','#keepAR','#fmt'].forEach(s => {
+  $(s).addEventListener('input', () => { if(s === '#fmt') updateQRow(); schedule(); });
+  $(s).addEventListener('change', () => { if(s === '#fmt') updateQRow(); schedule(); });
+});
+$('#q').addEventListener('input', () => { $('#qv').textContent = $('#q').value; schedule(); });
+
+let arLock = null;
+$('#pw').addEventListener('input', () => { arLock = 'w'; syncAR(); schedule(); });
+$('#ph').addEventListener('input', () => { arLock = 'h'; syncAR(); schedule(); });
+$('#keepAR').addEventListener('change', () => { arLock = 'w'; syncAR(); schedule(); });
+
+function syncAR(){
+  if(!img || !$('#keepAR').checked) return;
+  const ar = img.naturalWidth / img.naturalHeight;
+  if(arLock === 'w'){
+    const w = parseFloat($('#pw').value);
+    if(w > 0) $('#ph').value = round2(w / ar);
+  }else{
+    const h = parseFloat($('#ph').value);
+    if(h > 0) $('#pw').value = round2(h * ar);
+  }
+}
+function syncPrintFromImage(){
+  if(!img) return;
+  const dpi = clamp(parseInt($('#dpi').value,10) || 350, 1, 9600);
+  const u = $('#pUnit').value;
+  $('#pw').value = round2(toUnit(img.naturalWidth / dpi, u));
+  $('#ph').value = round2(toUnit(img.naturalHeight / dpi, u));
+}
+const round2 = v => Math.round(v * 100) / 100;
+const toUnit = (inch,u) => u === 'mm' ? inch*25.4 : u === 'cm' ? inch*2.54 : inch;
+const toInch = (v,u) => u === 'mm' ? v/25.4 : u === 'cm' ? v/2.54 : v;
+
+function updateQRow(){
+  const t = outType();
+  $('#qRow').style.display = (lossy(t) && mode !== 'size') ? 'flex' : 'none';
+}
+updateQRow();
+
+/* ===== 縮小・拡大 ===== */
+function resizeTo(w,h){
+  let cur = img, cw = img.naturalWidth, ch = img.naturalHeight;
+  while(cw > w*2 && ch > h*2){
+    cw = Math.max(w, Math.floor(cw/2));
+    ch = Math.max(h, Math.floor(ch/2));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(cur, 0, 0, cw, ch);
+    cur = c;
+  }
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(cur, 0, 0, w, h);
+  return out;
+}
+const toBlob = (c,t,q) => new Promise(res => c.toBlob(res, t, q));
+
+/* ===== 本体 ===== */
+async function run(){
+  if(!img) return;
+  const my = ++seq;
+  $('#busy').hidden = false;
+  $('#msg').textContent = '';
+  const t = outType();
+  let res = null, note = '';
+
+  try{
+    if(mode === 'long'){
+      const L = clamp(parseInt($('#longPx').value,10) || 1, 1, 20000);
+      const sMax = Math.max(img.naturalWidth, img.naturalHeight);
+      let r = L / sMax;
+      if($('#noUp').checked && r > 1) { r = 1; note = '元の画像より大きくなるため、そのままの大きさで保存します。'; }
+      const cap = capPixels(sz(r));
+      if(cap.capped) note = '端末で扱える上限を超えたため、' + cap.d.w + ' × ' + cap.d.h + ' px に抑えました。';
+      res = await encode(cap.d, t);
+    }else if(mode === 'size'){
+      const target = Math.round((parseFloat($('#maxSize').value) || 1) * parseInt($('#sizeUnit').value,10));
+      res = await fitSize(target, t);
+      if(res && res.blob.size > target) note = 'これ以上小さくできませんでした。上限を上げるか、形式をJPEGにしてみてください。';
+    }else{
+      const u = $('#pUnit').value;
+      const dpi = clamp(parseInt($('#dpi').value,10) || 1, 1, 9600);
+      const w = Math.max(1, Math.round(toInch(parseFloat($('#pw').value) || 0, u) * dpi));
+      const h = Math.max(1, Math.round(toInch(parseFloat($('#ph').value) || 0, u) * dpi));
+      const cap = capPixels({w:clamp(w,1,20000), h:clamp(h,1,20000)});
+      res = await encode(cap.d, t, dpi);
+      if(w > img.naturalWidth) note = '元より拡大しています。印刷では甘く見えることがあります。';
+      if(cap.capped) note = '端末で扱える上限を超えたため、' + cap.d.w + ' × ' + cap.d.h + ' px に抑えました。指定サイズより粗くなります。';
+    }
+  }catch(err){
+    if(my !== seq) return;
+    $('#busy').hidden = true;
+    $('#msg').textContent = '作成に失敗しました。画像が大きすぎる可能性があります。';
+    $('#result').hidden = false;
+    return;
+  }
+  if(my !== seq || !res) { if(my === seq) $('#busy').hidden = true; return; }
+
+  $('#busy').hidden = true;
+  show(res, note);
+}
+
+/* iOSのcanvas上限対策：総ピクセル数を抑える */
+const MAXPX = 16000000;
+function capPixels(d){
+  if(d.w * d.h <= MAXPX) return {d, capped:false};
+  const k = Math.sqrt(MAXPX / (d.w * d.h));
+  return {d:{w:Math.max(1,Math.floor(d.w*k)), h:Math.max(1,Math.floor(d.h*k))}, capped:true};
+}
+
+function sz(r){
+  return {
+    w: clamp(Math.round(img.naturalWidth * r), 1, 20000),
+    h: clamp(Math.round(img.naturalHeight * r), 1, 20000)
+  };
+}
+
+async function encode(d, t, dpi){
+  const canvas = resizeTo(d.w, d.h);
+  const q = lossy(t) ? clamp(parseInt($('#q').value,10) / 100, .4, 1) : undefined;
+  let blob = await toBlob(canvas, t, q);
+  if(dpi) blob = await stampDpi(blob, t, dpi);
+  return {blob, w:d.w, h:d.h, q:lossy(t) ? q : null, dpi:dpi || null};
+}
+
+async function fitSize(target, t){
+  let r = 1, best = null;
+  for(let i = 0; i < 9; i++){
+    const d = capPixels(sz(r)).d;
+    const canvas = resizeTo(d.w, d.h);
+    if(!lossy(t)){
+      const b = await toBlob(canvas, t);
+      if(b.size <= target) return {blob:b, w:d.w, h:d.h, q:null, dpi:null};
+      best = {blob:b, w:d.w, h:d.h, q:null, dpi:null};
+      r *= clamp(Math.sqrt(target / b.size) * .92, .3, .9);
+    }else{
+      const low = await toBlob(canvas, t, .4);
+      if(low.size <= target){
+        let lo = .4, hi = .97, bb = low, bq = .4;
+        for(let k = 0; k < 7; k++){
+          const q = (lo + hi) / 2;
+          const b = await toBlob(canvas, t, q);
+          if(b.size <= target){ lo = q; bb = b; bq = q; } else hi = q;
+        }
+        return {blob:bb, w:d.w, h:d.h, q:bq, dpi:null};
+      }
+      best = {blob:low, w:d.w, h:d.h, q:.4, dpi:null};
+      r *= clamp(Math.sqrt(target / low.size) * .92, .3, .9);
+    }
+    if(Math.round(img.naturalWidth * r) < 8 || Math.round(img.naturalHeight * r) < 8) break;
+  }
+  return best;
+}
+
+function show(res, note){
+  if(outObjURL) URL.revokeObjectURL(outObjURL);
+  outObjURL = URL.createObjectURL(res.blob);
+  $('#prevImg').src = outObjURL;
+
+  $('#outDim').textContent = res.w + ' × ' + res.h + ' px';
+  const meta = [fmtBytes(res.blob.size)];
+  if(srcFile) meta.push('元の ' + Math.round(res.blob.size / srcFile.size * 100) + '%');
+  if(res.q) meta.push('画質 ' + Math.round(res.q * 100));
+  if(res.dpi) meta.push(res.dpi + ' dpi');
+  $('#outMeta').textContent = meta.join('  /  ');
+
+  const t = outType();
+  const stem = (srcFile.name || 'image').replace(/\.[^.]+$/, '');
+  const tag = mode === 'long' ? res.w >= res.h ? res.w + 'px' : res.h + 'px'
+            : mode === 'size' ? Math.round(res.blob.size / 1024) + 'KB'
+            : res.dpi + 'dpi';
+  const a = $('#save');
+  a.href = outObjURL;
+  a.download = stem + '_' + tag + '.' + ext(t);
+
+  const file = new File([res.blob], a.download, {type:t});
+  const sb = $('#share');
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    sb.hidden = false;
+    sb.onclick = () => navigator.share({files:[file]}).catch(() => {});
+  }else sb.hidden = true;
+
+  $('#msg').textContent = note || '';
+  $('#result').hidden = false;
+  hints(res);
+}
+
+function hints(res){
+  if(img){
+    const sMax = Math.max(img.naturalWidth, img.naturalHeight);
+    $('#longHint').textContent = '元の長辺は ' + sMax + ' px です。';
+    const dpi = clamp(parseInt($('#dpi').value,10) || 350, 1, 9600);
+    const u = $('#pUnit').value;
+    $('#printHint').textContent = '元画像は ' + dpi + ' dpi なら '
+      + round2(toUnit(img.naturalWidth/dpi, u)) + ' × ' + round2(toUnit(img.naturalHeight/dpi, u)) + ' ' + u + ' です。';
+  }
+}
+
+/* ===== dpi をファイルに書き込む ===== */
+async function stampDpi(blob, type, dpi){
+  try{
+    const buf = await blob.arrayBuffer();
+    if(type === 'image/jpeg') return new Blob([jpegDpi(buf, dpi)], {type});
+    if(type === 'image/png')  return new Blob([pngDpi(buf, dpi)],  {type});
+    return blob; // WebP は解像度情報を持たない
+  }catch(e){ return blob; }
+}
+
+function jpegDpi(buf, dpi){
+  const b = new Uint8Array(buf);
+  if(b[0] !== 0xFF || b[1] !== 0xD8) return buf;
+  const hi = (dpi >> 8) & 255, lo = dpi & 255;
+  if(b[2] === 0xFF && b[3] === 0xE0 && b[6] === 0x4A && b[7] === 0x46 && b[8] === 0x49 && b[9] === 0x46 && b[10] === 0x00){
+    b[13] = 1; b[14] = hi; b[15] = lo; b[16] = hi; b[17] = lo;
+    return b.buffer;
+  }
+  const app0 = new Uint8Array([0xFF,0xE0,0x00,0x10,0x4A,0x46,0x49,0x46,0x00,0x01,0x02,1,hi,lo,hi,lo,0,0]);
+  const out = new Uint8Array(b.length + app0.length);
+  out.set(b.subarray(0,2), 0);
+  out.set(app0, 2);
+  out.set(b.subarray(2), 2 + app0.length);
+  return out.buffer;
+}
+
+let crcT = null;
+function crc32(bytes){
+  if(!crcT){
+    crcT = new Uint32Array(256);
+    for(let n = 0; n < 256; n++){
+      let c = n;
+      for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      crcT[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for(let i = 0; i < bytes.length; i++) c = crcT[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function pngDpi(buf, dpi){
+  const b = new Uint8Array(buf), dv = new DataView(buf);
+  if(b[0] !== 0x89 || b[1] !== 0x50) return buf;
+  const ppm = Math.round(dpi / 0.0254);
+  const chunk = new Uint8Array(21);
+  const cv = new DataView(chunk.buffer);
+  cv.setUint32(0, 9);
+  chunk.set([0x70,0x48,0x59,0x73], 4); // pHYs
+  cv.setUint32(8, ppm); cv.setUint32(12, ppm); chunk[16] = 1;
+  cv.setUint32(17, crc32(chunk.subarray(4, 17)));
+
+  let pos = 8, at = -1, oldLen = -1;
+  while(pos + 12 <= b.length){
+    const len = dv.getUint32(pos);
+    const t = String.fromCharCode(b[pos+4], b[pos+5], b[pos+6], b[pos+7]);
+    if(t === 'pHYs'){ at = pos; oldLen = len; break; }
+    if(t === 'IDAT'){ at = pos; break; }
+    pos += 12 + len;
+  }
+  if(at < 0) return buf;
+  if(oldLen >= 0){
+    const out = new Uint8Array(b.length - (12 + oldLen) + 21);
+    out.set(b.subarray(0, at), 0);
+    out.set(chunk, at);
+    out.set(b.subarray(at + 12 + oldLen), at + 21);
+    return out.buffer;
+  }
+  const out = new Uint8Array(b.length + 21);
+  out.set(b.subarray(0, at), 0);
+  out.set(chunk, at);
+  out.set(b.subarray(at), at + 21);
+  return out.buffer;
+}
+
+async function readDpi(file){
+  const buf = await file.slice(0, 65536).arrayBuffer();
+  const b = new Uint8Array(buf), dv = new DataView(buf);
+  if(b[0] === 0xFF && b[1] === 0xD8){
+    if(b[2] === 0xFF && b[3] === 0xE0 && b[6] === 0x4A && b[7] === 0x46 && b[8] === 0x49 && b[9] === 0x46){
+      const u = b[13], x = dv.getUint16(14);
+      if(x > 0){ if(u === 1) return x; if(u === 2) return Math.round(x * 2.54); }
+    }
+    return null;
+  }
+  if(b[0] === 0x89 && b[1] === 0x50){
+    let pos = 8;
+    while(pos + 12 <= b.length){
+      const len = dv.getUint32(pos);
+      const t = String.fromCharCode(b[pos+4], b[pos+5], b[pos+6], b[pos+7]);
+      if(t === 'pHYs'){
+        const x = dv.getUint32(pos + 8);
+        return (b[pos + 16] === 1 && x > 0) ? Math.round(x * 0.0254) : null;
+      }
+      if(t === 'IDAT') break;
+      pos += 12 + len;
+    }
+  }
+  return null;
+}
+})();
+</script>
+</body>
+</html>
