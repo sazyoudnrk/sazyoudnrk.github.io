@@ -1427,7 +1427,7 @@ async function generate(){
     }
   }
 
-  // 枠線の外側を切り落とす（塗りが枠からはみ出して見えないように）
+  // 枠線の外側を切り落とす。塗り＝枠の外縁まで、サテン＝枠の中心線まで
   if(S.edgeMask && P.clipEdge){
     const out=new Uint8Array(W*H);
     const q=new Int32Array(W*H); let head=0,tail=0;
@@ -1439,7 +1439,19 @@ async function generate(){
       if(x>0)seed(p-1); if(x<W-1)seed(p+1);
       if(y>0)seed(p-W); if(y<H-1)seed(p+W);
     }
-    for(let i=0;i<W*H;i++) if(out[i]) idx[i]=-1;
+    let clip=out;
+    if(P.edgeMode!=="fill"){
+      // サテンは中心線しか覆わないので、枠の外側半分も切り落とす
+      const notOut=new Uint8Array(W*H), notIn=new Uint8Array(W*H);
+      for(let i=0;i<W*H;i++){
+        notOut[i]=out[i]?0:1;
+        notIn[i]=(!out[i]&&!S.edgeMask[i])?0:1;   // 内側の余白までの距離
+      }
+      const dOut=distTransform(notOut,W,H), dIn=distTransform(notIn,W,H);
+      clip=new Uint8Array(out);
+      for(let i=0;i<W*H;i++) if(S.edgeMask[i] && dOut[i]<dIn[i]) clip[i]=1;
+    }
+    for(let i=0;i<W*H;i++) if(clip[i]) idx[i]=-1;
   }
 
   let {comp,list}=labelComponents(idx,W,H);
@@ -1750,16 +1762,22 @@ function buildCommands(){
   const U=v=>Math.round(v*10);
   let lastColor=null;
   for(const b of S.blocks){
+    if(!b.stitches.length)continue;
     const key=b.color.join(",");
     if(lastColor===null){ lastColor=key; }
     else if(key!==lastColor){ cmds.push({type:"color"}); lastColor=key; }
     else if(b.trimBefore){ cmds.push({type:"trim"}); }
+    // ブロックの先頭へは必ずジャンプで移動する（縫いながら移動しない）
+    cmds.push({type:"jump", x:U(b.stitches[0][0]), y:U(b.stitches[0][1])});
     const js=new Set(b.jumps), ts=new Set(b.trims);
-    for(let i=0;i<b.stitches.length;i++){
+    for(let i=1;i<b.stitches.length;i++){
       const p=b.stitches[i];
-      const isJump = i>0 && js.has(i-1);
-      if(isJump && ts.has(i-1)) cmds.push({type:"trim"});
-      cmds.push({type:isJump?"jump":"stitch", x:U(p[0]), y:U(p[1])});
+      if(js.has(i-1)){
+        if(ts.has(i-1)) cmds.push({type:"trim"});
+        cmds.push({type:"jump", x:U(p[0]), y:U(p[1])});
+      } else {
+        cmds.push({type:"stitch", x:U(p[0]), y:U(p[1])});
+      }
     }
   }
   return cmds;
