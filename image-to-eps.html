@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PP1 パンチ</title>
+<style>
+:root{
+  --paper:#efe9dc;
+  --paper-2:#e3dbca;
+  --ink:#26231e;
+  --ink-2:#6b6357;
+  --line:#cbc1ac;
+  --indigo:#2f4b7c;
+  --indigo-d:#22385d;
+  --thread:#d8a11f;
+  --panel:#fbf8f1;
+  --r:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:15px;line-height:1.6;
+  padding-bottom:88px;
+}
+header{
+  position:sticky;top:0;z-index:20;
+  background:var(--indigo);color:#f4f1e8;
+  padding:10px 14px calc(10px + env(safe-area-inset-top,0px));
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+  display:flex;align-items:baseline;gap:12px;
+}
+header h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.02em}
+header .sub{font-size:12px;color:#a9bcd8}
+main{padding:14px;max-width:640px;margin:0 auto}
+
+.stage{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px;margin-bottom:12px;
+}
+.canvaswrap{position:relative;width:100%;aspect-ratio:1/1;background:#fff;border-radius:6px;overflow:hidden}
+canvas#pv{width:100%;height:100%;display:block;touch-action:none}
+.stat{
+  display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:9px;
+  font-size:12.5px;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;
+}
+.stat b{color:var(--ink);font-weight:600}
+.stat .warn{color:#b0402c;font-weight:600}
+
+.viewbar{display:flex;gap:8px;margin-top:9px;align-items:center;flex-wrap:wrap}
+.viewbar label{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:4px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{
+  border:0;background:transparent;padding:5px 10px;font-size:12.5px;color:var(--ink-2);
+  font-family:inherit;cursor:pointer
+}
+.seg button[aria-pressed="true"]{background:var(--indigo);color:#fff}
+input[type=range].play{width:100%;margin-top:8px}
+
+.drops{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.drop{
+  background:var(--panel);border:1.5px dashed var(--line);border-radius:var(--r);
+  padding:9px 7px;text-align:center;cursor:pointer;position:relative;overflow:hidden;
+}
+.drop.on{border-style:solid;border-color:var(--indigo)}
+.drop .t{font-size:12.5px;font-weight:600;line-height:1.25}
+.drop .d{font-size:10.5px;color:var(--ink-2);line-height:1.4;margin-top:2px}
+.drop img{width:100%;aspect-ratio:1/1;object-fit:contain;margin-top:8px;background:#fff;border-radius:5px}
+.drop input{display:none}
+.drop .clear{position:absolute;top:6px;right:8px;font-size:11px;color:var(--ink-2);
+  background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+
+details{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  margin-bottom:10px;overflow:hidden;
+}
+details>summary{
+  padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer;list-style:none;
+  display:flex;justify-content:space-between;align-items:center;
+}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"+";color:var(--ink-2);font-weight:400;font-size:17px}
+details[open]>summary::after{content:"−"}
+.body{padding:2px 14px 14px}
+
+.row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #ece5d5}
+.row:first-child{border-top:0}
+.row .lb{flex:1;font-size:13.5px}
+.row .lb small{display:block;color:var(--ink-2);font-size:11.5px;line-height:1.35}
+.row input[type=range]{flex:1.1;min-width:90px;accent-color:var(--indigo)}
+.row .val{width:56px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums;color:var(--indigo-d);font-weight:600}
+.row input[type=color]{width:46px;height:30px;padding:2px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.row select,.row input[type=number]{
+  font-family:inherit;font-size:13.5px;padding:5px 7px;border:1px solid var(--line);
+  border-radius:6px;background:#fff;color:var(--ink)
+}
+.sw{position:relative;width:44px;height:26px;flex:0 0 auto}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%}
+.sw i{position:absolute;inset:0;background:var(--paper-2);border-radius:13px;transition:background .15s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;
+  border-radius:50%;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw input:checked+i{background:var(--indigo)}
+.sw input:checked+i::after{transform:translateX(18px)}
+
+.ord{display:flex;flex-direction:column;gap:6px}
+.ordrow{
+  display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);
+  border-radius:8px;background:#fff;cursor:pointer
+}
+.ordrow.on{border-color:var(--indigo);box-shadow:inset 0 0 0 1px var(--indigo);background:#eef2f8}
+.ordrow .no{font-size:12px;color:var(--ink-2);width:18px;font-variant-numeric:tabular-nums}
+.body .sq{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.2);vertical-align:-2px;margin-right:5px}
+.ordrow .sq{width:26px;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.15);flex:0 0 auto}
+.ordrow .meta{flex:1;font-size:13px;line-height:1.3}
+.ordrow .meta small{display:block;color:var(--ink-2);font-size:11.5px;font-variant-numeric:tabular-nums}
+.ordrow .mv{border:1px solid var(--line);background:var(--panel);border-radius:6px;
+  width:28px;height:28px;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
+.ordrow .pol{width:auto;padding:0 8px;font-size:11.5px;white-space:nowrap}
+.ordrow .pol.all,.ordrow .pol.length{border-color:#c0392b;color:#a5341f;background:#fdf0ee}
+.ordrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--indigo)}
+.ordact{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ordact button{font-family:inherit;font-size:13px;padding:8px 12px;border-radius:8px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.ordact button:disabled{opacity:.4}
+.man h4{font-size:13.5px;margin:14px 0 4px;color:var(--indigo-d)}
+.man h4:first-child{margin-top:2px}
+.man p{font-size:13px;margin:0 0 6px;line-height:1.65}
+.man ul{margin:0 0 8px;padding-left:18px;font-size:13px;line-height:1.65}
+.man li{margin-bottom:3px}
+.presets{display:flex;gap:7px;flex-wrap:wrap;padding:10px 14px 2px}
+.presets button{
+  font-family:inherit;font-size:13px;padding:7px 12px;border-radius:8px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer
+}
+.presets button.on{background:var(--indigo);border-color:var(--indigo-d);color:#fff;font-weight:600}
+.presets .note{font-size:11.5px;color:var(--ink-2);width:100%;margin:2px 0 0;line-height:1.45}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+.chip{
+  display:flex;align-items:center;gap:6px;border:1px solid var(--line);
+  border-radius:7px;padding:5px 8px 5px 5px;background:#fff;font-size:12px;cursor:pointer
+}
+.chip.line{border-color:var(--indigo);background:#e8eef7;box-shadow:inset 0 0 0 1px var(--indigo)}
+.chip .sq{width:22px;height:22px;border-radius:4px;border:1px solid rgba(0,0,0,.15)}
+.chip .tag{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.chip.line .tag{color:var(--indigo-d);font-weight:600}
+.chip.skip{opacity:.5;border-style:dashed}
+.chip.skip .tag{text-decoration:line-through}
+.hint{font-size:12px;color:var(--ink-2);margin:6px 0 0;line-height:1.5}
+
+footer{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;
+  background:linear-gradient(to top,var(--paper) 62%,rgba(239,233,220,0));
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:10px;max-width:640px;margin:0 auto;
+}
+button.act{
+  flex:1;font-family:inherit;font-size:15px;font-weight:600;padding:13px;border-radius:10px;
+  border:1px solid var(--indigo-d);background:var(--indigo);color:#fff;cursor:pointer
+}
+button.act.ghost{background:#fff;color:var(--indigo-d);flex:0 0 34%}
+button.act:disabled{opacity:.45}
+#status{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));
+  background:var(--ink);color:#fff;font-size:12.5px;padding:7px 14px;border-radius:20px;
+  z-index:30;opacity:0;transition:opacity .18s;pointer-events:none;white-space:nowrap
+}
+#status.on{opacity:.94}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PP1 パンチ</h1>
+  <span class="sub">画像 → 刺しゅうステッチ</span>
+  <button id="helpBtn" style="margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#f4f1e8;font-family:inherit;font-size:12.5px;padding:5px 11px;border-radius:7px">使い方</button>
+</header>
+
+<main>
+
+  <div class="drops">
+    <label class="drop" id="dropFill">
+      <span class="t">塗り画像</span>
+      <span class="d">完成イラスト</span>
+      <img id="thFill" hidden>
+      <input type="file" id="fFill" accept="image/*">
+    </label>
+    <label class="drop" id="dropLine">
+      <span class="t">線画</span>
+      <span class="d">線だけ／透過可</span>
+      <img id="thLine" hidden>
+      <input type="file" id="fLine" accept="image/*">
+    </label>
+    <label class="drop" id="dropEdge">
+      <span class="t">枠線</span>
+      <span class="d">最後に縫う</span>
+      <img id="thEdge" hidden>
+      <input type="file" id="fEdge" accept="image/*">
+    </label>
+  </div>
+  <p class="hint" id="modeHint">塗り画像だけでも動く。その場合は減色後のパレットから線の色を指定する。</p>
+
+  <div class="stage">
+    <div class="canvaswrap"><canvas id="pv"></canvas></div>
+    <div class="viewbar">
+      <div class="seg" id="bg">
+        <button data-v="#ffffff">白布</button>
+        <button data-v="#e8e0cd" aria-pressed="true">生成り</button>
+        <button data-v="#2a2a2c">黒布</button>
+      </div>
+      <div class="seg" id="mode">
+        <button data-m="thread" aria-pressed="true">糸</button>
+        <button data-m="line">線</button>
+      </div>
+      <label><input type="checkbox" id="showJump"> 糸切り位置</label>
+      <label><input type="checkbox" id="showSrc"> 元画像</label>
+    </div>
+    <input type="range" class="play" id="play" min="0" max="1000" value="1000">
+    <div class="stat" id="stat"><span>画像を選んで「減色」</span></div>
+  </div>
+
+  <details id="palPanel">
+    <summary>パレット</summary>
+    <div class="body">
+      <div class="chips" id="chips"></div>
+      <p class="hint" id="palHint">タップで「線」に切り替え。線に指定した色は塗らずに、中心線をたどってサテン／ランニングで縫う。</p>
+    </div>
+  </details>
+
+  <details id="manual">
+    <summary>使い方</summary>
+    <div class="body man">
+      <h4>1. 画像を用意する</h4>
+      <p>最大3枚。<b>塗り画像</b>だけでも動きます。</p>
+      <ul>
+        <li><b>塗り画像</b> — 完成イラスト。これが色の元になる</li>
+        <li><b>線画</b> — 線だけのレイヤー。中心線をたどってサテンかランニングで縫う</li>
+        <li><b>枠線</b> — 外枠。他が全部終わったあと、いちばん最後に縫う</li>
+      </ul>
+      <p>3枚は同じサイズ・同じ位置で書き出してください。透明部分は「外側なら縫わない／内側なら背景色で埋める」と判定します。</p>
+
+      <h4>2. 減色 → ステッチ生成</h4>
+      <p>「減色」でパレットを作り、必要なら色をタップして <b>塗り／線／縫わない</b> を切り替え。布と同じ色は「縫わない」に。そのあと「ステッチ生成」。</p>
+      <p>設定を変えたら「ステッチ生成」だけ押せば反映されます。色数や解像度を変えたときだけ「減色」からやり直してください。</p>
+
+      <h4>3. プリセット</h4>
+      <p><b>繊細な線</b>は細いペン画や小さい顔向け。<b>太い線</b>は太い主線やベタが多い絵向け。<b>塗りだけ</b>は線を縫きません。迷ったら<b>標準</b>から。</p>
+
+      <h4>4. 縫う順パネル</h4>
+      <ul>
+        <li>行をタップ → その色だけプレビューで濃く表示</li>
+        <li>↑↓ → 縫う順を入れ替え（糸切りの判定もやり直す）</li>
+        <li><b>毎回／長い時／切らない</b> → その色の糸切りの方針</li>
+        <li>チェック2つ以上 →「選んだ色を1色にする」。塗り・線・枠線をまたいでまとめられます</li>
+      </ul>
+
+      <h4>5. 書き出し</h4>
+      <p>「PESで書き出す」で .pes を保存 → Artspiraの<b>インポート</b>から読み込み → PP1へ転送。糸色はブラザーの64色に丸められ、書き出し後に対応表が出ます。</p>
+
+      <h4>つまずいたら</h4>
+      <ul>
+        <li><b>細い線が消える</b> — 線パネルの「細すぎる線」を〈太らせて必ず縫う〉に、「最小の線長」を下げる</li>
+        <li><b>余計な線が出る</b> — 「最小の線幅」を上げる。枠線は〈塗り〉で縫うと確実</li>
+        <li><b>糸切りが多すぎる</b> — 基本パネルの「糸切りの方針」を〈色を変えるときだけ〉に</li>
+        <li><b>枠の下から色がはみ出す</b> — 枠線パネルの「枠線の外は縫わない」をオン</li>
+        <li><b>生成が重い</b> — 解像度を8px/mmに下げる。行間はそのままでよい</li>
+        <li><b>ステッチが多すぎる</b> — 行間を0.25mm前後に、下打ちをオフ</li>
+      </ul>
+
+      <h4>覚えておくこと</h4>
+      <p>枠は10×10cmまで。糸は0.4mm前後の太さがあるので、1mm以下の描き込みは原理的に潰れます。顔が小さい絵は、顔だけ線を太くした線画を別に用意すると効きます。</p>
+    </div>
+  </details>
+
+  <details open id="expPanel">
+    <summary>刺しゅうデータの書き出し</summary>
+    <div class="body">
+      <div class="ordact"><button id="expPes">PESで書き出す</button></div>
+      <p class="hint" id="pesInfo">ステッチを生成してから押すと .pes を保存します。糸色はブラザーの64色パレットに丸めます。</p>
+      <p class="hint">iPhoneでは共有シートが開くので「ファイルに保存」を選び、Artspiraの「インポート」から読み込んでください。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>設定の保存</summary>
+    <div class="body">
+      <div class="ordact">
+        <button id="cfgOut">設定を書き出す</button>
+        <button id="cfgInBtn">設定を読み込む</button>
+        <input type="file" id="cfgIn" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint">パラメータ・プリセット・色ごとの糸切り指定を1つのJSONにまとめます。画像は含みません。同じ絵柄シリーズを同じ設定で作るときに。</p>
+    </div>
+  </details>
+
+  <details id="ordPanel">
+    <summary>縫う順</summary>
+    <div class="body">
+      <div class="ord" id="ordList"></div>
+      <div class="ordact">
+        <button id="ordSame">同じ色をまとめる</button>
+        <button id="ordMerge" disabled>選んだ色を1色にする</button>
+      </div>
+      <p class="hint">行をタップするとプレビューでその色だけが濃く出る。「切る／切らない」は色ごとに指定できる。矢印で縫う順を入れ替えると、糸切りの判定もやり直す。</p>
+    </div>
+  </details>
+
+  <details open>
+    <summary>基本</summary>
+    <div class="presets" id="presets">
+      <button data-p="fine">繊細な線</button>
+      <button data-p="std">標準</button>
+      <button data-p="bold">太い線</button>
+      <button data-p="flat">塗りだけ</button>
+      <p class="note" id="presetNote"></p>
+    </div>
+    <div class="body">
+      <div class="row"><span class="lb">仕上がりサイズ<small>枠は 100×100mm まで</small></span>
+        <input type="range" id="pSize" min="20" max="100" step="5" value="90"><span class="val" id="vSize"></span></div>
+      <div class="row"><span class="lb">解像度<small>細部の粒度。重いときは下げる</small></span>
+        <select id="pPpm"><option value="6">6 px/mm</option><option value="8">8 px/mm</option><option value="10" selected>10 px/mm</option><option value="12">12 px/mm</option><option value="14">14 px/mm</option></select></div>
+      <div class="row"><span class="lb">色数<small>糸替えの回数になる</small></span>
+        <input type="range" id="pK" min="2" max="14" step="1" value="8"><span class="val" id="vK"></span></div>
+      <div class="row"><span class="lb">内側の余白の色<small>絵の内側にある透明・背景を、この色の糸で埋める</small></span>
+        <input type="color" id="pBgFill" value="#ffffff"></div>
+      <div class="row"><span class="lb">糸切りの方針<small>同じ色の中で切るかどうか</small></span>
+        <select id="pTrimPol">
+          <option value="all" selected>渡るたびに切る</option>
+          <option value="length">長い渡りだけ切る</option>
+          <option value="color">色を変えるときだけ切る</option>
+        </select></div>
+      <div class="row"><span class="lb">糸切りのしきい値<small>これより長い渡りで糸を切る。短いものは縫ったまま繋ぐ</small></span>
+        <input type="range" id="pTrim" min="1" max="20" step="0.5" value="5"><span class="val" id="vTrim"></span></div>
+      <div class="row"><span class="lb">隠れる渡りは切らない<small>あとから他の色に覆われる渡りは糸を切らずに残す</small></span>
+        <label class="sw"><input type="checkbox" id="pCover" checked><i></i></label></div>
+      <div class="row"><span class="lb">背景の扱い<small>「縫わない」に指定した色をどうするか</small></span>
+        <select id="pBg">
+          <option value="outside" selected>外側だけ縫わない</option>
+          <option value="all">全部縫わない</option>
+          <option value="none">全部縫う</option>
+        </select></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>塗り</summary>
+    <div class="body">
+      <div class="row"><span class="lb">行間<small>密度。細かいほど濃く、重くなる</small></span>
+        <input type="range" id="pDens" min="0.10" max="0.80" step="0.02" value="0.18"><span class="val" id="vDens"></span></div>
+      <div class="row"><span class="lb">最大ステッチ長</span>
+        <input type="range" id="pLen" min="1.2" max="5" step="0.1" value="2.5"><span class="val" id="vLen"></span></div>
+      <div class="row"><span class="lb">縫い角度</span>
+        <input type="range" id="pAng" min="0" max="175" step="5" value="45"><span class="val" id="vAng"></span></div>
+      <div class="row"><span class="lb">領域ごとに角度を決める<small>形の長辺に沿わせる。切ると全体が同じ角度で揃う</small></span>
+        <label class="sw"><input type="checkbox" id="pPca"><i></i></label></div>
+      <div class="row"><span class="lb">最小領域<small>これ未満の島は隣の色に吸収</small></span>
+        <input type="range" id="pMinA" min="0.1" max="8" step="0.1" value="0.8"><span class="val" id="vMinA"></span></div>
+      <div class="row"><span class="lb">ノイズ除去<small>輪郭のギザつきを均す回数</small></span>
+        <input type="range" id="pSm" min="0" max="4" step="1" value="1"><span class="val" id="vSm"></span></div>
+      <div class="row"><span class="lb">線の下の塗り<small>塗り画像に線が入っているかで選ぶ</small></span>
+        <select id="pUnder">
+          <option value="dissolve" selected>周りの色で埋める</option>
+          <option value="asis">塗り画像のまま使う</option>
+          <option value="none">塗らない</option>
+        </select></div>
+      <div class="row"><span class="lb">下打ち<small>直交する粗いフィルを先に入れて土台を作る</small></span>
+        <label class="sw"><input type="checkbox" id="pUL" checked><i></i></label></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>枠線</summary>
+    <div class="body">
+      <div class="row"><span class="lb">縫い方<small>塗り＝形をそのまま埋める（確実）。サテン＝中心線をたどる</small></span>
+        <select id="pEdgeMode">
+          <option value="fill" selected>塗り</option>
+          <option value="satin">サテン</option>
+          <option value="auto">自動（太い所だけ塗り）</option>
+        </select></div>
+      <div class="row"><span class="lb">色<small>塗りは枠線の下まで自動で伸びる</small></span>
+        <select id="pEdgeCol">
+          <option value="edge" selected>枠線画像の色</option>
+          <option value="auto">塗り画像から拾う</option>
+          <option value="manual">指定した色</option>
+        </select></div>
+      <div class="row"><span class="lb">指定色</span>
+        <input type="color" id="pEdgeHex" value="#1b1a3a"></div>
+      <div class="row"><span class="lb">枠線の外は縫わない<small>塗りを枠の外縁でぴたりと止める</small></span>
+        <label class="sw"><input type="checkbox" id="pClipEdge" checked><i></i></label></div>
+      <div class="row"><span class="lb">判定しきい値<small>枠線画像の濃さ。変えたら「ステッチ生成」で反映</small></span>
+        <input type="range" id="pETh" min="10" max="240" step="5" value="140"><span class="val" id="vETh"></span></div>
+      <div class="row"><span class="lb">サテンに切り替える幅<small>これ未満は三重ランニング</small></span>
+        <input type="range" id="pESatW" min="0.6" max="3.5" step="0.1" value="1.5"><span class="val" id="vESatW"></span></div>
+      <div class="row"><span class="lb">線とみなす最大幅<small>「自動」のとき、これより太い所は塗りに回す</small></span>
+        <input type="range" id="pESatMax" min="1" max="12" step="0.5" value="8"><span class="val" id="vESatMax"></span></div>
+      <div class="row"><span class="lb">サテンのピッチ</span>
+        <input type="range" id="pEPitch" min="0.2" max="0.8" step="0.05" value="0.4"><span class="val" id="vEPitch"></span></div>
+      <div class="row"><span class="lb">ランニングの針目</span>
+        <input type="range" id="pERun" min="0.8" max="3.5" step="0.1" value="2"><span class="val" id="vERun"></span></div>
+      <div class="row"><span class="lb">細すぎる線</span>
+        <select id="pEThinMode">
+          <option value="grow" selected>太らせて必ず縫う</option>
+          <option value="drop">細すぎるものは捨てる</option>
+        </select></div>
+      <div class="row"><span class="lb">最小仕上がり幅</span>
+        <input type="range" id="pEMinSW" min="0.35" max="2.5" step="0.05" value="1"><span class="val" id="vEMinSW"></span></div>
+      <div class="row"><span class="lb">最小の線幅</span>
+        <input type="range" id="pEMinW" min="0.05" max="2" step="0.05" value="0.3"><span class="val" id="vEMinW"></span></div>
+      <div class="row"><span class="lb">最小の線長</span>
+        <input type="range" id="pEMinL" min="0.2" max="8" step="0.1" value="2"><span class="val" id="vEMinL"></span></div>
+      <div class="row"><span class="lb">なめらかさ</span>
+        <input type="range" id="pESmooth" min="0" max="6" step="1" value="2"><span class="val" id="vESmooth"></span></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>線</summary>
+    <div class="body">
+      <div class="row"><span class="lb">線を縫う<small>切ると塗りだけで表現する</small></span>
+        <label class="sw"><input type="checkbox" id="pUseLine" checked><i></i></label></div>
+      <div class="row"><span class="lb">判定しきい値<small>線画レイヤーの濃さ。変えたら「ステッチ生成」で反映</small></span>
+        <input type="range" id="pLTh" min="10" max="240" step="5" value="140"><span class="val" id="vLTh"></span></div>
+      <div class="row"><span class="lb">サテンに切り替える幅<small>これ未満は三重ランニング</small></span>
+        <input type="range" id="pSatW" min="0.6" max="2.5" step="0.1" value="1.1"><span class="val" id="vSatW"></span></div>
+      <div class="row"><span class="lb">線とみなす最大幅<small>これより太い所は線をやめて塗りに回す</small></span>
+        <input type="range" id="pSatMax" min="1" max="10" step="0.5" value="3"><span class="val" id="vSatMax"></span></div>
+      <div class="row"><span class="lb">サテンのピッチ</span>
+        <input type="range" id="pPitch" min="0.2" max="0.7" step="0.05" value="0.35"><span class="val" id="vPitch"></span></div>
+      <div class="row"><span class="lb">ランニングの針目</span>
+        <input type="range" id="pRun" min="0.8" max="3" step="0.1" value="1.4"><span class="val" id="vRun"></span></div>
+      <div class="row"><span class="lb">細すぎる線<small>元絵より細い線をどう扱うか</small></span>
+        <select id="pThinMode">
+          <option value="grow" selected>太らせて必ず縫う</option>
+          <option value="drop">細すぎるものは捨てる</option>
+        </select></div>
+      <div class="row"><span class="lb">線の最小仕上がり幅<small>これより細い線はこの幅まで太らせる</small></span>
+        <input type="range" id="pMinSW" min="0.35" max="1.4" step="0.05" value="0.7"><span class="val" id="vMinSW"></span></div>
+      <div class="row"><span class="lb">最小の線幅<small>これより細い残りカスは縫わない。余計な枠線が出るときは上げる</small></span>
+        <input type="range" id="pMinW" min="0.05" max="1.5" step="0.05" value="0.15"><span class="val" id="vMinW"></span></div>
+      <div class="row"><span class="lb">最小の線長<small>短い枝は捨てる</small></span>
+        <input type="range" id="pMinL" min="0.2" max="6" step="0.1" value="0.8"><span class="val" id="vMinL"></span></div>
+      <div class="row"><span class="lb">なめらかさ<small>中心線の平滑化</small></span>
+        <input type="range" id="pSmooth" min="0" max="6" step="1" value="2"><span class="val" id="vSmooth"></span></div>
+    </div>
+  </details>
+
+</main>
+
+<footer>
+  <button class="act ghost" id="btnQ">減色</button>
+  <button class="act" id="btnG" disabled>ステッチ生成</button>
+</footer>
+<div id="status"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const tick=()=>new Promise(r=>setTimeout(r,0));
+let statTO;
+function say(t){const e=$("#status");e.textContent=t;e.classList.add("on");clearTimeout(statTO);
+  statTO=setTimeout(()=>e.classList.remove("on"),1400);}
+function busy(t){const e=$("#status");e.textContent=t;e.classList.add("on");clearTimeout(statTO);}
+
+/* ---------------- state ---------------- */
+const S={
+  imgFill:null, imgLine:null, imgEdge:null,
+  W:0,H:0,ppm:8,sizeMm:90,
+  idx:null,            // Int32Array palette index per px  (-1 = 背景)
+  pal:[],              // [[r,g,b],...]
+  lineSet:new Set(), skipSet:new Set(),
+  lineMask:null, edgeMask:null,
+  blocks:[], stats:null, groups:[], hi:null, lineStats:null, viewMode:"thread", trimByColor:new Map(), selByColor:new Set(),
+  srcCanvas:null
+};
+
+/* ---------------- params ---------------- */
+const P={};
+function bindRange(id,key,fmt){
+  const el=$(id), out=$(id.replace("#p","#v"));
+  const upd=()=>{P[key]=parseFloat(el.value); if(out) out.textContent=fmt(P[key]);};
+  el.addEventListener("input",upd); upd();
+}
+bindRange("#pSize","sizeMm",v=>v+"mm");
+bindRange("#pK","k",v=>v+"色");
+bindRange("#pTrim","trimAt",v=>v.toFixed(1)+"mm");
+bindRange("#pDens","dens",v=>v.toFixed(2)+"mm");
+bindRange("#pLen","maxLen",v=>v.toFixed(1)+"mm");
+bindRange("#pAng","angle",v=>v+"°");
+bindRange("#pMinA","minArea",v=>v.toFixed(1)+"mm²");
+bindRange("#pSm","smooth",v=>v+"回");
+bindRange("#pLTh","lineTh",v=>v);
+bindRange("#pSatW","satW",v=>v.toFixed(1)+"mm");
+bindRange("#pSatMax","satMax",v=>v.toFixed(1)+"mm");
+bindRange("#pPitch","pitch",v=>v.toFixed(2)+"mm");
+bindRange("#pRun","runLen",v=>v.toFixed(1)+"mm");
+bindRange("#pMinSW","minSW",v=>v.toFixed(2)+"mm");
+bindRange("#pMinW","minW",v=>v.toFixed(2)+"mm");
+bindRange("#pMinL","minLine",v=>v.toFixed(1)+"mm");
+bindRange("#pSmooth","pathSm",v=>v+"回");
+bindRange("#pETh","eTh",v=>v);
+bindRange("#pESatW","eSatW",v=>v.toFixed(1)+"mm");
+bindRange("#pESatMax","eSatMax",v=>v.toFixed(1)+"mm");
+bindRange("#pEPitch","ePitch",v=>v.toFixed(2)+"mm");
+bindRange("#pERun","eRun",v=>v.toFixed(1)+"mm");
+bindRange("#pEMinSW","eMinSW",v=>v.toFixed(2)+"mm");
+bindRange("#pEMinW","eMinW",v=>v.toFixed(2)+"mm");
+bindRange("#pEMinL","eMinL",v=>v.toFixed(1)+"mm");
+bindRange("#pESmooth","eSmooth",v=>v+"回");
+const chk=(id,key)=>{const e=$(id);const u=()=>P[key]=e.checked;e.addEventListener("change",u);u();};
+chk("#pPca","pca"); chk("#pCover","cover"); chk("#pClipEdge","clipEdge"); chk("#pUL","underlay"); chk("#pUseLine","useLine");
+{const e=$("#pBg");const u=()=>P.bgMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pUnder");const u=()=>P.underMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pEdgeMode");const u=()=>P.edgeMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pBgFill");const u=()=>P.bgFill=e.value;e.addEventListener("input",u);u();}
+{const e=$("#pThinMode");const u=()=>P.thinMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pEdgeCol");const u=()=>P.edgeColMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pEdgeHex");const u=()=>P.edgeHex=e.value;e.addEventListener("input",u);u();}
+{const e=$("#pEThinMode");const u=()=>P.eThinMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pTrimPol");const u=()=>{P.trimPolicy=e.value; S.trimByColor.clear();
+   if(S.blocks&&S.blocks.length&&S.lineStats) applyOrder();};
+ e.addEventListener("change",u); P.trimPolicy=e.value;}
+$("#pPpm").addEventListener("change",e=>P.ppm=parseInt(e.target.value)); P.ppm=10;
+
+/* ---------------- presets ---------------- */
+const BASE={
+  pSize:90, pPpm:"10", pK:8, pTrim:5, pBg:"outside",
+  pDens:0.18, pLen:2.5, pAng:45, pPca:false, pMinA:0.8, pSm:1,
+  pUnder:"dissolve", pUL:true, pCover:true, pBgFill:"#ffffff",
+  pUseLine:true, pEdgeMode:"fill", pLTh:140, pSatW:1.1, pSatMax:3, pPitch:0.35,
+  pRun:1.4, pMinW:0.15, pMinL:0.8, pSmooth:1,
+  pThinMode:"grow", pMinSW:0.7, pTrimPol:"all", pEdgeCol:"edge", pEdgeHex:"#1b1a3a",
+  pClipEdge:true, pETh:140, pESatW:1.5, pESatMax:8, pEPitch:0.4, pERun:2, pEThinMode:"grow",
+  pEMinSW:1.0, pEMinW:0.3, pEMinL:2, pESmooth:2
+};
+const PRESETS={
+  fine:{v:{pPpm:"12",pDens:0.15,pLen:2.2,pMinA:0.3,pSm:0,pSatW:0.8,pSatMax:2.2,pPitch:0.28,
+           pRun:1.0,pMinW:0.08,pMinL:0.4,pSmooth:0,pLTh:180,pMinSW:0.55,pEMinSW:0.8,pESatW:1.2},
+        note:"細いペン画や小さい顔向け。解像度を上げて短い線も拾う。生成は重く、ステッチ数も増える。"},
+  std:{v:{},
+        note:"標準。線画と枠線を分けて渡す前提で、たいていの絵はここから始める。"},
+  bold:{v:{pDens:0.20,pLen:2.8,pMinA:1.5,pSm:2,pSatW:1.5,pSatMax:4.5,pPitch:0.4,
+           pRun:2.0,pMinW:0.35,pMinL:2.0,pSmooth:2,pLTh:120,pMinSW:0.9,pEMinSW:1.3,pESatW:2.0},
+        note:"太い主線やベタの多い絵向け。太い線はサテンで、それ以上は塗りに回す。"},
+  flat:{v:{pUseLine:false,pSm:2,pMinA:1.2,pDens:0.2},
+        note:"線を縫わず、塗りだけで表現する。線画レイヤーがない絵に。"}
+};
+function applyPreset(name){
+  const p=PRESETS[name]; if(!p)return;
+  const vals=Object.assign({},BASE,p.v);
+  for(const [id,val] of Object.entries(vals)){
+    const el=$("#"+id); if(!el)continue;
+    if(el.type==="checkbox"){ el.checked=!!val; el.dispatchEvent(new Event("change")); }
+    else { el.value=val; el.dispatchEvent(new Event(el.tagName==="SELECT"?"change":"input")); }
+  }
+  $$("#presets button").forEach(b=>b.classList.toggle("on",b.dataset.p===name));
+  $("#presetNote").textContent=p.note;
+}
+$$("#presets button").forEach(b=>b.addEventListener("click",()=>applyPreset(b.dataset.p)));
+
+/* ---------------- image input ---------------- */
+function loadFile(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=fr.result;};
+    fr.onerror=rej; fr.readAsDataURL(file);
+  });
+}
+function hookDrop(inputId,thumbId,dropId,slot){
+  $(inputId).addEventListener("change",async e=>{
+    const f=e.target.files[0]; if(!f)return;
+    const im=await loadFile(f);
+    S[slot]=im;
+    const t=$(thumbId); t.src=im.src; t.hidden=false;
+    $(dropId).classList.add("on");
+    updateModeHint();
+  });
+}
+hookDrop("#fFill","#thFill","#dropFill","imgFill");
+hookDrop("#fLine","#thLine","#dropLine","imgLine");
+hookDrop("#fEdge","#thEdge","#dropEdge","imgEdge");
+function updateModeHint(){
+  const t=[];
+  t.push(S.imgLine ? "線画レイヤーの濃い部分を線として縫う。塗り画像から線を抜いてある場合は「線の下の塗り」を “塗り画像のまま使う” に。"
+                   : "線はパレットから指定する（線を使わなくてもよい）。");
+  if(S.imgEdge) t.push("枠線は他が全部終わったあと、いちばん最後に縫う。");
+  $("#modeHint").textContent = t.join(" ");
+}
+
+/* ---------------- color utils ---------------- */
+function hex2rgb(hex){
+  return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+}
+function srgb2lin(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);}
+function rgb2lab(r,g,b){
+  const R=srgb2lin(r),G=srgb2lin(g),B=srgb2lin(b);
+  let X=(R*0.4124+G*0.3576+B*0.1805)/0.95047;
+  let Y=(R*0.2126+G*0.7152+B*0.0722);
+  let Z=(R*0.0193+G*0.1192+B*0.9505)/1.08883;
+  const f=t=>t>0.008856?Math.cbrt(t):(7.787*t+16/116);
+  X=f(X);Y=f(Y);Z=f(Z);
+  return [116*Y-16, 500*(X-Y), 200*(Y-Z)];
+}
+
+/* ---------------- rasterize ---------------- */
+function rasterize(){
+  const ppm=P.ppm, sz=Math.round(P.sizeMm*ppm);
+  S.ppm=ppm; S.sizeMm=P.sizeMm; S.W=sz; S.H=sz;
+  const draw=(img)=>{
+    const c=document.createElement("canvas"); c.width=sz; c.height=sz;
+    const g=c.getContext("2d",{willReadFrequently:true});
+    g.imageSmoothingQuality="high";
+    const s=Math.min(sz/img.width, sz/img.height);
+    const w=img.width*s, h=img.height*s;
+    g.drawImage(img,(sz-w)/2,(sz-h)/2,w,h);
+    return g.getImageData(0,0,sz,sz);
+  };
+  const fill=draw(S.imgFill);
+  S.srcCanvas=fill;
+  let line=null, edge=null;
+  if(S.imgLine) line=draw(S.imgLine);
+  if(S.imgEdge) edge=draw(S.imgEdge);
+  return {fill,line,edge};
+}
+
+/* alpha<32 は背景として除外。線画は「濃い or 不透明」で判定 */
+function buildLineMask(imd,th){
+  const n=imd.width*imd.height, d=imd.data, m=new Uint8Array(n);
+  for(let i=0;i<n;i++){
+    const a=d[i*4+3];
+    if(a<40){m[i]=0;continue;}
+    const lum=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+    m[i]= lum<th ? 1 : 0;
+  }
+  return m;
+}
+
+/* ---------------- k-means (Lab) ---------------- */
+function quantize(imd, k, skip){
+  const n=imd.width*imd.height, d=imd.data;
+  const valid=[];
+  for(let i=0;i<n;i++){
+    if(d[i*4+3]<40) continue;
+    if(skip && skip[i]) continue;
+    valid.push(i);
+  }
+  if(!valid.length) return {idx:new Int32Array(n).fill(-1), pal:[]};
+  const lab=new Float32Array(valid.length*3);
+  for(let j=0;j<valid.length;j++){
+    const i=valid[j];
+    const L=rgb2lab(d[i*4],d[i*4+1],d[i*4+2]);
+    lab[j*3]=L[0];lab[j*3+1]=L[1];lab[j*3+2]=L[2];
+  }
+  // sample for centroid fitting
+  const stride=Math.max(1,Math.floor(valid.length/20000));
+  const samp=[]; for(let j=0;j<valid.length;j+=stride) samp.push(j);
+  // k-means++ init
+  const C=new Float32Array(k*3);
+  let seed=samp[(Math.random()*samp.length)|0];
+  C[0]=lab[seed*3];C[1]=lab[seed*3+1];C[2]=lab[seed*3+2];
+  const dist=new Float32Array(samp.length).fill(1e9);
+  for(let c=1;c<k;c++){
+    let tot=0;
+    for(let s=0;s<samp.length;s++){
+      const j=samp[s];
+      const dx=lab[j*3]-C[(c-1)*3],dy=lab[j*3+1]-C[(c-1)*3+1],dz=lab[j*3+2]-C[(c-1)*3+2];
+      const dd=dx*dx+dy*dy+dz*dz;
+      if(dd<dist[s])dist[s]=dd;
+      tot+=dist[s];
+    }
+    let r=Math.random()*tot, pick=samp[0];
+    for(let s=0;s<samp.length;s++){r-=dist[s];if(r<=0){pick=samp[s];break;}}
+    C[c*3]=lab[pick*3];C[c*3+1]=lab[pick*3+1];C[c*3+2]=lab[pick*3+2];
+  }
+  // lloyd
+  const sum=new Float64Array(k*3), cnt=new Int32Array(k);
+  for(let it=0;it<14;it++){
+    sum.fill(0);cnt.fill(0);
+    for(const j of samp){
+      let best=0,bd=1e18;
+      for(let c=0;c<k;c++){
+        const dx=lab[j*3]-C[c*3],dy=lab[j*3+1]-C[c*3+1],dz=lab[j*3+2]-C[c*3+2];
+        const dd=dx*dx+dy*dy+dz*dz;
+        if(dd<bd){bd=dd;best=c;}
+      }
+      sum[best*3]+=lab[j*3];sum[best*3+1]+=lab[j*3+1];sum[best*3+2]+=lab[j*3+2];cnt[best]++;
+    }
+    for(let c=0;c<k;c++) if(cnt[c]){C[c*3]=sum[c*3]/cnt[c];C[c*3+1]=sum[c*3+1]/cnt[c];C[c*3+2]=sum[c*3+2]/cnt[c];}
+  }
+  // assign all + average true rgb per cluster
+  const idx=new Int32Array(n).fill(-1);
+  const rs=new Float64Array(k),gs=new Float64Array(k),bs=new Float64Array(k),cs=new Int32Array(k);
+  for(let j=0;j<valid.length;j++){
+    let best=0,bd=1e18;
+    for(let c=0;c<k;c++){
+      const dx=lab[j*3]-C[c*3],dy=lab[j*3+1]-C[c*3+1],dz=lab[j*3+2]-C[c*3+2];
+      const dd=dx*dx+dy*dy+dz*dz;
+      if(dd<bd){bd=dd;best=c;}
+    }
+    const i=valid[j]; idx[i]=best;
+    rs[best]+=d[i*4];gs[best]+=d[i*4+1];bs[best]+=d[i*4+2];cs[best]++;
+  }
+  // drop empty clusters, remap
+  const map=new Int32Array(k).fill(-1); const pal=[];
+  for(let c=0;c<k;c++) if(cs[c]>0){ map[c]=pal.length;
+    pal.push([Math.round(rs[c]/cs[c]),Math.round(gs[c]/cs[c]),Math.round(bs[c]/cs[c])]); }
+  for(let i=0;i<n;i++) if(idx[i]>=0) idx[i]=map[idx[i]];
+  return {idx,pal};
+}
+
+/* ---------------- morphology / cleanup ---------------- */
+function majority(idx,W,H,K){
+  const out=new Int32Array(idx);
+  const cnt=new Int32Array(K+1);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x; if(idx[i]<0)continue;
+    cnt.fill(0);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const yy=y+dy,xx=x+dx; if(xx<0||yy<0||xx>=W||yy>=H)continue;
+      const v=idx[yy*W+xx]; if(v>=0)cnt[v]++;
+    }
+    let b=idx[i],bc=cnt[idx[i]];
+    for(let c=0;c<K;c++) if(cnt[c]>bc){bc=cnt[c];b=c;}
+    out[i]=b;
+  }
+  return out;
+}
+/* 背景(-1)以外について連結成分。sum系を貯めてPCA角度も出す */
+function labelComponents(idx,W,H){
+  const comp=new Int32Array(W*H).fill(-1);
+  const q=new Int32Array(W*H); const list=[];
+  for(let s=0;s<W*H;s++){
+    if(comp[s]!==-1||idx[s]<0)continue;
+    const col=idx[s]; const id=list.length;
+    let head=0,tail=0; q[tail++]=s; comp[s]=id;
+    let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0,x0=1e9,y0=1e9,x1=-1,y1=-1;
+    while(head<tail){
+      const p=q[head++]; const x=p%W, y=(p/W)|0;
+      n++;sx+=x;sy+=y;sxx+=x*x;syy+=y*y;sxy+=x*y;
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      if(x>0){const t=p-1;if(comp[t]===-1&&idx[t]===col){comp[t]=id;q[tail++]=t;}}
+      if(x<W-1){const t=p+1;if(comp[t]===-1&&idx[t]===col){comp[t]=id;q[tail++]=t;}}
+      if(y>0){const t=p-W;if(comp[t]===-1&&idx[t]===col){comp[t]=id;q[tail++]=t;}}
+      if(y<H-1){const t=p+W;if(comp[t]===-1&&idx[t]===col){comp[t]=id;q[tail++]=t;}}
+    }
+    const mx=sx/n,my=sy/n;
+    const cxx=sxx/n-mx*mx, cyy=syy/n-my*my, cxy=sxy/n-mx*my;
+    const ang=0.5*Math.atan2(2*cxy, cxx-cyy); // principal axis
+    list.push({id,color:col,n,x0,y0,x1,y1,cx:mx,cy:my,angle:ang*180/Math.PI});
+  }
+  return {comp,list};
+}
+/* 小さい島を隣の色に吸収 */
+function absorbSmall(idx,comp,list,W,H,minPx){
+  const small=new Uint8Array(list.length);
+  let any=false;
+  for(const c of list) if(c.n<minPx){small[c.id]=1;any=true;}
+  if(!any)return idx;
+  const out=new Int32Array(idx);
+  const isSmall=i=>{const c=comp[i];return c>=0&&small[c];};
+  for(let pass=0;pass<4;pass++){
+    let changed=false;
+    const snap=new Int32Array(out);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const i=y*W+x; if(!isSmall(i)||out[i]<0)continue;
+      const nb=[];
+      if(x>0)nb.push(i-1); if(x<W-1)nb.push(i+1);
+      if(y>0)nb.push(i-W); if(y<H-1)nb.push(i+W);
+      for(const t of nb){
+        if(!isSmall(t)&&snap[t]>=0){ out[i]=snap[t]; comp[i]=comp[t]; changed=true; break;}
+      }
+    }
+    if(!changed)break;
+  }
+  return out;
+}
+/* 線の画素を消して、周囲の塗り色で埋め直す（多始点BFS） */
+function dissolveLines(idx,thin,W,H){
+  const out=new Int32Array(idx);
+  let todo=0;
+  for(let i=0;i<W*H;i++) if(thin[i]&&out[i]!==-1){out[i]=-2;todo++;}
+  if(!todo)return out;
+  const q=new Int32Array(W*H); let head=0,tail=0;
+  for(let i=0;i<W*H;i++) if(out[i]>=0) q[tail++]=i;
+  while(head<tail){
+    const p=q[head++]; const x=p%W,y=(p/W)|0;
+    if(x>0&&out[p-1]===-2){out[p-1]=out[p];q[tail++]=p-1;}
+    if(x<W-1&&out[p+1]===-2){out[p+1]=out[p];q[tail++]=p+1;}
+    if(y>0&&out[p-W]===-2){out[p-W]=out[p];q[tail++]=p-W;}
+    if(y<H-1&&out[p+W]===-2){out[p+W]=out[p];q[tail++]=p+W;}
+  }
+  for(let i=0;i<W*H;i++) if(out[i]===-2) out[i]=-1;
+  return out;
+}
+/* 幅が足りない削りカスの成分を捨てる（枠線を引いた残りや、太線の皮） */
+function dropSlivers(mask,W,H,ppm,minWmm){
+  const d=distTransform(mask,W,H);
+  const idx2=new Int32Array(W*H).fill(-1);
+  let any=false;
+  for(let i=0;i<W*H;i++) if(mask[i]){idx2[i]=0;any=true;}
+  if(!any) return mask;
+  const L=labelComponents(idx2,W,H);
+  const maxd=new Float32Array(L.list.length);
+  for(let i=0;i<W*H;i++){ if(!mask[i])continue; const c=L.comp[i]; if(d[i]>maxd[c])maxd[c]=d[i]; }
+  const lim=minWmm*ppm/2;
+  const out=new Uint8Array(mask);
+  for(let i=0;i<W*H;i++) if(mask[i] && maxd[L.comp[i]]<lim) out[i]=0;
+  return out;
+}
+
+/* 太い部分（開処理で残る芯）を線から外す。戻り値は細線だけのマスク */
+function thinOnly(lineMask,W,H,radiusPx,margin){
+  margin=margin||1.5;
+  const d=distTransform(lineMask,W,H);
+  const notCore=new Uint8Array(W*H); let coreN=0;
+  for(let i=0;i<W*H;i++){ const c=d[i]>=radiusPx?1:0; if(c)coreN++; notCore[i]=c?0:1; }
+  if(!coreN) return {thin:lineMask, thick:null};
+  const dc=distTransform(notCore,W,H);
+  const thin=new Uint8Array(W*H), thick=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){
+    if(!lineMask[i])continue;
+    if(dc[i]>radiusPx+margin) thin[i]=1; else thick[i]=1;
+  }
+  return {thin,thick};
+}
+
+/* ---------------- distance transform ---------------- */
+function distTransform(bin,W,H){
+  const INF=1e9, d=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++) d[i]=bin[i]?INF:0;
+  const D=1, Dg=1.41421356;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x; let v=d[i]; if(v===0)continue;
+    if(y>0){ v=Math.min(v,d[i-W]+D);
+      if(x>0)v=Math.min(v,d[i-W-1]+Dg);
+      if(x<W-1)v=Math.min(v,d[i-W+1]+Dg);}
+    if(x>0)v=Math.min(v,d[i-1]+D);
+    d[i]=v;
+  }
+  for(let y=H-1;y>=0;y--)for(let x=W-1;x>=0;x--){
+    const i=y*W+x; let v=d[i]; if(v===0)continue;
+    if(y<H-1){ v=Math.min(v,d[i+W]+D);
+      if(x<W-1)v=Math.min(v,d[i+W+1]+Dg);
+      if(x>0)v=Math.min(v,d[i+W-1]+Dg);}
+    if(x<W-1)v=Math.min(v,d[i+1]+D);
+    d[i]=v;
+  }
+  return d;
+}
+
+/* ---------------- Zhang-Suen thinning ---------------- */
+function thin2(src,W,H){
+  const b=new Uint8Array(src);
+  const at=(x,y)=> (x<0||y<0||x>=W||y>=H)?0:b[y*W+x];
+  let changed=true, guard=0;
+  const del=[];
+  while(changed && guard++<200){
+    changed=false;
+    for(let step=0;step<2;step++){
+      del.length=0;
+      for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+        if(!b[y*W+x])continue;
+        const p2=at(x,y-1),p3=at(x+1,y-1),p4=at(x+1,y),p5=at(x+1,y+1),
+              p6=at(x,y+1),p7=at(x-1,y+1),p8=at(x-1,y),p9=at(x-1,y-1);
+        const n=p2+p3+p4+p5+p6+p7+p8+p9;
+        if(n<2||n>6)continue;
+        const seq=[p2,p3,p4,p5,p6,p7,p8,p9,p2];
+        let a=0; for(let i=0;i<8;i++) if(seq[i]===0&&seq[i+1]===1)a++;
+        if(a!==1)continue;
+        if(step===0){ if(p2*p4*p6!==0)continue; if(p4*p6*p8!==0)continue; }
+        else { if(p2*p4*p8!==0)continue; if(p2*p6*p8!==0)continue; }
+        del.push(y*W+x);
+      }
+      if(del.length){changed=true; for(const i of del)b[i]=0;}
+    }
+  }
+  return b;
+}
+
+/* ---------------- skeleton → polylines ---------------- */
+const N8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+function tracePaths(sk,W,H){
+  const deg=new Uint8Array(W*H);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x; if(!sk[i])continue;
+    let d=0;
+    for(const[dx,dy]of N8){const xx=x+dx,yy=y+dy;
+      if(xx>=0&&yy>=0&&xx<W&&yy<H&&sk[yy*W+xx])d++;}
+    deg[i]=d;
+  }
+  const used=new Uint8Array(W*H); // degree-2 pixel consumed
+  const edgeKey=new Set();
+  const paths=[];
+  const nbrs=i=>{
+    const x=i%W,y=(i/W)|0,out=[];
+    for(const[dx,dy]of N8){const xx=x+dx,yy=y+dy;
+      if(xx>=0&&yy>=0&&xx<W&&yy<H&&sk[yy*W+xx])out.push(yy*W+xx);}
+    return out;
+  };
+  const walk=(start,first)=>{
+    const path=[start]; let prev=start, cur=first;
+    while(true){
+      path.push(cur);
+      if(deg[cur]!==2) return path;
+      used[cur]=1;
+      const ns=nbrs(cur).filter(t=>t!==prev);
+      if(!ns.length) return path;
+      let nx=ns.find(t=>deg[t]!==2 || !used[t]);
+      if(nx===undefined) return path;
+      prev=cur; cur=nx;
+      if(path.length>W*H) return path;
+    }
+  };
+  for(let i=0;i<W*H;i++){
+    if(!sk[i]||deg[i]===2)continue;
+    for(const t of nbrs(i)){
+      if(deg[t]===2){ if(used[t])continue; paths.push(walk(i,t)); }
+      else { const k=Math.min(i,t)*1e7+Math.max(i,t);
+        if(edgeKey.has(k))continue; edgeKey.add(k); paths.push([i,t]); }
+    }
+  }
+  // 残った degree-2 のループ
+  for(let i=0;i<W*H;i++){
+    if(!sk[i]||deg[i]!==2||used[i])continue;
+    const ns=nbrs(i); if(!ns.length)continue;
+    used[i]=1;
+    const p=walk(i,ns[0]); p.push(i); paths.push(p);
+  }
+  return paths;
+}
+
+/* ---------------- geometry helpers (mm) ---------------- */
+function toMM(px){ return px/S.ppm - S.sizeMm/2; }
+function simplify(pts,tol){
+  if(pts.length<3)return pts;
+  const keep=new Uint8Array(pts.length); keep[0]=keep[pts.length-1]=1;
+  const st=[[0,pts.length-1]];
+  while(st.length){
+    const [a,b]=st.pop(); if(b-a<2)continue;
+    const ax=pts[a][0],ay=pts[a][1],bx=pts[b][0],by=pts[b][1];
+    const dx=bx-ax,dy=by-ay, L=Math.hypot(dx,dy)||1e-9;
+    let bi=-1,bd=tol;
+    for(let i=a+1;i<b;i++){
+      const d=Math.abs((pts[i][0]-ax)*dy-(pts[i][1]-ay)*dx)/L;
+      if(d>bd){bd=d;bi=i;}
+    }
+    if(bi>0){keep[bi]=1;st.push([a,bi],[bi,b]);}
+  }
+  return pts.filter((_,i)=>keep[i]);
+}
+function smoothPath(pts,times){
+  let p=pts;
+  for(let t=0;t<times;t++){
+    if(p.length<3)break;
+    const o=[p[0]];
+    for(let i=1;i<p.length-1;i++)
+      o.push([(p[i-1][0]+2*p[i][0]+p[i+1][0])/4,(p[i-1][1]+2*p[i][1]+p[i+1][1])/4]);
+    o.push(p[p.length-1]); p=o;
+  }
+  return p;
+}
+function resample(pts,step){
+  if(pts.length<2)return pts.slice();
+  const out=[pts[0]]; let acc=0;
+  for(let i=1;i<pts.length;i++){
+    let ax=pts[i-1][0],ay=pts[i-1][1];
+    const bx=pts[i][0],by=pts[i][1];
+    let seg=Math.hypot(bx-ax,by-ay);
+    while(acc+seg>=step){
+      const r=(step-acc)/seg;
+      ax=ax+(bx-ax)*r; ay=ay+(by-ay)*r;
+      out.push([ax,ay]); seg=Math.hypot(bx-ax,by-ay); acc=0;
+    }
+    acc+=seg;
+  }
+  const last=pts[pts.length-1];
+  const l2=out[out.length-1];
+  if(Math.hypot(last[0]-l2[0],last[1]-l2[1])>step*0.4) out.push(last);
+  return out;
+}
+function pathLen(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return L;}
+
+/* ---------------- scanline fill ---------------- */
+function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm){
+  const ppm=S.ppm;
+  const a=angleDeg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
+  const corners=[[box.x0,box.y0],[box.x1,box.y0],[box.x0,box.y1],[box.x1,box.y1]];
+  let tmin=1e9,tmax=-1e9,pmin=1e9,pmax=-1e9;
+  for(const [x,y] of corners){
+    const t=x*ca+y*sa, p=-x*sa+y*ca;
+    if(t<tmin)tmin=t; if(t>tmax)tmax=t;
+    if(p<pmin)pmin=p; if(p>pmax)pmax=p;
+  }
+  const spacing=spacingMm*ppm, step=0.45;
+  const rows=[];
+  for(let p=pmin;p<=pmax+spacing*0.5;p+=spacing){
+    const runs=[]; let inside=false, st=0;
+    for(let t=tmin-1;t<=tmax+1;t+=step){
+      const x=t*ca-p*sa, y=t*sa+p*ca;
+      const xi=Math.round(x), yi=Math.round(y);
+      const ok = xi>=0&&yi>=0&&xi<W&&yi<H && comp[yi*W+xi]===compId;
+      if(ok&&!inside){inside=true;st=t;}
+      else if(!ok&&inside){inside=false; runs.push([st,t-step]);}
+    }
+    if(inside)runs.push([st,tmax]);
+    if(runs.length)rows.push({p,runs});
+  }
+  // runs をノード化し、隣接行で重なるものを繋いだグラフを作る
+  const minRun=0.6*ppm;
+  const nodes=[], byRow=new Map();
+  for(let ri=0;ri<rows.length;ri++){
+    for(const r of rows[ri].runs){
+      if(r[1]-r[0]<minRun)continue;
+      const id=nodes.length;
+      nodes.push({row:ri,p:rows[ri].p,t0:r[0],t1:r[1],adj:[]});
+      if(!byRow.has(ri))byRow.set(ri,[]);
+      byRow.get(ri).push(id);
+    }
+  }
+  for(let ri=0;ri<rows.length-1;ri++){
+    const A=byRow.get(ri), B=byRow.get(ri+1);
+    if(!A||!B)continue;
+    for(const i of A) for(const j of B){
+      const a=nodes[i], b=nodes[j];
+      if(Math.min(a.t1,b.t1)-Math.max(a.t0,b.t0)>0){ a.adj.push(j); b.adj.push(i); }
+    }
+  }
+  // 連結成分ごとに深さ優先で巡回する。行き止まりからは来た道を戻るので、
+  // 縫い位置が形の外へ出ない（穴をまたぐ長い渡りが生まれない）
+  const seen=new Uint8Array(nodes.length), order=[];
+  for(let s=0;s<nodes.length;s++){
+    if(seen[s])continue;
+    seen[s]=1; order.push(s);
+    const stack=[[s,0]];
+    while(stack.length){
+      const top=stack[stack.length-1];
+      let moved=false;
+      while(top[1]<nodes[top[0]].adj.length){
+        const v=nodes[top[0]].adj[top[1]++];
+        if(seen[v])continue;
+        seen[v]=1; order.push(v); stack.push([v,0]); moved=true; break;
+      }
+      if(!moved){ stack.pop(); if(stack.length) order.push(stack[stack.length-1][0]); }
+    }
+  }
+
+  const XY=(t,p)=>[toMM(t*ca-p*sa), toMM(t*sa+p*ca)];
+  const stitches=[], jumps=[];
+  const push=(seg)=>{
+    if(stitches.length){
+      const a=stitches[stitches.length-1], b=seg[0];
+      const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      if(d>2){
+        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        const xi=Math.round((mx+S.sizeMm/2)*ppm), yi=Math.round((my+S.sizeMm/2)*ppm);
+        const ins = xi>=0&&yi>=0&&xi<W&&yi<H && comp[yi*W+xi]===compId;
+        if(!ins) jumps.push(stitches.length-1);
+      }
+    }
+    for(const p of seg) stitches.push(p);
+  };
+  const sewn=new Uint8Array(nodes.length);
+  let curT=null;
+  for(const u of order){
+    const nd=nodes[u];
+    if(!sewn[u]){
+      sewn[u]=1;
+      let A,B;
+      if(curT===null || Math.abs(curT-nd.t0)<=Math.abs(curT-nd.t1)){A=nd.t0;B=nd.t1;}
+      else {A=nd.t1;B=nd.t0;}
+      const lenMm=Math.abs(B-A)/ppm;
+      const n=Math.max(1,Math.ceil(lenMm/maxLenMm));
+      const seg=[];
+      for(let i=0;i<=n;i++){
+        let t=A+(B-A)*(i/n);
+        if(i>0&&i<n) t+=(Math.random()-0.5)*0.5*ppm;  // 継ぎ目の筋を散らす
+        seg.push(XY(t,nd.p));
+      }
+      push(seg); curT=B;
+    } else {
+      // 通過するだけ：いま居る位置の真横に1針だけ置いて戻る
+      const t = curT===null ? nd.t0 : Math.max(nd.t0,Math.min(nd.t1,curT));
+      push([XY(t,nd.p)]); curT=t;
+    }
+  }
+  return {stitches,jumps};
+}
+
+/* ---------------- satin / running ---------------- */
+function makeSatin(path,widths,pitch,maxW){
+  const rp=resample(path,pitch);
+  if(rp.length<2)return null;
+  // 幅を再サンプル位置へ補間
+  const wsrc=widths, ws=[];
+  for(let i=0;i<rp.length;i++){
+    const f=i/(rp.length-1)*(wsrc.length-1);
+    const a=Math.floor(f), b=Math.min(wsrc.length-1,a+1), r=f-a;
+    ws.push(Math.min(maxW, wsrc[a]*(1-r)+wsrc[b]*r));
+  }
+  const out=[];
+  for(let i=0;i<rp.length;i++){
+    const a=rp[Math.max(0,i-1)], b=rp[Math.min(rp.length-1,i+1)];
+    let tx=b[0]-a[0], ty=b[1]-a[1];
+    const L=Math.hypot(tx,ty)||1e-9; tx/=L;ty/=L;
+    const nx=-ty, ny=tx, h=ws[i]/2;
+    const s=(i%2===0)?1:-1;
+    out.push([rp[i][0]+nx*h*s, rp[i][1]+ny*h*s]);
+  }
+  return out;
+}
+function makeRun(path,step,triple){
+  const rp=resample(path,step);
+  if(rp.length<2)return null;
+  if(!triple)return rp;
+  const back=rp.slice().reverse();
+  return rp.concat(back.slice(1), rp.slice(1));
+}
+
+/* ---------------- 生成本体 ---------------- */
+async function doQuantize(){
+  if(!S.imgFill){say("塗り画像を選んで");return;}
+  busy("減色中…"); await tick();
+  const {fill,line,edge}=rasterize();
+  const W=S.W,H=S.H;
+  S.lineSrc = line; S.edgeSrc = edge;
+  S.lineMask = null; S.edgeMask = null;
+  const q=quantize(fill,P.k,null);
+  S.idx=q.idx; S.pal=q.pal;
+  S.lineSet=new Set(); S.skipSet=new Set();
+  S.lineColorFix=null; S.edgeColorFix=null;
+  // 外周に最も多く接している色を背景とみなして既定で縫わない
+  {
+    const cnt=new Int32Array(S.pal.length);
+    for(let x=0;x<W;x++){ for(const y of [0,1,H-2,H-1]){const v=S.idx[y*W+x]; if(v>=0)cnt[v]++;} }
+    for(let y=0;y<H;y++){ for(const x of [0,1,W-2,W-1]){const v=S.idx[y*W+x]; if(v>=0)cnt[v]++;} }
+    let b=-1,bc=(W+H)*0.6;
+    cnt.forEach((c,i)=>{if(c>bc){bc=c;b=i;}});
+    if(b>=0) S.skipSet.add(b);
+  }
+  if(!line){
+    // 1枚モード：最も暗いクラスタを既定で線候補にしておく
+    let dark=0,bl=1e9;
+    S.pal.forEach((c,i)=>{const l=0.299*c[0]+0.587*c[1]+0.114*c[2]; if(l<bl){bl=l;dark=i;}});
+    if(bl<110) S.lineSet.add(dark);
+  }
+  renderChips();
+  $("#palPanel").open=true;
+  $("#btnG").disabled=false;
+  drawPreview();
+  say(`${S.pal.length}色に減色`);
+}
+
+function renderChips(){
+  const el=$("#chips"); el.innerHTML="";
+  const stateOf=i=>S.skipSet.has(i)?"skip":(S.lineSet.has(i)?"line":"fill");
+  const label={fill:"塗り",line:"線",skip:"縫わない"};
+  S.pal.forEach((c,i)=>{
+    const st=stateOf(i);
+    const b=document.createElement("button");
+    b.className="chip "+st;
+    b.innerHTML=`<span class="sq" style="background:rgb(${c.join(",")})"></span><span class="tag">${label[st]}</span>`;
+    b.addEventListener("click",()=>{
+      const s=stateOf(i);
+      S.lineSet.delete(i); S.skipSet.delete(i);
+      if(s==="fill") S.lineSet.add(i);
+      else if(s==="line") S.skipSet.add(i);
+      renderChips();
+    });
+    el.appendChild(b);
+  });
+  $("#palHint").textContent = "タップで 塗り → 線 → 縫わない と切り替わる。布の色と同じ所は「縫わない」に。";
+}
+
+/* 分岐点でぶつ切りになった枝を、素直に続く向き同士で1本に繋ぎ直す */
+function chainPaths(paths,W){
+  const map=new Map();
+  paths.forEach((p,i)=>{
+    if(p.length<2)return;
+    for(const k of [p[0],p[p.length-1]]){
+      if(!map.has(k))map.set(k,[]);
+      map.get(k).push(i);
+    }
+  });
+  const used=new Uint8Array(paths.length);
+  const dirOut=(p)=>{                       // 先頭から外へ出ていく向き
+    const n=Math.min(6,p.length-1);
+    const a=p[0], b=p[n];
+    return [(b%W)-(a%W), ((b/W)|0)-((a/W)|0)];
+  };
+  const cos=(u,v)=>{
+    const lu=Math.hypot(u[0],u[1])||1, lv=Math.hypot(v[0],v[1])||1;
+    return (u[0]*v[0]+u[1]*v[1])/(lu*lv);
+  };
+  const out=[];
+  for(let i=0;i<paths.length;i++){
+    if(used[i]||paths[i].length<2)continue;
+    used[i]=1;
+    let chain=paths[i].slice();
+    for(const forward of [true,false]){
+      while(true){
+        const endPix = forward ? chain[chain.length-1] : chain[0];
+        const cand=(map.get(endPix)||[]).filter(j=>!used[j]&&paths[j].length>=2);
+        if(!cand.length)break;
+        // いま進んできた向き
+        const m=Math.min(6,chain.length-1);
+        const a = forward ? chain[chain.length-1-m] : chain[m];
+        const b = forward ? chain[chain.length-1] : chain[0];
+        const cd=[(b%W)-(a%W), ((b/W)|0)-((a/W)|0)];
+        let best=-1,bs=-2,bq=null;
+        for(const j of cand){
+          let q=paths[j].slice();
+          if(q[0]!==endPix) q.reverse();
+          if(q[0]!==endPix) continue;
+          const s=cos(cd,dirOut(q));
+          if(s>bs){bs=s;best=j;bq=q;}
+        }
+        if(best<0||bs<0.35)break;           // 折り返すような繋ぎ方はしない
+        used[best]=1; bq.shift();
+        if(forward) chain=chain.concat(bq);
+        else chain=bq.reverse().concat(chain);
+      }
+    }
+    out.push(chain);
+  }
+  return out;
+}
+
+/* 細線マスク → 中心線をたどるサテン／ランニングのブロック */
+function buildLineBlocks(mask,color,W,H,ppm,stats,kind,O){
+  const dist=distTransform(mask,W,H);
+  const sk=thin2(mask,W,H);
+  const raw=chainPaths(tracePaths(sk,W,H),W);
+  const segs=[];
+  for(const p of raw){
+    if(p.length<2)continue;
+    let pts=p.map(i=>[i%W,(i/W)|0]);
+    const wpx=pts.map(([x,y])=>dist[y*W+x]*2);
+    pts=simplify(pts,0.6);
+    pts=smoothPath(pts,O.pathSm);
+    const mm=pts.map(([x,y])=>[toMM(x),toMM(y)]);
+    const L=pathLen(mm);
+    if(L<O.minLine)continue;
+    const wmm=[]; const stepIdx=(wpx.length-1)/Math.max(1,mm.length-1);
+    for(let i=0;i<mm.length;i++){
+      const j=Math.round(i*stepIdx);
+      const floor = O.thinMode==="grow" ? O.minSW : 0.5;
+      wmm.push(Math.max(floor, wpx[Math.min(wpx.length-1,j)]/ppm));
+    }
+    segs.push({pts:mm,w:wmm,len:L});
+  }
+  // 近い順に並べて渡りを減らす
+  const ordered=[]; const usedS=new Uint8Array(segs.length);
+  let cur=[0,0];
+  for(let k=0;k<segs.length;k++){
+    let bi=-1,bd=1e9,rev=false;
+    for(let i=0;i<segs.length;i++){
+      if(usedS[i])continue;
+      const a=segs[i].pts[0], b=segs[i].pts[segs[i].pts.length-1];
+      const da=Math.hypot(a[0]-cur[0],a[1]-cur[1]);
+      const db=Math.hypot(b[0]-cur[0],b[1]-cur[1]);
+      if(da<bd){bd=da;bi=i;rev=false;}
+      if(db<bd){bd=db;bi=i;rev=true;}
+    }
+    if(bi<0)break;
+    usedS[bi]=1;
+    const s=segs[bi];
+    if(rev){s.pts=s.pts.slice().reverse(); s.w=s.w.slice().reverse();}
+    ordered.push(s); cur=s.pts[s.pts.length-1];
+  }
+  const st=[]; const jm=[];
+  for(const s of ordered){
+    const avgW=s.w.reduce((a,b)=>a+b,0)/s.w.length;
+    let pts=null;
+    if(avgW<O.satW){ pts=makeRun(s.pts,O.runLen,true); stats.run++; }
+    else { pts=makeSatin(s.pts,s.w,O.pitch,Math.max(O.satMax,O.minSW)); stats.satin++; }
+    if(!pts||pts.length<2)continue;
+    if(st.length) jm.push(st.length-1);   // 線どうしは縫って繋がない
+    for(const p of pts) st.push(p);
+    stats.paths++;
+  }
+  return st.length>2 ? [{type:"line",color,colorIdx:(kind==="edge"?-2:-1),stitches:st,jumps:jm}] : [];
+}
+
+async function generate(){
+  if(!S.idx){say("先に減色");return;}
+  const W=S.W,H=S.H,ppm=S.ppm;
+  const pal=S.pal.map(c=>c.slice());
+  const LP={satW:P.satW,satMax:P.satMax,pitch:P.pitch,runLen:P.runLen,
+            minW:P.minW,minLine:P.minLine,pathSm:P.pathSm,minSW:P.minSW,thinMode:P.thinMode};
+  const EP={satW:P.eSatW,satMax:P.eSatMax,pitch:P.ePitch,runLen:P.eRun,
+            minW:P.eMinW,minLine:P.eMinL,pathSm:P.eSmooth,minSW:P.eMinSW,thinMode:P.eThinMode};
+  // マスクはしきい値が変わるたびに作り直す
+  S.lineMask = S.lineSrc ? buildLineMask(S.lineSrc,P.lineTh) : null;
+  S.edgeMask = S.edgeSrc ? buildLineMask(S.edgeSrc,P.eTh) : null;
+  busy("整形中…"); await tick();
+
+  // 1) 線マスクを作る
+  let lineMask=new Uint8Array(W*H);
+  if(P.useLine){
+    if(S.lineMask) lineMask.set(S.lineMask);
+    if(S.lineSet.size) for(let i=0;i<W*H;i++) if(S.idx[i]>=0&&S.lineSet.has(S.idx[i])) lineMask[i]=1;
+  }
+  // 枠線と重なる部分は線画から差し引く（同じ線を二度縫わないため）
+  if(S.edgeMask){
+    const r=Math.max(1.5,0.5*ppm);
+    const notE=new Uint8Array(W*H);
+    for(let i=0;i<W*H;i++) notE[i]=S.edgeMask[i]?0:1;
+    const de=distTransform(notE,W,H);
+    for(let i=0;i<W*H;i++) if(de[i]<=r) lineMask[i]=0;
+    lineMask=dropSlivers(lineMask,W,H,ppm,LP.thinMode==="drop"?LP.minW:0.06);
+  }
+  let hasLine=false; for(let i=0;i<W*H;i++) if(lineMask[i]){hasLine=true;break;}
+
+  // 2) 太い所は線から外して塗りに任せる（開処理）
+  let thin=lineMask, thickN=0;
+  if(hasLine){
+    const r=Math.max(1.2,(LP.satMax/2)*ppm);
+    const sp=thinOnly(lineMask,W,H,r,Math.max(2,0.25*ppm));
+    thin=dropSlivers(sp.thin,W,H,ppm,LP.thinMode==="drop"?LP.minW:0.06);
+    if(sp.thick) for(let i=0;i<W*H;i++) if(sp.thick[i])thickN++;
+    hasLine=false; for(let i=0;i<W*H;i++) if(thin[i]){hasLine=true;break;}
+  }
+
+  // 1b) 枠線マスク（最後に縫う）
+  let edgeThin=null, edgeThick=null, edgeColor=[25,22,20];
+  if(S.edgeMask){
+    let em=new Uint8Array(S.edgeMask), any=false;
+    for(let i=0;i<W*H;i++) if(em[i]){any=true;break;}
+    if(any){
+      if(P.edgeMode==="fill"){
+        edgeThin=null; edgeThick=em;
+      } else if(P.edgeMode==="satin"){
+        edgeThin=dropSlivers(em,W,H,ppm,EP.thinMode==="drop"?EP.minW:0.06); edgeThick=null;
+      } else {
+        const r=Math.max(1.2,(EP.satMax/2)*ppm);
+        const sp=thinOnly(em,W,H,r,Math.max(2,0.25*ppm));
+        edgeThin=dropSlivers(sp.thin,W,H,ppm,EP.thinMode==="drop"?EP.minW:0.06); edgeThick=sp.thick;
+        let has=false; for(let i=0;i<W*H;i++) if(edgeThin[i]){has=true;break;}
+        if(!has) edgeThin=null;
+      }
+      // 色の決め方
+      const avg=(src)=>{
+        const d=src.data; let r2=0,g2=0,b2=0,n2=0;
+        for(let i=0;i<W*H;i++) if(em[i]&&d[i*4+3]>40){r2+=d[i*4];g2+=d[i*4+1];b2+=d[i*4+2];n2++;}
+        return n2 ? {c:[Math.round(r2/n2),Math.round(g2/n2),Math.round(b2/n2)],n:n2} : null;
+      };
+      let emN=0; for(let i=0;i<W*H;i++) if(em[i])emN++;
+      if(P.edgeColMode==="manual") edgeColor=hex2rgb(P.edgeHex||"#1b1a3a");
+      else if(P.edgeColMode==="edge"){ const a=avg(S.edgeSrc); if(a)edgeColor=a.c; }
+      else {
+        const a=avg(S.srcCanvas);
+        if(a && a.n > emN*0.35) edgeColor=a.c;        // 塗り画像に中身がある
+        else { const b=avg(S.edgeSrc); if(b)edgeColor=b.c; }
+      }
+      if(S.edgeColorFix) edgeColor=S.edgeColorFix.slice();
+    }
+  }
+
+  // 線の色：線画レイヤーがあればその画像から、なければ塗り画像から拾う
+  let lineColor=[40,35,32];
+  {
+    const src = S.lineSrc ? S.lineSrc : S.srcCanvas;
+    const d=src.data; let r=0,g=0,b=0,n=0;
+    for(let i=0;i<W*H;i++) if(thin[i]&&d[i*4+3]>40){r+=d[i*4];g+=d[i*4+1];b+=d[i*4+2];n++;}
+    if(n)lineColor=[Math.round(r/n),Math.round(g/n),Math.round(b/n)];
+    if(S.lineColorFix) lineColor=S.lineColorFix.slice();
+  }
+
+  // 3) 塗りラベルの整形
+  let idx=new Int32Array(S.idx);
+  let outsidePx=0, insidePx=0;
+  if(S.skipSet.size && P.bgMode!=="none"){
+    if(P.bgMode==="all"){
+      for(let i=0;i<W*H;i++) if(idx[i]>=0&&S.skipSet.has(idx[i])){idx[i]=-1;outsidePx++;}
+    } else {
+      // 外周から地続きの背景だけを外側とみなす
+      const pass=i=>idx[i]<0||S.skipSet.has(idx[i]);
+      const out=new Uint8Array(W*H);
+      const q=new Int32Array(W*H); let head=0,tail=0;
+      const seed=i=>{if(!out[i]&&pass(i)){out[i]=1;q[tail++]=i;}};
+      for(let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
+      for(let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
+      while(head<tail){
+        const p=q[head++]; const x=p%W,y=(p/W)|0;
+        if(x>0)seed(p-1); if(x<W-1)seed(p+1);
+        if(y>0)seed(p-W); if(y<H-1)seed(p+W);
+      }
+      for(let i=0;i<W*H;i++){
+        if(out[i]){ if(idx[i]>=0)outsidePx++; idx[i]=-1; }
+        else if(idx[i]>=0&&S.skipSet.has(idx[i])) insidePx++;
+      }
+    }
+  }
+  // 透明な余白：外周から届かない部分は背景色の糸で埋める
+  if(P.bgMode!=="all"){
+    const out=new Uint8Array(W*H);
+    const q=new Int32Array(W*H); let head=0,tail=0;
+    const seed=i=>{ if(!out[i]&&idx[i]<0){out[i]=1;q[tail++]=i;} };
+    for(let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
+    for(let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
+    while(head<tail){
+      const p=q[head++]; const x=p%W,y=(p/W)|0;
+      if(x>0)seed(p-1); if(x<W-1)seed(p+1);
+      if(y>0)seed(p-W); if(y<H-1)seed(p+W);
+    }
+    const want=i=>idx[i]<0 && (P.bgMode==="none" || !out[i]);
+    let fillN=0;
+    for(let i=0;i<W*H;i++) if(want(i)) fillN++;
+    if(fillN>0){
+      const c=hex2rgb(P.bgFill||"#ffffff");
+      const ni=pal.length; pal.push(c);
+      for(let i=0;i<W*H;i++) if(want(i)) idx[i]=ni;
+      insidePx+=fillN;
+    }
+  }
+
+  for(let t=0;t<P.smooth;t++){ idx=majority(idx,W,H,pal.length); await tick(); }
+  if(P.underMode!=="asis"){
+    const rm=new Uint8Array(W*H); let any=false;
+    if(hasLine) for(let i=0;i<W*H;i++) if(thin[i]){rm[i]=1;any=true;}
+    if(S.edgeMask) for(let i=0;i<W*H;i++) if(S.edgeMask[i]){rm[i]=1;any=true;}
+    if(any){
+      if(P.underMode==="dissolve") idx=dissolveLines(idx,rm,W,H);
+      else for(let i=0;i<W*H;i++) if(rm[i]) idx[i]=-1;
+    }
+  }
+
+  // 枠線の外側を切り落とす（塗りが枠からはみ出して見えないように）
+  if(S.edgeMask && P.clipEdge){
+    const out=new Uint8Array(W*H);
+    const q=new Int32Array(W*H); let head=0,tail=0;
+    const seed=i=>{ if(!out[i]&&!S.edgeMask[i]){out[i]=1;q[tail++]=i;} };
+    for(let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
+    for(let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
+    while(head<tail){
+      const p=q[head++]; const x=p%W,y=(p/W)|0;
+      if(x>0)seed(p-1); if(x<W-1)seed(p+1);
+      if(y>0)seed(p-W); if(y<H-1)seed(p+W);
+    }
+    for(let i=0;i<W*H;i++) if(out[i]) idx[i]=-1;
+  }
+
+  let {comp,list}=labelComponents(idx,W,H);
+  const minPx=P.minArea*ppm*ppm;
+  idx=absorbSmall(idx,comp,list,W,H,minPx);
+  ({comp,list}=labelComponents(idx,W,H));
+  list=list.filter(c=>c.n>=minPx*0.5);
+
+  // 3) 塗りブロック生成
+  busy("塗りを縫っています…"); await tick();
+  const blocks=[];
+  const byColor=new Map();
+  for(const c of list){ if(!byColor.has(c.color))byColor.set(c.color,[]); byColor.get(c.color).push(c); }
+  const order=[...byColor.keys()].sort((a,b)=>{
+    const la=0.299*pal[a][0]+0.587*pal[a][1]+0.114*pal[a][2];
+    const lb=0.299*pal[b][0]+0.587*pal[b][1]+0.114*pal[b][2];
+    return lb-la; // 明るい色から
+  });
+  for(const col of order){
+    let cs=byColor.get(col);
+    // 最近傍順に並べ替えて渡りを減らす
+    {
+      const rest=cs.slice(), seq=[]; let cx=0,cy=0;
+      while(rest.length){
+        let bi=0,bd=1e18;
+        for(let i=0;i<rest.length;i++){
+          const d=(rest[i].cx-cx)**2+(rest[i].cy-cy)**2;
+          if(d<bd){bd=d;bi=i;}
+        }
+        const c=rest.splice(bi,1)[0]; seq.push(c); cx=c.cx; cy=c.cy;
+      }
+      cs=seq;
+    }
+    for(const c of cs){
+      const ang = P.pca ? c.angle : P.angle;
+      const box={x0:c.x0-1,y0:c.y0-1,x1:c.x1+1,y1:c.y1+1};
+      if(P.underlay && c.n>minPx*2){
+        const u=scanFill(comp,c.id,W,H,box,ang+90,2.0,3.0);
+        if(u.stitches.length>2) blocks.push({type:"underlay",color:pal[col],colorIdx:col,...u});
+      }
+      const f=scanFill(comp,c.id,W,H,box,ang,P.dens,P.maxLen);
+      if(f.stitches.length>2) blocks.push({type:"fill",color:pal[col],colorIdx:col,...f});
+    }
+    await tick();
+  }
+
+  // 4) 線ブロック生成
+  let lineStats={paths:0,satin:0,run:0,thick:thickN,inside:insidePx,edge:0};
+  if(hasLine){
+    busy("中心線を抽出しています…"); await tick();
+    const b=buildLineBlocks(thin,lineColor,W,H,ppm,lineStats,"line",LP);
+    for(const x of b) blocks.push(x);
+  }
+
+  // 5) 枠線は最後に縫う
+  if(edgeThin||edgeThick){
+    busy("枠線を縫っています…"); await tick();
+    if(edgeThick){
+      const eidx=new Int32Array(W*H).fill(-1);
+      let any=false;
+      for(let i=0;i<W*H;i++) if(edgeThick[i]){eidx[i]=0;any=true;}
+      if(any){
+        const L=labelComponents(eidx,W,H);
+        for(const c of L.list){
+          if(c.n<minPx*0.5)continue;
+          const box={x0:c.x0-1,y0:c.y0-1,x1:c.x1+1,y1:c.y1+1};
+          const ang=P.pca?c.angle:P.angle;
+          if(P.underlay && c.n>minPx*2){
+            const u=scanFill(L.comp,c.id,W,H,box,ang+90,2.0,3.0);
+            if(u.stitches.length>2) blocks.push({type:"underlay",color:edgeColor,colorIdx:-2,...u});
+          }
+          const f=scanFill(L.comp,c.id,W,H,box,ang,P.dens,P.maxLen);
+          if(f.stitches.length>2) blocks.push({type:"fill",color:edgeColor,colorIdx:-2,...f});
+        }
+      }
+      await tick();
+    }
+    if(edgeThin){
+      const es={paths:0,satin:0,run:0};
+      const b=buildLineBlocks(edgeThin,edgeColor,W,H,ppm,es,"edge",EP);
+      for(const x of b) blocks.push(x);
+      lineStats.edge=es.paths;
+    }
+  }
+
+  busy("糸切りを判定しています…"); await tick();
+  lineStats.covSaved=finalizeBlocks(blocks,W,H,ppm,S.sizeMm);
+
+  S.blocks=blocks; S.lineStats=lineStats; S.hi=null;
+  buildGroups();
+  computeStats(lineStats);
+  $("#play").value=1000;
+  drawPreview();
+  $("#ordPanel").open=true;
+  say("生成しました");
+  setTimeout(()=>$("#status").classList.remove("on"),900);
+}
+
+function computeStats(ls){
+  let n=0,jumps=0,changes=0,last=null,trims=0;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const b of S.blocks){
+    n+=b.stitches.length; jumps+=b.trims.length;
+    if(b.trimBefore) trims++;
+    const key=b.colorIdx;
+    if(last===null||key!==last){changes++;last=key;}
+    for(const p of b.stitches){
+      if(p[0]<minx)minx=p[0]; if(p[0]>maxx)maxx=p[0];
+      if(p[1]<miny)miny=p[1]; if(p[1]>maxy)maxy=p[1];
+    }
+  }
+  S.stats={n,jumps:jumps+trims,changes,ls,
+    w:(maxx-minx)||0, h:(maxy-miny)||0};
+  const s=S.stats;
+  const over = s.w>100||s.h>100;
+  $("#stat").innerHTML=
+    `<span class="${s.n>40000?'warn':''}">ステッチ <b>${s.n.toLocaleString()}</b></span>`+
+    `<span>糸替え <b>${Math.max(0,s.changes-1)}</b>回</span>`+
+    `<span>糸切り <b>${s.jumps}</b>回</span>`+
+    `<span class="${over?"warn":""}">サイズ <b>${s.w.toFixed(1)}×${s.h.toFixed(1)}mm</b>${over?" 枠外":""}</span>`+
+    `<span>線 サテン<b>${ls.satin}</b> / ラン<b>${ls.run}</b></span>`+
+    (ls.thick?`<span>太線→塗り <b>${(ls.thick/(S.ppm*S.ppm)).toFixed(0)}</b>mm²</span>`:"")+
+    (ls.inside?`<span>内側の背景 <b>${(ls.inside/(S.ppm*S.ppm)).toFixed(0)}</b>mm²</span>`:"")+
+    (ls.edge?`<span>枠線 <b>${ls.edge}</b>本（最後）</span>`:"")+
+    (ls.covSaved?`<span>覆われて省略 <b>${ls.covSaved}</b>回</span>`:"");
+}
+
+/* 糸切りの判断
+   ・ひとつながりの領域を縫っている間は切らない
+   ・別の領域へ移るとき、距離がしきい値を超えたら切る
+   ・糸の色が変わるときは必ず切る
+   ・線どうしの移動は縫って繋がない（上に重なる糸がないため） */
+function finalizeBlocks(blocks,W,H,ppm,sizeMm){
+  const key=b=>b.color.join(",");
+  const polOf=b=>S.trimByColor.get(key(b)) || P.trimPolicy;   // all / length / color
+  let anyCut=false;
+  for(let k=0;k<blocks.length;k++){
+    const b=blocks[k];
+    const pol=polOf(b);
+    if(pol!=="color") anyCut=true;
+    if(pol==="color") b.trims=[];
+    else {
+      const t=[];
+      for(const i of b.jumps){
+        if(i+1>=b.stitches.length)continue;
+        const a=b.stitches[i], c=b.stitches[i+1];
+        const d=Math.hypot(c[0]-a[0],c[1]-a[1]);
+        if(pol==="all" ? d>0.5 : d>P.trimAt) t.push(i);
+      }
+      b.trims=t;
+    }
+    if(k===0){ b.trimBefore=false; continue; }
+    const prev=blocks[k-1];
+    if(key(prev)!==key(b)){ b.trimBefore=true; continue; }
+    const gap=Math.hypot(b.stitches[0][0]-prev.stitches[prev.stitches.length-1][0],
+                         b.stitches[0][1]-prev.stitches[prev.stitches.length-1][1]);
+    b.trimBefore = pol==="color" ? false : (pol==="all" ? gap>0.5 : gap>P.trimAt);
+  }
+  return (P.cover && anyCut) ? relaxCoveredTrims(blocks,W,H,ppm,sizeMm) : 0;
+}
+
+/* あとから縫われる糸に覆われる渡りは、切らずに残せる */
+function relaxCoveredTrims(blocks,W,H,ppm,sizeMm){
+  const covered=new Uint8Array(W*H);
+  const R=Math.max(1,Math.round(0.3*ppm));
+  const px=p=>[(p[0]+sizeMm/2)*ppm,(p[1]+sizeMm/2)*ppm];
+  const stamp=(x,y)=>{
+    const xi=Math.round(x), yi=Math.round(y);
+    for(let dy=-R;dy<=R;dy++){
+      const b=yi+dy; if(b<0||b>=H)continue;
+      for(let dx=-R;dx<=R;dx++){
+        const a=xi+dx; if(a<0||a>=W)continue;
+        covered[b*W+a]=1;
+      }
+    }
+  };
+  let saved=0;
+  for(let k=blocks.length-1;k>=0;k--){
+    const b=blocks[k];
+    const js=new Set(b.jumps);
+    // ブロック間の渡り（色が同じ場合のみ緩められる）
+    if(k>0 && b.trimBefore){
+      const prev=blocks[k-1];
+      if(prev.color.join(",")===b.color.join(",")){
+        const a=px(prev.stitches[prev.stitches.length-1]), c=px(b.stitches[0]);
+        const len=Math.hypot(c[0]-a[0],c[1]-a[1]);
+        const n=Math.max(2,Math.ceil(len/(0.5*ppm)));
+        let ok=true;
+        for(let t=1;t<n;t++){
+          const x=Math.round(a[0]+(c[0]-a[0])*t/n), y=Math.round(a[1]+(c[1]-a[1])*t/n);
+          if(x<0||y<0||x>=W||y>=H||!covered[y*W+x]){ok=false;break;}
+        }
+        if(ok){ b.trimBefore=false; saved++; }
+      }
+    }
+    if(b.trims.length){
+      const keep=[];
+      for(const i of b.trims){
+        if(i+1>=b.stitches.length)continue;
+        const a=px(b.stitches[i]), c=px(b.stitches[i+1]);
+        const len=Math.hypot(c[0]-a[0],c[1]-a[1]);
+        const n=Math.max(2,Math.ceil(len/(0.5*ppm)));
+        let ok=true;
+        for(let t=1;t<n;t++){           // 端は針で留まるので中間だけ見る
+          const x=Math.round(a[0]+(c[0]-a[0])*t/n);
+          const y=Math.round(a[1]+(c[1]-a[1])*t/n);
+          if(x<0||y<0||x>=W||y>=H||!covered[y*W+x]){ok=false;break;}
+        }
+        if(ok) saved++; else keep.push(i);
+      }
+      b.trims=keep;
+    }
+    // このブロックの縫い目を覆いに加える（渡り自体は覆いにならない）
+    for(let i=1;i<b.stitches.length;i++){
+      if(js.has(i-1))continue;
+      const a=px(b.stitches[i-1]), c=px(b.stitches[i]);
+      const len=Math.hypot(c[0]-a[0],c[1]-a[1]);
+      const n=Math.max(1,Math.ceil(len));
+      for(let t=0;t<=n;t++) stamp(a[0]+(c[0]-a[0])*t/n, a[1]+(c[1]-a[1])*t/n);
+    }
+  }
+  return saved;
+}
+
+/* ---------------- 刺しゅうデータの書き出し ---------------- */
+/* PECの64色スレッドパレット */
+const PEC_PALETTE=[
+  ["#1a0a94","Prussian Blue"],
+  ["#0f75ff","Blue"],
+  ["#00934c","Teal Green"],
+  ["#babdfe","Corn Flower Blue"],
+  ["#ec0000","Red"],
+  ["#e4995a","Reddish Brown"],
+  ["#cc48ab","Magenta"],
+  ["#fdc4fa","Light Lilac"],
+  ["#dd84cd","Lilac"],
+  ["#6bd38a","Mint Green"],
+  ["#e4a945","Deep Gold"],
+  ["#ffbd42","Orange"],
+  ["#ffe600","Yellow"],
+  ["#6cd900","Lime Green"],
+  ["#c1a941","Brass"],
+  ["#b5ad97","Silver"],
+  ["#ba9c5f","Russet Brown"],
+  ["#faf59e","Cream Brown"],
+  ["#808080","Pewter"],
+  ["#000000","Black"],
+  ["#001cdf","Ultramarine"],
+  ["#df00b8","Royal Purple"],
+  ["#626262","Dark Gray"],
+  ["#69260d","Dark Brown"],
+  ["#ff0060","Deep Rose"],
+  ["#bf8200","Light Brown"],
+  ["#f39178","Salmon Pink"],
+  ["#ff6805","Vermilion"],
+  ["#f0f0f0","White"],
+  ["#c832cd","Violet"],
+  ["#b0bf9b","Seacrest"],
+  ["#65bfeb","Sky Blue"],
+  ["#ffba04","Pumpkin"],
+  ["#fff06c","Cream Yellow"],
+  ["#feca15","Khaki"],
+  ["#f38101","Clay Brown"],
+  ["#37a923","Leaf Green"],
+  ["#23465f","Peacock Blue"],
+  ["#a6a695","Gray"],
+  ["#cebfa6","Warm Gray"],
+  ["#96aa02","Dark Olive"],
+  ["#ffe3c6","Linen"],
+  ["#ff99d7","Pink"],
+  ["#007004","Deep Green"],
+  ["#edccfb","Lavender"],
+  ["#c089d8","Wisteria Violet"],
+  ["#e7d9b4","Beige"],
+  ["#e90e86","Carmine"],
+  ["#cf6829","Amber Red"],
+  ["#408615","Olive Green"],
+  ["#db1797","Dark Fuchsia"],
+  ["#ffa704","Tangerine"],
+  ["#b9ffff","Light Blue"],
+  ["#228927","Emerald Green"],
+  ["#b612cd","Purple"],
+  ["#00aa00","Moss Green"],
+  ["#fea9dc","Flesh Pink"],
+  ["#fed510","Harvest Gold"],
+  ["#0097df","Electric Blue"],
+  ["#ffff84","Lemon Yellow"],
+  ["#cfe774","Fresh Green"],
+  ["#ffc864","Applique Material"],
+  ["#ffc8c8","Applique Position"],
+  ["#ffc8c8","Applique"]
+];
+let PEC_LAB=null;
+function pecIndexFor(rgb){
+  if(!PEC_LAB) PEC_LAB=PEC_PALETTE.map(p=>{const c=hex2rgb(p[0]);return rgb2lab(c[0],c[1],c[2]);});
+  const t=rgb2lab(rgb[0],rgb[1],rgb[2]);
+  let best=0,bd=1e18;
+  PEC_LAB.forEach((l,i)=>{
+    const d=(t[0]-l[0])**2+(t[1]-l[1])**2+(t[2]-l[2])**2;
+    if(d<bd){bd=d;best=i;}
+  });
+  return best;
+}
+
+/* ブロック列 → 命令列。座標は0.1mm単位、原点は図案の中心 */
+function buildCommands(){
+  const cmds=[];
+  const U=v=>Math.round(v*10);
+  let lastColor=null;
+  for(const b of S.blocks){
+    const key=b.color.join(",");
+    if(lastColor===null){ lastColor=key; }
+    else if(key!==lastColor){ cmds.push({type:"color"}); lastColor=key; }
+    else if(b.trimBefore){ cmds.push({type:"trim"}); }
+    const js=new Set(b.jumps), ts=new Set(b.trims);
+    for(let i=0;i<b.stitches.length;i++){
+      const p=b.stitches[i];
+      const isJump = i>0 && js.has(i-1);
+      if(isJump && ts.has(i-1)) cmds.push({type:"trim"});
+      cmds.push({type:isJump?"jump":"stitch", x:U(p[0]), y:U(p[1])});
+    }
+  }
+  return cmds;
+}
+
+function writePES(name){
+  const cmds=buildCommands();
+  if(!cmds.length) return null;
+  const colors=[]; { let last=null;
+    for(const b of S.blocks){ const k=b.color.join(","); if(k!==last){ colors.push(b.color); last=k; } } }
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const c of cmds) if(c.x!==undefined){
+    if(c.x<minx)minx=c.x; if(c.x>maxx)maxx=c.x;
+    if(c.y<miny)miny=c.y; if(c.y>maxy)maxy=c.y;
+  }
+  const out=[];
+  const u8=v=>out.push(v&0xFF);
+  const u16le=v=>{u8(v);u8(v>>8);};
+  const u24le=v=>{u8(v);u8(v>>8);u8(v>>16);};
+  const u16be=v=>{u8(v>>8);u8(v);};
+  const str=s=>{for(let i=0;i<s.length;i++)u8(s.charCodeAt(i));};
+  const fill=(n,v)=>{for(let i=0;i<n;i++)u8(v);};
+
+  // 最小のPES v1ヘッダ。PECは22バイト目から始まる
+  str("#PES0001"); u8(0x16);u8(0);u8(0);u8(0); fill(10,0);
+  const pecStart=out.length;
+
+  // PEC 前半512バイト
+  const label=("LA:"+name).slice(0,19);
+  str(label); fill(19-label.length,0x20);
+  u8(0x0D); fill(11,0x20); u8(0x20);
+  u16le(0x00FF);
+  u8(6); u8(38);
+  [0x20,0x20,0x20,0x20,0x64,0x20,0x00,0x20,0x00,0x20,0x20,0x20].forEach(u8);
+  const n=Math.min(colors.length,255);
+  u8(n-1);
+  const idxs=colors.slice(0,n).map(pecIndexFor);
+  idxs.forEach(i=>u8(i+1));
+  fill(462-(n-1),0x20);
+  if(out.length-pecStart!==512) throw new Error("PECヘッダ長 "+(out.length-pecStart));
+
+  // PEC 後半
+  u16le(0x0000);
+  const thumbPos=out.length; u24le(0);
+  u8(0x31);u8(0xFF);u8(0xF0);
+  u16le((maxx-minx)&0xFFFF);
+  u16le((maxy-miny)&0xFFFF);
+  u16le(0x01E0); u16le(0x01B0);
+  u16be(0x9000 | ((-minx)&0x0FFF));
+  u16be(0x9000 | ((-miny)&0x0FFF));
+
+  // ステッチ列
+  const enc=(v,flag)=>{
+    if(!flag && v>=-64 && v<=63){ u8(v&0x7F); return; }
+    const x=v&0x0FFF;
+    u8(0x80|flag|((x>>8)&0x0F)); u8(x&0xFF);
+  };
+  let cx=0,cy=0,cc=0;
+  for(const c of cmds){
+    if(c.type==="color"){ u8(0xFE); u8(0xB0); u8(cc%2===0?2:1); cc++; continue; }
+    if(c.type==="trim"){ enc(0,0x40); enc(0,0x40); continue; }
+    const flag = c.type==="jump" ? 0x20 : 0;
+    enc(c.x-cx,flag); enc(c.y-cy,flag);
+    cx=c.x; cy=c.y;
+  }
+  u8(0xFF);
+
+  // サムネイル（本体＋色ごと）
+  const thumbStart=out.length;
+  const rel=thumbStart-(pecStart+512);
+  out[thumbPos]=rel&0xFF; out[thumbPos+1]=(rel>>8)&0xFF; out[thumbPos+2]=(rel>>16)&0xFF;
+  const TW=48,TH=38;
+  const draw=(only)=>{
+    const bm=new Uint8Array(TW*TH);
+    const sx=(maxx-minx)||1, sy=(maxy-miny)||1;
+    let ci=0,last=null,px=null,py=null;
+    for(const b of S.blocks){
+      const k=b.color.join(","); if(k!==last){ if(last!==null)ci++; last=k; }
+      if(only>=0 && ci!==only){ px=null;py=null; continue; }
+      const js=new Set(b.jumps);
+      for(let i=0;i<b.stitches.length;i++){
+        if(i>0&&js.has(i-1)){px=null;py=null;}
+        const p=b.stitches[i];
+        const X=Math.round((Math.round(p[0]*10)-minx)/sx*(TW-1));
+        const Y=Math.round((Math.round(p[1]*10)-miny)/sy*(TH-1));
+        if(px!==null){
+          const st=Math.max(Math.abs(X-px),Math.abs(Y-py));
+          for(let t=0;t<=st;t++){
+            const f=st?t/st:0;
+            const xx=Math.round(px+(X-px)*f), yy=Math.round(py+(Y-py)*f);
+            if(xx>=0&&yy>=0&&xx<TW&&yy<TH) bm[yy*TW+xx]=1;
+          }
+        }
+        px=X;py=Y;
+      }
+      px=null;py=null;
+    }
+    for(let y=0;y<TH;y++) for(let bx=0;bx<6;bx++){
+      let v=0;
+      for(let bit=0;bit<8;bit++) if(bm[y*TW+bx*8+bit]) v|=(1<<bit);
+      u8(v);
+    }
+  };
+  draw(-1);
+  for(let i=0;i<n;i++) draw(i);
+
+  return {bytes:new Uint8Array(out), colors, idxs, cmds};
+}
+
+function downloadBin(bytes,filename){
+  const blob=new Blob([bytes],{type:"application/octet-stream"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+}
+
+function exportPES(){
+  if(!S.blocks||!S.blocks.length){ say("先にステッチを生成してください"); return; }
+  let r;
+  try{ r=writePES("PP1PUNCH"); }
+  catch(e){ say("書き出しに失敗: "+e.message); return; }
+  if(!r){ say("データが空です"); return; }
+  downloadBin(r.bytes, "pp1-punch.pes");
+  const kb=(r.bytes.length/1024).toFixed(0);
+  $("#pesInfo").innerHTML =
+    `<b>${kb}KB</b> ・ ${r.cmds.length.toLocaleString()}命令 ・ ${r.colors.length}色<br>`+
+    r.colors.map((c,i)=>
+      `<span class="sq" style="background:rgb(${c.join(",")})"></span>`+
+      `<span class="sq" style="background:${PEC_PALETTE[r.idxs[i]][0]}"></span>`+
+      `#${r.idxs[i]+1} ${PEC_PALETTE[r.idxs[i]][1]}`).join("<br>");
+  say("PESを書き出しました");
+}
+
+/* ---------------- 設定の入出力 ---------------- */
+const CFG_IDS=["pSize","pPpm","pK","pTrim","pTrimPol","pBg","pBgFill","pCover",
+  "pDens","pLen","pAng","pPca","pMinA","pSm","pUnder","pUL",
+  "pEdgeMode","pEdgeCol","pEdgeHex","pClipEdge","pETh","pESatW","pESatMax","pEPitch","pERun",
+  "pEThinMode","pEMinSW","pEMinW","pEMinL","pESmooth",
+  "pUseLine","pLTh","pSatW","pSatMax","pPitch","pRun","pThinMode","pMinSW","pMinW","pMinL","pSmooth"];
+function exportConfig(){
+  const v={};
+  for(const id of CFG_IDS){
+    const el=$("#"+id); if(!el)continue;
+    v[id]= el.type==="checkbox" ? el.checked : el.value;
+  }
+  const data={app:"pp1-punch",version:1,saved:new Date().toISOString(),
+    params:v, trimByColor:[...S.trimByColor.entries()]};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="pp1-punch-settings.json";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000);
+  say("設定を書き出しました");
+}
+function importConfig(file){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    let d;
+    try{ d=JSON.parse(fr.result); }catch(e){ say("読み込めませんでした"); return; }
+    if(!d||!d.params){ say("形式が違います"); return; }
+    for(const [id,val] of Object.entries(d.params)){
+      const el=$("#"+id); if(!el)continue;
+      if(el.type==="checkbox"){ el.checked=!!val; el.dispatchEvent(new Event("change")); }
+      else { el.value=val; el.dispatchEvent(new Event(el.tagName==="SELECT"?"change":"input")); }
+    }
+    S.trimByColor=new Map(d.trimByColor||[]);
+    $$("#presets button").forEach(b=>b.classList.remove("on"));
+    $("#presetNote").textContent="読み込んだ設定を使っています。";
+    if(S.blocks&&S.blocks.length) applyOrder();
+    say("設定を読み込みました");
+  };
+  fr.readAsText(file);
+}
+
+/* ---------------- 縫う順 ---------------- */
+function buildGroups(){
+  S.groups=[]; let cur=null;
+  S.blocks.forEach((b,i)=>{
+    const k=b.color.join(",");
+    if(!cur||cur.key!==k){
+      cur={key:k,color:b.color,idx:[],n:0,kinds:new Set(),trims:0,
+           sel:S.selByColor.has(k), pol:S.trimByColor.get(k)||P.trimPolicy};
+      S.groups.push(cur);
+    }
+    cur.idx.push(i); cur.n+=b.stitches.length;
+    cur.trims += b.trims ? b.trims.length : 0;
+    if(cur.idx.length>1 && b.trimBefore) cur.trims++;
+    cur.kinds.add(b.colorIdx===-1?"線":b.colorIdx===-2?"枠線":"塗り");
+  });
+  S.blocks.forEach(b=>b.group=-1);
+  S.groups.forEach((g,gi)=>g.idx.forEach(i=>S.blocks[i].group=gi));
+  renderOrder();
+}
+function renderOrder(){
+  const el=$("#ordList"); if(!el)return;
+  el.innerHTML="";
+  if(!S.groups||!S.groups.length){ el.innerHTML='<p class="hint">ステッチを生成すると、縫う順がここに出ます。</p>'; return; }
+  S.groups.forEach((g,i)=>{
+    const row=document.createElement("div");
+    row.className="ordrow"+(S.hi===i?" on":"");
+    row.innerHTML=
+      `<span class="no">${i+1}</span>`+
+      `<span class="sq" style="background:rgb(${g.color.join(",")})"></span>`+
+      `<span class="meta">${[...g.kinds].join("・")}<small>${g.n.toLocaleString()}針`+
+        (g.pol==="color"?" ・途中で切らない":` ・途中で${g.trims}回切る`)+`</small></span>`+
+      `<button class="mv pol ${g.pol}" data-pol="${i}">`+
+        (g.pol==="all"?"毎回":g.pol==="length"?"長い時":"切らない")+`</button>`+
+      `<button class="mv" data-up="${i}">↑</button>`+
+      `<button class="mv" data-dn="${i}">↓</button>`+
+      `<input type="checkbox" data-sel="${i}" ${g.sel?"checked":""}>`;
+    row.addEventListener("click",e=>{
+      if(e.target.closest("button")||e.target.type==="checkbox")return;
+      S.hi = S.hi===i ? null : i; renderOrder(); drawPreview();
+    });
+    el.appendChild(row);
+  });
+  el.querySelectorAll("[data-pol]").forEach(b=>b.addEventListener("click",()=>{
+    const g=S.groups[+b.dataset.pol];
+    const next={all:"length",length:"color",color:"all"};
+    S.trimByColor.set(g.key, next[g.pol]||"all");
+    applyOrder();
+  }));
+  el.querySelectorAll("[data-up]").forEach(b=>b.addEventListener("click",()=>moveGroup(+b.dataset.up,-1)));
+  el.querySelectorAll("[data-dn]").forEach(b=>b.addEventListener("click",()=>moveGroup(+b.dataset.dn,1)));
+  el.querySelectorAll("[data-sel]").forEach(c=>c.addEventListener("change",()=>{
+    const g=S.groups[+c.dataset.sel]; g.sel=c.checked;
+    if(c.checked) S.selByColor.add(g.key); else S.selByColor.delete(g.key);
+    updateMergeBtn();
+  }));
+  updateMergeBtn();
+}
+function updateMergeBtn(){
+  const sel=(S.groups||[]).filter(g=>g.sel);
+  const b=$("#ordMerge"); if(b) b.disabled = sel.length<2;
+}
+function applyOrder(){
+  if(!S.blocks||!S.blocks.length||!S.lineStats)return;
+  const blocks=[];
+  S.groups.forEach(g=>g.idx.forEach(i=>blocks.push(S.blocks[i])));
+  S.blocks=blocks;
+  S.lineStats.covSaved=finalizeBlocks(S.blocks,S.W,S.H,S.ppm,S.sizeMm);
+  buildGroups(); computeStats(S.lineStats); drawPreview();
+}
+function moveGroup(i,d){
+  const j=i+d; if(j<0||j>=S.groups.length)return;
+  const g=S.groups; [g[i],g[j]]=[g[j],g[i]];
+  if(S.hi===i)S.hi=j; else if(S.hi===j)S.hi=i;
+  applyOrder();
+}
+/* 同じ色が離れて出てくる場合、隣り合わせに寄せる */
+function groupSameColors(){
+  const seen=new Map(), out=[];
+  for(const g of S.groups){
+    if(seen.has(g.key)) out.splice(out.indexOf(seen.get(g.key))+1,0,g);
+    else { seen.set(g.key,g); out.push(g); }
+  }
+  S.groups=out; S.hi=null; applyOrder();
+}
+/* 選んだ色を1色に統合する。塗り・線・枠線のどれでも混ぜられる */
+function mergeSelected(){
+  const sel=S.groups.filter(g=>g.sel);
+  if(sel.length<2)return;
+  let r=0,g2=0,b2=0,n=0;
+  sel.forEach(g=>{ r+=g.color[0]*g.n; g2+=g.color[1]*g.n; b2+=g.color[2]*g.n; n+=g.n; });
+  const avg=[Math.round(r/n),Math.round(g2/n),Math.round(b2/n)];
+  sel.forEach(g=>g.idx.forEach(i=>{
+    const bl=S.blocks[i];
+    if(bl.colorIdx>=0) S.pal[bl.colorIdx]=avg.slice();       // 次に生成しても同じ色になる
+    else if(bl.colorIdx===-1) S.lineColorFix=avg.slice();
+    else if(bl.colorIdx===-2) S.edgeColorFix=avg.slice();
+    bl.color=avg.slice();
+  }));
+  // 隣り合わせに寄せる（buildGroupsが1グループに統合する）
+  const out=[];
+  S.groups.forEach(g=>{
+    if(g===sel[0]) sel.forEach(s=>out.push(s));
+    else if(!sel.includes(g)) out.push(g);
+  });
+  S.groups=out;
+  S.selByColor.clear(); S.hi=null;
+  renderChips();
+  applyOrder();
+  say("1色にまとめました");
+}
+
+/* ---------------- preview ---------------- */
+let fabricPat=null, fabricFor=null;
+function fabric(g,color){
+  if(fabricFor!==color){
+    const t=document.createElement("canvas"); t.width=t.height=48;
+    const c=t.getContext("2d");
+    c.fillStyle=color; c.fillRect(0,0,48,48);
+    // 織り目
+    const im=c.getImageData(0,0,48,48), d=im.data;
+    for(let y=0;y<48;y++)for(let x=0;x<48;x++){
+      const i=(y*48+x)*4;
+      const weave=((x>>1)+(y>>1))%2?6:-6;
+      const n=(Math.random()-0.5)*14;
+      d[i]=Math.max(0,Math.min(255,d[i]+weave+n));
+      d[i+1]=Math.max(0,Math.min(255,d[i+1]+weave+n));
+      d[i+2]=Math.max(0,Math.min(255,d[i+2]+weave+n));
+    }
+    c.putImageData(im,0,0);
+    fabricPat=g.createPattern(t,"repeat"); fabricFor=color;
+  }
+  return fabricPat;
+}
+function shade(c,amt){
+  return `rgb(${c.map(v=>Math.max(0,Math.min(255,Math.round(v+amt)))).join(",")})`;
+}
+let bgColor="#e8e0cd";
+function resetFabric(){fabricFor=null;}
+function drawPreview(){
+  const cv=$("#pv"), wrap=cv.parentElement;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const cssW=wrap.clientWidth, cssH=wrap.clientHeight;
+  cv.width=cssW*dpr; cv.height=cssH*dpr;
+  const g=cv.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+  const mode=S.viewMode||"thread";
+  g.fillStyle = mode==="thread" ? fabric(g,bgColor) : bgColor;
+  g.fillRect(0,0,cssW,cssH);
+
+  const sz=S.sizeMm||P.sizeMm;
+  const sc=cssW/sz;
+  const T=(p)=>[(p[0]+sz/2)*sc,(p[1]+sz/2)*sc];
+
+  if($("#showSrc").checked && S.imgFill){
+    g.globalAlpha=0.28;
+    const s=Math.min(cssW/S.imgFill.width,cssH/S.imgFill.height);
+    const w=S.imgFill.width*s,h=S.imgFill.height*s;
+    g.drawImage(S.imgFill,(cssW-w)/2,(cssH-h)/2,w,h);
+    g.globalAlpha=1;
+  }
+  if(!S.blocks.length){
+    g.fillStyle="#b8ae99"; g.font="13px -apple-system,sans-serif"; g.textAlign="center";
+    g.fillText("ステッチ未生成",cssW/2,cssH/2);
+    return;
+  }
+  const total=S.stats.n;
+  const upto=Math.round(total*($("#play").value/1000));
+  const showJ=$("#showJump").checked;
+  let count=0;
+  g.lineCap="round"; g.lineJoin="round";
+  let prevEnd=null;
+  for(const b of S.blocks){
+    // ブロック間の移動
+    if(prevEnd && !b.trimBefore && count<upto){
+      g.globalAlpha=(S.hi!=null && b.group!==S.hi)?0.12:1;
+      g.strokeStyle=`rgb(${b.color.join(",")})`;
+      g.lineWidth=Math.max(0.7,0.3*sc);
+      const a=T(prevEnd), c=T(b.stitches[0]);
+      g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]); g.stroke();
+    } else if(prevEnd && b.trimBefore && showJ && count<upto){
+      const a=T(prevEnd), c=T(b.stitches[0]);
+      g.globalAlpha=0.9; g.strokeStyle="#c0392b"; g.lineWidth=1.4;
+      g.beginPath(); g.arc(a[0],a[1],3.2,0,Math.PI*2); g.stroke();   // ここで切る
+      g.globalAlpha=0.35; g.lineWidth=1; g.setLineDash([2,4]);
+      g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]); g.stroke();
+      g.setLineDash([]);
+      g.globalAlpha=0.9; g.fillStyle="#c0392b";
+      g.beginPath(); g.arc(c[0],c[1],1.6,0,Math.PI*2); g.fill();     // ここから縫い直す
+    }
+    prevEnd=b.stitches[b.stitches.length-1];
+    const js=new Set(b.jumps);
+    const dim = (S.hi!=null && b.group!==S.hi);
+    const alpha = (b.type==="underlay"?0.28:1) * (dim?0.12:1);
+    const lw=Math.max(0.8,(b.type==="line"?0.42:0.38)*sc);
+    const path=new Path2D();
+    for(let i=1;i<b.stitches.length;i++){
+      if(count>=upto)break;
+      count++;
+      if(js.has(i-1)) continue;
+      const a=T(b.stitches[i-1]), c=T(b.stitches[i]);
+      path.moveTo(a[0],a[1]); path.lineTo(c[0],c[1]);
+    }
+    if(mode==="thread" && b.type!=="underlay"){
+      const off=Math.max(0.5,lw*0.28);
+      g.globalAlpha=alpha*0.5;
+      g.save(); g.translate(off*0.8,off);
+      g.strokeStyle=shade(b.color,-58); g.lineWidth=lw*1.05; g.stroke(path); g.restore();
+      g.globalAlpha=alpha;
+      g.strokeStyle=`rgb(${b.color.join(",")})`; g.lineWidth=lw; g.stroke(path);
+      g.globalAlpha=alpha*0.55;
+      g.save(); g.translate(-off*0.5,-off*0.6);
+      g.strokeStyle=shade(b.color,62); g.lineWidth=lw*0.34; g.stroke(path); g.restore();
+      g.globalAlpha=alpha;
+    } else {
+      g.globalAlpha=alpha;
+      g.strokeStyle=`rgb(${b.color.join(",")})`;
+      g.lineWidth=lw; g.stroke(path);
+    }
+    if(showJ){
+      for(const i of b.trims){
+        if(i+1>=b.stitches.length)continue;
+        const a=T(b.stitches[i]), c=T(b.stitches[i+1]);
+        g.globalAlpha=0.9; g.strokeStyle="#c0392b"; g.lineWidth=1.4;
+        g.beginPath(); g.arc(a[0],a[1],3.2,0,Math.PI*2); g.stroke();
+        g.globalAlpha=0.35; g.lineWidth=1; g.setLineDash([2,4]);
+        g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]); g.stroke();
+        g.setLineDash([]);
+        g.globalAlpha=0.9; g.fillStyle="#c0392b";
+        g.beginPath(); g.arc(c[0],c[1],1.6,0,Math.PI*2); g.fill();
+      }
+    }
+    if(count>=upto)break;
+  }
+  g.globalAlpha=1;
+  // 枠
+  g.strokeStyle="rgba(47,75,124,.35)"; g.lineWidth=1; g.setLineDash([5,4]);
+  const m=(sz-100)/2*sc;
+  if(sz<=100){ g.strokeRect(0.5,0.5,cssW-1,cssH-1); }
+  g.setLineDash([]);
+}
+
+/* ---------------- events ---------------- */
+$("#btnQ").addEventListener("click",doQuantize);
+$("#btnG").addEventListener("click",generate);
+$("#play").addEventListener("input",drawPreview);
+$("#showJump").addEventListener("change",drawPreview);
+$("#showSrc").addEventListener("change",drawPreview);
+$$("#mode button").forEach(b=>b.addEventListener("click",()=>{
+  $$("#mode button").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true"); S.viewMode=b.dataset.m; drawPreview();
+}));
+$$("#bg button").forEach(b=>b.addEventListener("click",()=>{
+  $$("#bg button").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true"); bgColor=b.dataset.v; resetFabric(); drawPreview();
+}));
+$("#helpBtn").addEventListener("click",()=>{
+  const d=$("#manual"); d.open=true; d.scrollIntoView({behavior:"smooth",block:"start"});
+});
+$("#expPes").addEventListener("click",exportPES);
+$("#cfgOut").addEventListener("click",exportConfig);
+$("#cfgInBtn").addEventListener("click",e=>{e.preventDefault();$("#cfgIn").click();});
+$("#cfgIn").addEventListener("change",e=>{const f=e.target.files[0]; if(f)importConfig(f); e.target.value="";});
+$("#ordSame").addEventListener("click",groupSameColors);
+$("#ordMerge").addEventListener("click",mergeSelected);
+window.addEventListener("resize",drawPreview);
+applyPreset("std");
+renderOrder();
+drawPreview();
+</script>
+</body>
+</html>
