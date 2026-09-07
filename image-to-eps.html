@@ -215,7 +215,7 @@ button.act:disabled{opacity:.45}
         <button data-m="thread" aria-pressed="true">糸</button>
         <button data-m="line">線</button>
       </div>
-      <label><input type="checkbox" id="showJump"> 糸切り位置</label>
+      <label><input type="checkbox" id="showJump"> 渡りと糸切り</label>
       <label><input type="checkbox" id="showSrc"> 元画像</label>
     </div>
     <input type="range" class="play" id="play" min="0" max="1000" value="1000">
@@ -335,7 +335,7 @@ button.act:disabled{opacity:.45}
       <div class="row"><span class="lb">糸切りのしきい値<small>これより長い渡りで糸を切る。短いものは縫ったまま繋ぐ</small></span>
         <input type="range" id="pTrim" min="1" max="20" step="0.5" value="5"><span class="val" id="vTrim"></span></div>
       <div class="row"><span class="lb">隠れる渡りは切らない<small>あとから他の色に覆われる渡りは糸を切らずに残す</small></span>
-        <label class="sw"><input type="checkbox" id="pCover" checked><i></i></label></div>
+        <label class="sw"><input type="checkbox" id="pCover"><i></i></label></div>
       <div class="row"><span class="lb">背景の扱い<small>「縫わない」に指定した色をどうするか</small></span>
         <select id="pBg">
           <option value="outside" selected>外側だけ縫わない</option>
@@ -528,7 +528,7 @@ $("#pPpm").addEventListener("change",e=>P.ppm=parseInt(e.target.value)); P.ppm=1
 const BASE={
   pSize:90, pPpm:"10", pK:8, pTrim:5, pBg:"outside",
   pDens:0.18, pLen:2.5, pAng:45, pPca:false, pMinA:0.8, pSm:1,
-  pUnder:"dissolve", pUL:true, pCover:true, pBgFill:"#ffffff",
+  pUnder:"dissolve", pUL:true, pCover:false, pBgFill:"#ffffff",
   pUseLine:true, pEdgeMode:"fill", pLTh:140, pSatW:1.1, pSatMax:3, pPitch:0.35,
   pRun:1.4, pMinW:0.15, pMinL:0.8, pSmooth:1,
   pThinMode:"grow", pMinSW:0.7, pTrimPol:"all", pEdgeCol:"edge", pEdgeHex:"#1b1a3a",
@@ -983,7 +983,7 @@ function resample(pts,step){
 function pathLen(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return L;}
 
 /* ---------------- scanline fill ---------------- */
-function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm){
+function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt){
   const ppm=S.ppm;
   const a=angleDeg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
   const corners=[[box.x0,box.y0],[box.x1,box.y0],[box.x0,box.y1],[box.x1,box.y1]];
@@ -1005,16 +1005,23 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm){
       else if(!ok&&inside){inside=false; runs.push([st,t-step]);}
     }
     if(inside)runs.push([st,tmax]);
-    if(runs.length)rows.push({p,runs});
+    // 走査の丸め誤差で割れた区間を繋ぎ直す
+    const gapTol=Math.max(1.0,0.3*ppm);
+    const merged=[];
+    for(const rr of runs){
+      const last=merged[merged.length-1];
+      if(last && rr[0]-last[1]<=gapTol) last[1]=rr[1];
+      else merged.push([rr[0],rr[1]]);
+    }
+    if(merged.length)rows.push({p,runs:merged});
   }
   // runs をノード化し、隣接行で重なるものを繋いだグラフを作る
   const minRun=0.6*ppm;
   const nodes=[], byRow=new Map();
   for(let ri=0;ri<rows.length;ri++){
     for(const r of rows[ri].runs){
-      if(r[1]-r[0]<minRun)continue;
       const id=nodes.length;
-      nodes.push({row:ri,p:rows[ri].p,t0:r[0],t1:r[1],adj:[]});
+      nodes.push({row:ri,p:rows[ri].p,t0:r[0],t1:r[1],adj:[],short:(r[1]-r[0]<minRun)});
       if(!byRow.has(ri))byRow.set(ri,[]);
       byRow.get(ri).push(id);
     }
@@ -1024,15 +1031,29 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm){
     if(!A||!B)continue;
     for(const i of A) for(const j of B){
       const a=nodes[i], b=nodes[j];
-      if(Math.min(a.t1,b.t1)-Math.max(a.t0,b.t0)>0){ a.adj.push(j); b.adj.push(i); }
+      const tol=Math.max(1.0,0.3*ppm);
+      if(Math.min(a.t1,b.t1)-Math.max(a.t0,b.t0)>-tol){ a.adj.push(j); b.adj.push(i); }
     }
   }
   // 連結成分ごとに深さ優先で巡回する。行き止まりからは来た道を戻るので、
   // 縫い位置が形の外へ出ない（穴をまたぐ長い渡りが生まれない）
   const seen=new Uint8Array(nodes.length), order=[];
-  for(let s=0;s<nodes.length;s++){
-    if(seen[s])continue;
-    seen[s]=1; order.push(s);
+  const XY0=(t,p)=>[toMM(t*ca-p*sa), toMM(t*sa+p*ca)];
+  const mid=i=>XY0((nodes[i].t0+nodes[i].t1)/2,nodes[i].p);
+  // 塊ごとに深さ優先。次の塊は、いま針がある場所にいちばん近いものを選ぶ
+  const chainStart=[];
+  let here=startPt||null;
+  while(true){
+    let s=-1,bd=1e18;
+    for(let i=0;i<nodes.length;i++){
+      if(seen[i])continue;
+      if(!here){ s=i; break; }
+      const m=mid(i), d=(m[0]-here[0])**2+(m[1]-here[1])**2;
+      if(d<bd){bd=d;s=i;}
+    }
+    if(s<0)break;
+    const chain=[]; const fresh=[];
+    seen[s]=1; chain.push(s); fresh.push(true);
     const stack=[[s,0]];
     while(stack.length){
       const top=stack[stack.length-1];
@@ -1040,51 +1061,100 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm){
       while(top[1]<nodes[top[0]].adj.length){
         const v=nodes[top[0]].adj[top[1]++];
         if(seen[v])continue;
-        seen[v]=1; order.push(v); stack.push([v,0]); moved=true; break;
+        seen[v]=1; chain.push(v); fresh.push(true); stack.push([v,0]); moved=true; break;
       }
-      if(!moved){ stack.pop(); if(stack.length) order.push(stack[stack.length-1][0]); }
+      if(!moved){ stack.pop(); if(stack.length){ chain.push(stack[stack.length-1][0]); fresh.push(false); } }
     }
+    // 最後の未縫い区間より後ろの戻りは無駄なので捨てる
+    let last=chain.length-1;
+    while(last>0 && !fresh[last]) last--;
+    chainStart.push(order.length);
+    for(let i=0;i<=last;i++) order.push(chain[i]);
+    here=mid(order[order.length-1]);
   }
 
-  const XY=(t,p)=>[toMM(t*ca-p*sa), toMM(t*sa+p*ca)];
+  const XY=XY0;
   const stitches=[], jumps=[];
+  const inside=(mx,my)=>{
+    const xi=Math.round((mx+S.sizeMm/2)*ppm), yi=Math.round((my+S.sizeMm/2)*ppm);
+    return xi>=0&&yi>=0&&xi<W&&yi<H && comp[yi*W+xi]===compId;
+  };
   const push=(seg)=>{
     if(stitches.length){
       const a=stitches[stitches.length-1], b=seg[0];
       const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
-      if(d>2){
-        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
-        const xi=Math.round((mx+S.sizeMm/2)*ppm), yi=Math.round((my+S.sizeMm/2)*ppm);
-        const ins = xi>=0&&yi>=0&&xi<W&&yi<H && comp[yi*W+xi]===compId;
-        if(!ins) jumps.push(stitches.length-1);
+      if(d>1){
+        // 画素ごとに見て、形の外を通る長さが無視できないならジャンプにする
+        const steps=Math.max(4,Math.ceil(d*ppm));
+        let outLen=0;
+        for(let t=1;t<steps;t++){
+          const f=t/steps;
+          if(!inside(a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f)) outLen+=d/steps;
+        }
+        if(outLen>0.8) jumps.push(stitches.length-1);
+        else if(d>maxLenMm){
+          // 形の中を通る長い移動は、走り縫いに分割する（長すぎる1針を作らない）
+          const k=Math.ceil(d/maxLenMm);
+          for(let t=1;t<k;t++)
+            stitches.push([a[0]+(b[0]-a[0])*t/k, a[1]+(b[1]-a[1])*t/k]);
+        }
       }
     }
     for(const p of seg) stitches.push(p);
   };
   const sewn=new Uint8Array(nodes.length);
-  let curT=null;
-  for(const u of order){
-    const nd=nodes[u];
-    if(!sewn[u]){
+  const chainSet=new Set(chainStart);
+  let curT=null, prevNode=null;
+  for(let oi=0;oi<order.length;oi++){
+    const u=order[oi], nd=nodes[u];
+    if(oi>0 && chainSet.has(oi)){
+      // ここから別の塊。形の中を通れるかどうかは push が実際の経路で判定する
+      curT=null; prevNode=null;
+    }
+    // この区間のどこに入るかを決める
+    let A,B,seg;
+    const fresh=!sewn[u];
+    if(fresh){
       sewn[u]=1;
-      let A,B;
-      if(curT===null || Math.abs(curT-nd.t0)<=Math.abs(curT-nd.t1)){A=nd.t0;B=nd.t1;}
-      else {A=nd.t1;B=nd.t0;}
+      if(nd.short){ A=B=(nd.t0+nd.t1)/2; }
+      else{
+        // 入口（前の針）と出口（次の区間）の両方が近くなる向きを選ぶ
+        const nx = oi+1<order.length ? nodes[order[oi+1]] : null;
+        const exitCost=t=>nx?Math.abs(t-Math.max(nx.t0,Math.min(nx.t1,t))):0;
+        const entryCost=t=>{
+          if(curT!==null) return Math.abs(curT-t);
+          if(startPt){ const q=XY(t,nd.p); return Math.hypot(q[0]-startPt[0],q[1]-startPt[1])*ppm; }
+          return 0;
+        };
+        if(entryCost(nd.t0)+exitCost(nd.t1) <= entryCost(nd.t1)+exitCost(nd.t0)){A=nd.t0;B=nd.t1;}
+        else {A=nd.t1;B=nd.t0;}
+      }
+    } else {
+      A=B=curT===null?nd.t0:Math.max(nd.t0,Math.min(nd.t1,curT));
+    }
+
+    // 前の区間の上を伝って移動する。こうすると渡りが必ず形の中に収まる
+    if(prevNode && prevNode!==nd){
+      const tw=Math.max(prevNode.t0,Math.min(prevNode.t1,A));
+      if(curT===null || Math.abs(tw-curT)>0.3*ppm) push([XY(tw,prevNode.p)]);
+    }
+
+    if(!fresh || A===B){
+      seg=[XY(A,nd.p)];
+    } else {
       const lenMm=Math.abs(B-A)/ppm;
       const n=Math.max(1,Math.ceil(lenMm/maxLenMm));
-      const seg=[];
+      seg=[];
       for(let i=0;i<=n;i++){
         let t=A+(B-A)*(i/n);
         if(i>0&&i<n) t+=(Math.random()-0.5)*0.5*ppm;  // 継ぎ目の筋を散らす
         seg.push(XY(t,nd.p));
       }
-      push(seg); curT=B;
-    } else {
-      // 通過するだけ：いま居る位置の真横に1針だけ置いて戻る
-      const t = curT===null ? nd.t0 : Math.max(nd.t0,Math.min(nd.t1,curT));
-      push([XY(t,nd.p)]); curT=t;
     }
+    push(seg);
+    curT=B; prevNode=nd;
   }
+
   return {stitches,jumps};
 }
 
@@ -1280,7 +1350,8 @@ function buildLineBlocks(mask,color,W,H,ppm,stats,kind,O){
     for(const p of pts) st.push(p);
     stats.paths++;
   }
-  return st.length>2 ? [{type:"line",color,colorIdx:(kind==="edge"?-2:-1),stitches:st,jumps:jm}] : [];
+  return st.length>2 ? [{type:"line",color,colorIdx:(kind==="edge"?-2:-1),
+    region:(kind==="edge"?"edgeline":"line"),stitches:st,jumps:jm}] : [];
 }
 
 async function generate(){
@@ -1488,12 +1559,13 @@ async function generate(){
     for(const c of cs){
       const ang = P.pca ? c.angle : P.angle;
       const box={x0:c.x0-1,y0:c.y0-1,x1:c.x1+1,y1:c.y1+1};
+      const tail=()=>blocks.length?blocks[blocks.length-1].stitches[blocks[blocks.length-1].stitches.length-1]:null;
       if(P.underlay && c.n>minPx*2){
-        const u=scanFill(comp,c.id,W,H,box,ang+90,2.0,3.0);
-        if(u.stitches.length>2) blocks.push({type:"underlay",color:pal[col],colorIdx:col,...u});
+        const u=scanFill(comp,c.id,W,H,box,ang+90,2.0,3.0,tail());
+        if(u.stitches.length>2) blocks.push({type:"underlay",color:pal[col],colorIdx:col,region:"f"+col+"_"+c.id,...u});
       }
-      const f=scanFill(comp,c.id,W,H,box,ang,P.dens,P.maxLen);
-      if(f.stitches.length>2) blocks.push({type:"fill",color:pal[col],colorIdx:col,...f});
+      const f=scanFill(comp,c.id,W,H,box,ang,P.dens,P.maxLen,tail());
+      if(f.stitches.length>2) blocks.push({type:"fill",color:pal[col],colorIdx:col,region:"f"+col+"_"+c.id,...f});
     }
     await tick();
   }
@@ -1519,12 +1591,13 @@ async function generate(){
           if(c.n<minPx*0.5)continue;
           const box={x0:c.x0-1,y0:c.y0-1,x1:c.x1+1,y1:c.y1+1};
           const ang=P.pca?c.angle:P.angle;
+          const tail2=()=>blocks.length?blocks[blocks.length-1].stitches[blocks[blocks.length-1].stitches.length-1]:null;
           if(P.underlay && c.n>minPx*2){
-            const u=scanFill(L.comp,c.id,W,H,box,ang+90,2.0,3.0);
-            if(u.stitches.length>2) blocks.push({type:"underlay",color:edgeColor,colorIdx:-2,...u});
+            const u=scanFill(L.comp,c.id,W,H,box,ang+90,2.0,3.0,tail2());
+            if(u.stitches.length>2) blocks.push({type:"underlay",color:edgeColor,colorIdx:-2,region:"e"+c.id,...u});
           }
-          const f=scanFill(L.comp,c.id,W,H,box,ang,P.dens,P.maxLen);
-          if(f.stitches.length>2) blocks.push({type:"fill",color:edgeColor,colorIdx:-2,...f});
+          const f=scanFill(L.comp,c.id,W,H,box,ang,P.dens,P.maxLen,tail2());
+          if(f.stitches.length>2) blocks.push({type:"fill",color:edgeColor,colorIdx:-2,region:"e"+c.id,...f});
         }
       }
       await tick();
@@ -1563,14 +1636,31 @@ function computeStats(ls){
       if(p[1]<miny)miny=p[1]; if(p[1]>maxy)maxy=p[1];
     }
   }
-  S.stats={n,jumps:jumps+trims,changes,ls,
+  const regions=new Set(); S.blocks.forEach(b=>{ if(b.region)regions.add(b.color.join(",")+"|"+b.region); });
+  // 糸を切らずに残る渡り（布の上に糸が乗る）
+  let loose=0, looseMax=0, prevEnd=null;
+  for(const b of S.blocks){
+    if(prevEnd && !b.trimBefore){
+      const d=Math.hypot(b.stitches[0][0]-prevEnd[0], b.stitches[0][1]-prevEnd[1]);
+      if(d>1){ loose++; looseMax=Math.max(looseMax,d); }
+    }
+    const ts=new Set(b.trims);
+    for(const i of b.jumps){
+      if(ts.has(i)||i+1>=b.stitches.length)continue;
+      const a=b.stitches[i], c=b.stitches[i+1];
+      const d=Math.hypot(c[0]-a[0],c[1]-a[1]);
+      if(d>1){ loose++; looseMax=Math.max(looseMax,d); }
+    }
+    prevEnd=b.stitches[b.stitches.length-1];
+  }
+  S.stats={n,jumps:jumps+trims,changes,ls,regions:regions.size,loose,looseMax,
     w:(maxx-minx)||0, h:(maxy-miny)||0};
   const s=S.stats;
   const over = s.w>100||s.h>100;
   $("#stat").innerHTML=
     `<span class="${s.n>40000?'warn':''}">ステッチ <b>${s.n.toLocaleString()}</b></span>`+
     `<span>糸替え <b>${Math.max(0,s.changes-1)}</b>回</span>`+
-    `<span>糸切り <b>${s.jumps}</b>回</span>`+
+    `<span>糸切り <b>${s.jumps}</b>回</span>`+`<span>領域 <b>${s.regions}</b></span>`+`<span class="${s.loose?'warn':''}">切らない渡り <b>${s.loose}</b>本${s.loose?`（最長${s.looseMax.toFixed(1)}mm）`:''}</span>`+
     `<span class="${over?"warn":""}">サイズ <b>${s.w.toFixed(1)}×${s.h.toFixed(1)}mm</b>${over?" 枠外":""}</span>`+
     `<span>線 サテン<b>${ls.satin}</b> / ラン<b>${ls.run}</b></span>`+
     (ls.thick?`<span>太線→塗り <b>${(ls.thick/(S.ppm*S.ppm)).toFixed(0)}</b>mm²</span>`:"")+
@@ -1592,6 +1682,7 @@ function finalizeBlocks(blocks,W,H,ppm,sizeMm){
     const b=blocks[k];
     const pol=polOf(b);
     if(pol!=="color") anyCut=true;
+    // 塊から別の塊へ移る所は形の外を通るので、方針どおりに切る
     if(pol==="color") b.trims=[];
     else {
       const t=[];
@@ -1605,10 +1696,14 @@ function finalizeBlocks(blocks,W,H,ppm,sizeMm){
     }
     if(k===0){ b.trimBefore=false; continue; }
     const prev=blocks[k-1];
-    if(key(prev)!==key(b)){ b.trimBefore=true; continue; }
+    if(key(prev)!==key(b)){ b.trimBefore=true; continue; }   // 糸を替えるので必ず切る
     const gap=Math.hypot(b.stitches[0][0]-prev.stitches[prev.stitches.length-1][0],
                          b.stitches[0][1]-prev.stitches[prev.stitches.length-1][1]);
-    b.trimBefore = pol==="color" ? false : (pol==="all" ? gap>0.5 : gap>P.trimAt);
+    // 同じ領域の続き（下地→本縫い）は、ごく近いときだけ繋いだままにする
+    const same = prev.region && prev.region===b.region;
+    if(pol==="color") b.trimBefore=false;
+    else if(same) b.trimBefore = gap>1.0;
+    else b.trimBefore = (pol==="all" ? gap>0.5 : gap>P.trimAt);
   }
   return (P.cover && anyCut) ? relaxCoveredTrims(blocks,W,H,ppm,sizeMm) : 0;
 }
@@ -1966,6 +2061,7 @@ function buildGroups(){
     }
     cur.idx.push(i); cur.n+=b.stitches.length;
     cur.trims += b.trims ? b.trims.length : 0;
+    if(b.region) (cur.regs||(cur.regs=new Set())).add(b.region);
     if(cur.idx.length>1 && b.trimBefore) cur.trims++;
     cur.kinds.add(b.colorIdx===-1?"線":b.colorIdx===-2?"枠線":"塗り");
   });
@@ -1984,7 +2080,7 @@ function renderOrder(){
       `<span class="no">${i+1}</span>`+
       `<span class="sq" style="background:rgb(${g.color.join(",")})"></span>`+
       `<span class="meta">${[...g.kinds].join("・")}<small>${g.n.toLocaleString()}針`+
-        (g.pol==="color"?" ・途中で切らない":` ・途中で${g.trims}回切る`)+`</small></span>`+
+        (g.regs?` ・${g.regs.size}領域`:"")+(g.pol==="color"?" ・切らない":` ・途中で${g.trims}回切る`)+`</small></span>`+
       `<button class="mv pol ${g.pol}" data-pol="${i}">`+
         (g.pol==="all"?"毎回":g.pol==="length"?"長い時":"切らない")+`</button>`+
       `<button class="mv" data-up="${i}">↑</button>`+
@@ -2126,13 +2222,13 @@ function drawPreview(){
   g.lineCap="round"; g.lineJoin="round";
   let prevEnd=null;
   for(const b of S.blocks){
-    // ブロック間の移動
-    if(prevEnd && !b.trimBefore && count<upto){
-      g.globalAlpha=(S.hi!=null && b.group!==S.hi)?0.12:1;
-      g.strokeStyle=`rgb(${b.color.join(",")})`;
-      g.lineWidth=Math.max(0.7,0.3*sc);
+    // ブロック間の移動はすべてジャンプ（縫わない）。切らない場合は糸が残る
+    if(prevEnd && !b.trimBefore && showJ && count<upto){
       const a=T(prevEnd), c=T(b.stitches[0]);
+      g.globalAlpha=0.5; g.strokeStyle="#d08b00"; g.lineWidth=1;
+      g.setLineDash([4,3]);
       g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]); g.stroke();
+      g.setLineDash([]);
     } else if(prevEnd && b.trimBefore && showJ && count<upto){
       const a=T(prevEnd), c=T(b.stitches[0]);
       g.globalAlpha=0.9; g.strokeStyle="#c0392b"; g.lineWidth=1.4;
@@ -2173,6 +2269,15 @@ function drawPreview(){
       g.lineWidth=lw; g.stroke(path);
     }
     if(showJ){
+      const ts=new Set(b.trims);
+      g.globalAlpha=0.5; g.strokeStyle="#d08b00"; g.lineWidth=1; g.setLineDash([4,3]);
+      g.beginPath();
+      for(const i of b.jumps){
+        if(ts.has(i)||i+1>=b.stitches.length)continue;
+        const a=T(b.stitches[i]), c=T(b.stitches[i+1]);
+        g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]);
+      }
+      g.stroke(); g.setLineDash([]);
       for(const i of b.trims){
         if(i+1>=b.stitches.length)continue;
         const a=T(b.stitches[i]), c=T(b.stitches[i+1]);
