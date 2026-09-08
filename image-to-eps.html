@@ -262,6 +262,17 @@ button.act:disabled{opacity:.45}
       <h4>5. 書き出し</h4>
       <p>「PESで書き出す」で .pes を保存 → Artspiraの<b>インポート</b>から読み込み → PP1へ転送。糸色はブラザーの64色に丸められ、書き出し後に対応表が出ます。</p>
 
+      <h4>文字を入れる</h4>
+      <p>「文字」パネルにテキストを入れると、書体の輪郭をそのまま刺しゅうにします。画像なしで文字だけでも作れます（文字を入れて「減色」→「ステッチ生成」）。</p>
+      <ul>
+        <li><b>縫い方</b> — 〈自動〉は細い所をサテン、太い所を塗りにします。10mm以下の小さい文字は〈サテン〉、大きい文字や極太は〈塗り〉が安定します</li>
+        <li><b>書体</b> — ゴシック系がいちばん綺麗に出ます。明朝はハネや払いが細く、5mm以下だと潰れます</li>
+        <li>絵は今まで通り最後まで縫って、その上に文字を重ねます。土台があるぶん文字が沈まず綺麗に出ます</li>
+        <li>二重に縫うのを避けたい場合は「文字の下の塗りを抜く」をオンに</li>
+        <li>縫う順は 塗り → 線 → <b>文字</b> → 枠線 です</li>
+      </ul>
+      <p>市販の刺しゅうソフトは書体ごとに手作業でサテンの振り方を作り込んでいます。このアプリは輪郭から中心線を割り出す方式なので、交差や serif の付け根では市販品ほどの精度は出ません。ゴシック体で8mm以上あればまず問題なく縫えます。</p>
+
       <h4>プレビューの見方</h4>
       <p>「渡りと糸切り」をオンにすると、針の動きが3種類で表示されます。</p>
       <ul>
@@ -424,6 +435,8 @@ button.act:disabled{opacity:.45}
         </select></div>
       <div class="row"><span class="lb">指定色</span>
         <input type="color" id="pEdgeHex" value="#1b1a3a"></div>
+      <div class="row"><span class="lb">長方形なら整える<small>ぱっと見が長方形の枠を、きれいな直線とアールに丸めて縫う</small></span>
+        <label class="sw"><input type="checkbox" id="pERect" checked><i></i></label></div>
       <div class="row"><span class="lb">枠線の外は縫わない<small>塗りを枠の外縁でぴたりと止める</small></span>
         <label class="sw"><input type="checkbox" id="pClipEdge" checked><i></i></label></div>
       <div class="row"><span class="lb">判定しきい値<small>枠線画像の濃さ。変えたら「ステッチ生成」で反映</small></span>
@@ -453,6 +466,50 @@ button.act:disabled{opacity:.45}
   </details>
 
   <details>
+    <summary>文字</summary>
+    <div class="body">
+      <div class="row" style="display:block">
+        <textarea id="pTxt" rows="2" placeholder="ここに文字を入れると刺しゅうします（改行可）"
+          style="width:100%;font-family:inherit;font-size:14px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;resize:vertical"></textarea>
+      </div>
+      <div class="row"><span class="lb">書体</span>
+        <select id="pTxtFont">
+          <option value="system-ui, -apple-system, sans-serif">ゴシック</option>
+          <option value="'Hiragino Maru Gothic ProN', sans-serif">丸ゴシック</option>
+          <option value="'Hiragino Mincho ProN', serif">明朝</option>
+          <option value="Georgia, 'Times New Roman', serif">英字セリフ</option>
+          <option value="Helvetica, Arial, sans-serif">英字サンセリフ</option>
+          <option value="'Courier New', monospace">等幅</option>
+        </select></div>
+      <div class="row"><span class="lb">太さ</span>
+        <select id="pTxtW"><option value="400">標準</option><option value="700" selected>太字</option><option value="900">極太</option></select></div>
+      <div class="row"><span class="lb">文字の高さ</span>
+        <input type="range" id="pTxtSize" min="4" max="40" step="1" value="12"><span class="val" id="vTxtSize"></span></div>
+      <div class="row"><span class="lb">字間</span>
+        <input type="range" id="pTxtLS" min="-1" max="4" step="0.1" value="0"><span class="val" id="vTxtLS"></span></div>
+      <div class="row"><span class="lb">横位置</span>
+        <input type="range" id="pTxtX" min="-45" max="45" step="1" value="0"><span class="val" id="vTxtX"></span></div>
+      <div class="row"><span class="lb">縦位置</span>
+        <input type="range" id="pTxtY" min="-45" max="45" step="1" value="30"><span class="val" id="vTxtY"></span></div>
+      <div class="row"><span class="lb">回転</span>
+        <input type="range" id="pTxtRot" min="-45" max="45" step="1" value="0"><span class="val" id="vTxtRot"></span></div>
+      <div class="row"><span class="lb">糸の色</span>
+        <input type="color" id="pTxtCol" value="#1b1a3a"></div>
+      <div class="row"><span class="lb">縫い方<small>サテンは筆跡に沿って直角に振る。太い字は塗りのほうが安定する</small></span>
+        <select id="pTxtMode">
+          <option value="auto" selected>自動（太い所は塗り）</option>
+          <option value="satin">サテン</option>
+          <option value="fill">塗り</option>
+        </select></div>
+      <div class="row"><span class="lb">文字の下の塗りを抜く<small>切ると絵はそのまま縫い、その上に文字を重ねる</small></span>
+        <label class="sw"><input type="checkbox" id="pTxtCut"><i></i></label></div>
+      <div class="row"><span class="lb">サテンにする最大幅<small>これより太い所は塗りに回す</small></span>
+        <input type="range" id="pTxtMax" min="1" max="12" step="0.5" value="5"><span class="val" id="vTxtMax"></span></div>
+      <p class="hint">縫う順は 塗り → 線 → 文字 → 枠線。絵を最後まで縫ったうえに文字を重ねます。位置はプレビューを見ながら調整してください。</p>
+    </div>
+  </details>
+
+  <details>
     <summary>線</summary>
     <div class="body">
       <div class="row"><span class="lb">線を縫う<small>切ると塗りだけで表現する</small></span>
@@ -474,6 +531,8 @@ button.act:disabled{opacity:.45}
         </select></div>
       <div class="row"><span class="lb">線の最小仕上がり幅<small>これより細い線はこの幅まで太らせる</small></span>
         <input type="range" id="pMinSW" min="0.35" max="1.4" step="0.05" value="0.7"><span class="val" id="vMinSW"></span></div>
+      <div class="row"><span class="lb">サテンの端を伸ばす<small>線や文字の先端が縫い残るのを防ぐ</small></span>
+        <label class="sw"><input type="checkbox" id="pExt" checked><i></i></label></div>
       <div class="row"><span class="lb">最小の線幅<small>これより細い残りカスは縫わない。余計な枠線が出るときは上げる</small></span>
         <input type="range" id="pMinW" min="0.05" max="1.5" step="0.05" value="0.15"><span class="val" id="vMinW"></span></div>
       <div class="row"><span class="lb">最小の線長<small>短い枝は捨てる</small></span>
@@ -538,6 +597,12 @@ bindRange("#pSatMax","satMax",v=>v.toFixed(1)+"mm");
 bindRange("#pPitch","pitch",v=>v.toFixed(2)+"mm");
 bindRange("#pRun","runLen",v=>v.toFixed(1)+"mm");
 bindRange("#pMinSW","minSW",v=>v.toFixed(2)+"mm");
+bindRange("#pTxtSize","txtSize",v=>v+"mm");
+bindRange("#pTxtLS","txtLS",v=>v.toFixed(1)+"mm");
+bindRange("#pTxtX","txtX",v=>v+"mm");
+bindRange("#pTxtY","txtY",v=>v+"mm");
+bindRange("#pTxtRot","txtRot",v=>v+"°");
+bindRange("#pTxtMax","txtMax",v=>v.toFixed(1)+"mm");
 bindRange("#pMinW","minW",v=>v.toFixed(2)+"mm");
 bindRange("#pMinL","minLine",v=>v.toFixed(1)+"mm");
 bindRange("#pSmooth","pathSm",v=>v+"回");
@@ -551,7 +616,7 @@ bindRange("#pEMinW","eMinW",v=>v.toFixed(2)+"mm");
 bindRange("#pEMinL","eMinL",v=>v.toFixed(1)+"mm");
 bindRange("#pESmooth","eSmooth",v=>v+"回");
 const chk=(id,key)=>{const e=$(id);const u=()=>P[key]=e.checked;e.addEventListener("change",u);u();};
-chk("#pPca","pca"); chk("#pCover","cover"); chk("#pClipEdge","clipEdge"); chk("#pULC","ulContour"); chk("#pUL","underlay"); chk("#pUseLine","useLine");
+chk("#pPca","pca"); chk("#pCover","cover"); chk("#pClipEdge","clipEdge"); chk("#pULC","ulContour"); chk("#pExt","extend"); chk("#pERect","edgeRect"); chk("#pTxtCut","txtCut"); chk("#pUL","underlay"); chk("#pUseLine","useLine");
 {const e=$("#pBg");const u=()=>P.bgMode=e.value;e.addEventListener("change",u);u();}
 {const e=$("#pUnder");const u=()=>P.underMode=e.value;e.addEventListener("change",u);u();}
 {const e=$("#pEdgeMode");const u=()=>P.edgeMode=e.value;e.addEventListener("change",u);u();}
@@ -560,6 +625,11 @@ chk("#pPca","pca"); chk("#pCover","cover"); chk("#pClipEdge","clipEdge"); chk("#
 {const e=$("#pEdgeCol");const u=()=>P.edgeColMode=e.value;e.addEventListener("change",u);u();}
 {const e=$("#pEdgeHex");const u=()=>P.edgeHex=e.value;e.addEventListener("input",u);u();}
 {const e=$("#pEThinMode");const u=()=>P.eThinMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pTxt");const u=()=>P.txt=e.value;e.addEventListener("input",u);u();}
+{const e=$("#pTxtFont");const u=()=>P.txtFont=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pTxtW");const u=()=>P.txtW=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pTxtMode");const u=()=>P.txtMode=e.value;e.addEventListener("change",u);u();}
+{const e=$("#pTxtCol");const u=()=>P.txtCol=e.value;e.addEventListener("input",u);u();}
 {const e=$("#pTrimPol");const u=()=>{P.trimPolicy=e.value; S.trimByColor.clear();
    if(S.blocks&&S.blocks.length&&S.lineStats) applyOrder();};
  e.addEventListener("change",u); P.trimPolicy=e.value;}
@@ -572,9 +642,11 @@ const BASE={
   pBg:"outside", pBgFill:"#ffffff",
   pDens:0.18, pLen:2.5, pAng:45, pPca:false, pMinA:1.0, pMinFW:0.4, pSm:1,
   pUnder:"dissolve", pUL:true, pULC:true, pULIn:0.6, pULMin:4,
+  pTxtFont:"system-ui, -apple-system, sans-serif", pTxtW:"700", pTxtSize:12, pTxtLS:0,
+  pTxtX:0, pTxtY:30, pTxtRot:0, pTxtCol:"#1b1a3a", pTxtMode:"auto", pTxtMax:5, pTxtCut:false,
   pUseLine:true, pLTh:140, pSatW:1.1, pSatMax:3, pPitch:0.35, pRun:1.4,
-  pThinMode:"grow", pMinSW:0.7, pMinW:0.15, pMinL:0.8, pSmooth:1,
-  pEdgeMode:"fill", pEdgeCol:"edge", pEdgeHex:"#1b1a3a", pClipEdge:true,
+  pThinMode:"grow", pExt:true, pMinSW:0.7, pMinW:0.15, pMinL:0.8, pSmooth:1,
+  pEdgeMode:"fill", pEdgeCol:"edge", pEdgeHex:"#1b1a3a", pClipEdge:true, pERect:true,
   pETh:140, pESatW:1.5, pESatMax:8, pEPitch:0.4, pERun:2, pEThinMode:"grow",
   pEMinSW:1.0, pEMinW:0.3, pEMinL:2, pESmooth:2
 };
@@ -859,97 +931,9 @@ function dropSlivers(mask,W,H,ppm,minWmm){
 
 /* 同じ島の中で、形の外に出ずに A から B へ回り込む経路を探す。
    見つかれば走り縫いで繋げるので糸を切らずに済む */
-let routeBudget=0;
-function routeInside(comp,compId,W,H,box,A,B,ppm,maxLenMm,maxDetourMm){
-  if(routeBudget<=0) return null;
-  const x0=Math.max(0,box.x0-2), y0=Math.max(0,box.y0-2);
-  const x1=Math.min(W-1,box.x1+2), y1=Math.min(H-1,box.y1+2);
-  const w=x1-x0+1, hh=y1-y0+1;
-  if(w*hh>2400000) return null;
-  routeBudget--;
-  const ok=(gx,gy)=>gx>=x0&&gy>=y0&&gx<=x1&&gy<=y1&&comp[gy*W+gx]===compId;
-  const toPx=p=>[Math.round((p[0]+S.sizeMm/2)*ppm), Math.round((p[1]+S.sizeMm/2)*ppm)];
-  const snap=(g)=>{
-    if(ok(g[0],g[1]))return g;
-    for(let r=1;r<=3;r++)
-      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)
-        if(ok(g[0]+dx,g[1]+dy))return [g[0]+dx,g[1]+dy];
-    return null;
-  };
-  const s=snap(toPx(A)), t=snap(toPx(B));
-  if(!s||!t) return null;
-  const prev=new Int32Array(w*hh).fill(-2);
-  const q=new Int32Array(w*hh); let head=0,tail=0;
-  const si=(s[1]-y0)*w+(s[0]-x0), ti=(t[1]-y0)*w+(t[0]-x0);
-  prev[si]=-1; q[tail++]=si;
-  let found=si===ti;
-  while(head<tail && !found){
-    const p=q[head++];
-    const lx=p%w, ly=(p/w)|0;
-    for(const [dx,dy] of N8){
-      const nx=lx+dx, ny=ly+dy;
-      if(nx<0||ny<0||nx>=w||ny>=hh)continue;
-      const ni=ny*w+nx;
-      if(prev[ni]!==-2)continue;
-      if(comp[(ny+y0)*W+(nx+x0)]!==compId)continue;
-      prev[ni]=p;
-      if(ni===ti){found=true;break;}
-      q[tail++]=ni;
-    }
-  }
-  if(!found) return null;
-  const path=[];
-  for(let p=ti;p!==-1;p=prev[p]) path.push(p);
-  path.reverse();
-  const mm=i=>[toMM((i%w)+x0), toMM(((i/w)|0)+y0)];
-  const insideMM=(x,y)=>{
-    const gx=Math.round((x+S.sizeMm/2)*ppm), gy=Math.round((y+S.sizeMm/2)*ppm);
-    return gx>=0&&gy>=0&&gx<W&&gy<H&&comp[gy*W+gx]===compId;
-  };
-  const segOK=(p,r)=>{
-    const L=Math.hypot(r[0]-p[0],r[1]-p[1]);
-    const n=Math.max(4,Math.ceil(L*ppm*3));
-    for(let k=1;k<n;k++){
-      const f=k/n;
-      if(!insideMM(p[0]+(r[0]-p[0])*f, p[1]+(r[1]-p[1])*f)) return false;
-    }
-    return true;
-  };
-  // ひもを引くように、中を通れる限り遠くの点まで一気に飛ばす
-  const out=[]; let cur=0, total=0;
-  while(cur<path.length-1){
-    let best=cur+1;
-    for(let j=cur+2;j<path.length;j++){
-      const p=mm(path[cur]), r=mm(path[j]);
-      if(Math.hypot(r[0]-p[0],r[1]-p[1])>maxLenMm) break;
-      if(!segOK(p,r)) break;
-      best=j;
-    }
-    const p=mm(path[cur]), r=mm(path[best]);
-    total+=Math.hypot(r[0]-p[0],r[1]-p[1]);
-    if(total>maxDetourMm) return null;
-    out.push(r); cur=best;
-  }
-  return out.length?out:null;
-}
 
-/* 太い部分（開処理で残る芯）を線から外す。戻り値は細線だけのマスク */
-function thinOnly(lineMask,W,H,radiusPx,margin){
-  margin=margin||1.5;
-  const d=distTransform(lineMask,W,H);
-  const notCore=new Uint8Array(W*H); let coreN=0;
-  for(let i=0;i<W*H;i++){ const c=d[i]>=radiusPx?1:0; if(c)coreN++; notCore[i]=c?0:1; }
-  if(!coreN) return {thin:lineMask, thick:null};
-  const dc=distTransform(notCore,W,H);
-  const thin=new Uint8Array(W*H), thick=new Uint8Array(W*H);
-  for(let i=0;i<W*H;i++){
-    if(!lineMask[i])continue;
-    if(dc[i]>radiusPx+margin) thin[i]=1; else thick[i]=1;
-  }
-  return {thin,thick};
-}
-
-/* ---------------- distance transform ---------------- */
+/* ---------------- 復元：幾何・骨格の基本処理 ---------------- */
+function toMM(px){ return px/S.ppm - S.sizeMm/2; }
 function distTransform(bin,W,H){
   const INF=1e9, d=new Float32Array(W*H);
   for(let i=0;i<W*H;i++) d[i]=bin[i]?INF:0;
@@ -972,8 +956,6 @@ function distTransform(bin,W,H){
   }
   return d;
 }
-
-/* ---------------- Zhang-Suen thinning ---------------- */
 function thin2(src,W,H){
   const b=new Uint8Array(src);
   const at=(x,y)=> (x<0||y<0||x>=W||y>=H)?0:b[y*W+x];
@@ -1001,9 +983,6 @@ function thin2(src,W,H){
   }
   return b;
 }
-
-/* ---------------- skeleton → polylines ---------------- */
-const N8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
 function tracePaths(sk,W,H){
   const deg=new Uint8Array(W*H);
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
@@ -1053,9 +1032,6 @@ function tracePaths(sk,W,H){
   }
   return paths;
 }
-
-/* ---------------- geometry helpers (mm) ---------------- */
-function toMM(px){ return px/S.ppm - S.sizeMm/2; }
 function simplify(pts,tol){
   if(pts.length<3)return pts;
   const keep=new Uint8Array(pts.length); keep[0]=keep[pts.length-1]=1;
@@ -1104,8 +1080,55 @@ function resample(pts,step){
   return out;
 }
 function pathLen(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return L;}
+function makeSatin(path,widths,pitch,maxW){
+  const rp=resample(path,pitch);
+  if(rp.length<2)return null;
+  // 幅を再サンプル位置へ補間
+  const wsrc=widths, ws=[];
+  for(let i=0;i<rp.length;i++){
+    const f=i/(rp.length-1)*(wsrc.length-1);
+    const a=Math.floor(f), b=Math.min(wsrc.length-1,a+1), r=f-a;
+    ws.push(Math.min(maxW, wsrc[a]*(1-r)+wsrc[b]*r));
+  }
+  const out=[];
+  for(let i=0;i<rp.length;i++){
+    const a=rp[Math.max(0,i-1)], b=rp[Math.min(rp.length-1,i+1)];
+    let tx=b[0]-a[0], ty=b[1]-a[1];
+    const L=Math.hypot(tx,ty)||1e-9; tx/=L;ty/=L;
+    const nx=-ty, ny=tx, h=ws[i]/2;
+    const s=(i%2===0)?1:-1;
+    out.push([rp[i][0]+nx*h*s, rp[i][1]+ny*h*s]);
+  }
+  return out;
+}
+function makeRun(path,step,triple){
+  const rp=resample(path,step);
+  if(rp.length<2)return null;
+  if(!triple)return rp;
+  const back=rp.slice().reverse();
+  return rp.concat(back.slice(1), rp.slice(1));
+}
+/* ---------------- 復元：形状処理 ---------------- */
+const N8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
 
-/* ---------------- scanline fill ---------------- */
+/* 太い部分（開処理で残る芯）を線から外す。戻り値は細線だけのマスク */
+function thinOnly(lineMask,W,H,radiusPx,margin){
+  margin=margin||1.5;
+  const d=distTransform(lineMask,W,H);
+  const notCore=new Uint8Array(W*H); let coreN=0;
+  for(let i=0;i<W*H;i++){ const c=d[i]>=radiusPx?1:0; if(c)coreN++; notCore[i]=c?0:1; }
+  if(!coreN) return {thin:lineMask, thick:null};
+  const dc=distTransform(notCore,W,H);
+  const thin=new Uint8Array(W*H), thick=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){
+    if(!lineMask[i])continue;
+    if(dc[i]>radiusPx+margin) thin[i]=1; else thick[i]=1;
+  }
+  return {thin,thick};
+}
+
+/* 走査線で領域を塗る。区間をノードにしたグラフを深さ優先で巡回するので、
+   針が形の外へ出ない。出ざるを得ないところだけジャンプにする */
 function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowRoute){
   const ppm=S.ppm;
   const a=angleDeg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
@@ -1138,6 +1161,7 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
     }
     if(merged.length)rows.push({p,runs:merged});
   }
+
   // runs をノード化し、隣接行で重なるものを繋いだグラフを作る
   const minRun=0.6*ppm;
   const nodes=[], byRow=new Map();
@@ -1153,20 +1177,19 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
     const A=byRow.get(ri), B=byRow.get(ri+1);
     if(!A||!B)continue;
     for(const i of A) for(const j of B){
-      const a=nodes[i], b=nodes[j];
+      const a2=nodes[i], b2=nodes[j];
       const tol=Math.max(1.0,Math.min(0.8,Math.max(0.3,spacingMm*0.4))*ppm);
-      if(Math.min(a.t1,b.t1)-Math.max(a.t0,b.t0)>-tol){ a.adj.push(j); b.adj.push(i); }
+      if(Math.min(a2.t1,b2.t1)-Math.max(a2.t0,b2.t0)>-tol){ a2.adj.push(j); b2.adj.push(i); }
     }
   }
-  // 連結成分ごとに深さ優先で巡回する。行き止まりからは来た道を戻るので、
-  // 縫い位置が形の外へ出ない（穴をまたぐ長い渡りが生まれない）
+
   const seen=new Uint8Array(nodes.length), order=[];
   const XY0=(t,p)=>[toMM(t*ca-p*sa), toMM(t*sa+p*ca)];
-  const mid=i=>XY0((nodes[i].t0+nodes[i].t1)/2,nodes[i].p);
   const nearEnd=(i,pt)=>{
-    const a=XY0(nodes[i].t0,nodes[i].p), b=XY0(nodes[i].t1,nodes[i].p);
-    return Math.min((a[0]-pt[0])**2+(a[1]-pt[1])**2,(b[0]-pt[0])**2+(b[1]-pt[1])**2);
+    const a2=XY0(nodes[i].t0,nodes[i].p), b2=XY0(nodes[i].t1,nodes[i].p);
+    return Math.min((a2[0]-pt[0])**2+(a2[1]-pt[1])**2,(b2[0]-pt[0])**2+(b2[1]-pt[1])**2);
   };
+  const mid=i=>XY0((nodes[i].t0+nodes[i].t1)/2,nodes[i].p);
   // 塊ごとに深さ優先。次の塊は、いま針がある場所にいちばん近いものを選ぶ
   const chainStart=[];
   let here=startPt||null;
@@ -1179,7 +1202,7 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
       if(d<bd){bd=d;s=i;}
     }
     if(s<0)break;
-    const chain=[]; const fresh=[];
+    const chain=[], fresh=[];
     seen[s]=1; chain.push(s); fresh.push(true);
     const stack=[[s,0]];
     while(stack.length){
@@ -1202,25 +1225,25 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
 
   const XY=XY0;
   const stitches=[], jumps=[];
-  const inside=(mx,my)=>{
+  const inside2=(mx,my)=>{
     const xi=Math.round((mx+S.sizeMm/2)*ppm), yi=Math.round((my+S.sizeMm/2)*ppm);
     return xi>=0&&yi>=0&&xi<W&&yi<H && comp[yi*W+xi]===compId;
   };
   const push=(seg)=>{
     if(stitches.length){
-      const a=stitches[stitches.length-1], b=seg[0];
-      const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const a2=stitches[stitches.length-1], b2=seg[0];
+      const d=Math.hypot(b2[0]-a2[0],b2[1]-a2[1]);
       if(d>1){
         // 画素ごとに見て、形の外を通る長さが無視できないならジャンプにする
         const steps=Math.max(4,Math.ceil(d*ppm));
         let outLen=0;
         for(let t=1;t<steps;t++){
           const f=t/steps;
-          if(!inside(a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f)) outLen+=d/steps;
+          if(!inside2(a2[0]+(b2[0]-a2[0])*f, a2[1]+(b2[1]-a2[1])*f)) outLen+=d/steps;
         }
         if(outLen>0.8){
           // 本縫いは表に出るので回り道させない。下地と輪郭だけ中を走って移動する
-          const r = allowRoute ? routeInside(comp,compId,W,H,box,a,b,ppm,maxLenMm,P.detour) : null;
+          const r = allowRoute ? routeInside(comp,compId,W,H,box,a2,b2,ppm,maxLenMm,P.detour) : null;
           if(r){ for(let k=0;k<r.length-1;k++) stitches.push(r[k]); }
           else jumps.push(stitches.length-1);
         }
@@ -1228,12 +1251,13 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
           // 形の中を通る長い移動は、走り縫いに分割する（長すぎる1針を作らない）
           const k=Math.ceil(d/maxLenMm);
           for(let t=1;t<k;t++)
-            stitches.push([a[0]+(b[0]-a[0])*t/k, a[1]+(b[1]-a[1])*t/k]);
+            stitches.push([a2[0]+(b2[0]-a2[0])*t/k, a2[1]+(b2[1]-a2[1])*t/k]);
         }
       }
     }
     for(const p of seg) stitches.push(p);
   };
+
   const sewn=new Uint8Array(nodes.length);
   const chainSet=new Set(chainStart);
   let curT=null, prevNode=null;
@@ -1243,10 +1267,9 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
       // ここから別の塊。形の中を通れるかどうかは push が実際の経路で判定する
       curT=null; prevNode=null;
     }
-    // この区間のどこに入るかを決める
     let A,B,seg;
-    const fresh=!sewn[u];
-    if(fresh){
+    const isFresh=!sewn[u];
+    if(isFresh){
       sewn[u]=1;
       if(nd.short){ A=B=(nd.t0+nd.t1)/2; }
       else{
@@ -1271,7 +1294,7 @@ function scanFill(comp,compId,W,H,box,angleDeg,spacingMm,maxLenMm,startPt,allowR
       if(curT===null || Math.abs(tw-curT)>0.3*ppm) push([XY(tw,prevNode.p)]);
     }
 
-    if(!fresh || A===B){
+    if(!isFresh || A===B){
       seg=[XY(A,nd.p)];
     } else {
       const lenMm=Math.abs(B-A)/ppm;
@@ -1317,7 +1340,6 @@ function contourRun(comp,compId,W,H,box,ppm,insetMm,runLenMm,startPt){
     segs.push(resample(mm,runLenMm));
   }
   if(!segs.length) return null;
-  // 近い順に並べる
   const isLoop=s=>s.length>4 && Math.hypot(s[0][0]-s[s.length-1][0],s[0][1]-s[s.length-1][1])<2.0;
   const ord=[]; const used=new Uint8Array(segs.length);
   let cur=startPt||[0,0];
@@ -1328,8 +1350,8 @@ function contourRun(comp,compId,W,H,box,ppm,insetMm,runLenMm,startPt){
       if(isLoop(segs[i])){
         // 閉じた輪は入る場所を選べるので、いちばん近い点までの距離で測る
         for(const p of segs[i]){
-          const d=(p[0]-cur[0])**2+(p[1]-cur[1])**2;
-          if(d<bd){bd=d;bi=i;rev=false;}
+          const dd=(p[0]-cur[0])**2+(p[1]-cur[1])**2;
+          if(dd<bd){bd=dd;bi=i;rev=false;}
         }
       } else {
         const a=segs[i][0], b=segs[i][segs[i].length-1];
@@ -1345,8 +1367,8 @@ function contourRun(comp,compId,W,H,box,ppm,insetMm,runLenMm,startPt){
     if(isLoop(s)){                       // 入る位置まで開始点を回す
       let bj=0,bd2=1e18;
       for(let i=0;i<s.length;i++){
-        const d=(s[i][0]-cur[0])**2+(s[i][1]-cur[1])**2;
-        if(d<bd2){bd2=d;bj=i;}
+        const dd=(s[i][0]-cur[0])**2+(s[i][1]-cur[1])**2;
+        if(dd<bd2){bd2=dd;bj=i;}
       }
       if(bj>0) s=s.slice(bj).concat(s.slice(1,bj+1));
     }
@@ -1361,21 +1383,21 @@ function contourRun(comp,compId,W,H,box,ppm,insetMm,runLenMm,startPt){
   for(const s of ord){
     if(st.length){
       const a=st[st.length-1], b=s[0];
-      const d=Math.hypot(b[0]-a[0],b[1]-a[1]);
-      if(d>0.5){
-        const steps=Math.max(4,Math.ceil(d*ppm));
+      const dd=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      if(dd>0.5){
+        const steps=Math.max(4,Math.ceil(dd*ppm));
         let outLen=0;
         for(let t=1;t<steps;t++){
           const f=t/steps;
-          if(!insideMM(a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f)) outLen+=d/steps;
+          if(!insideMM(a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f)) outLen+=dd/steps;
         }
         if(outLen>0.8){
           const r=routeInside(comp,compId,W,H,box,a,b,ppm,runLenMm*1.5,P.detour);
           if(r){ for(let k=0;k<r.length-1;k++) st.push(r[k]); }
           else jm.push(st.length-1);
         }
-        else if(d>runLenMm){
-          const k=Math.ceil(d/runLenMm);
+        else if(dd>runLenMm){
+          const k=Math.ceil(dd/runLenMm);
           for(let t=1;t<k;t++) st.push([a[0]+(b[0]-a[0])*t/k, a[1]+(b[1]-a[1])*t/k]);
         }
       }
@@ -1388,8 +1410,8 @@ function contourRun(comp,compId,W,H,box,ppm,insetMm,runLenMm,startPt){
     if(closed){
       let bi=0,bd=1e18;
       for(let i=0;i<st.length;i++){
-        const d=(st[i][0]-startPt[0])**2+(st[i][1]-startPt[1])**2;
-        if(d<bd){bd=d;bi=i;}
+        const dd=(st[i][0]-startPt[0])**2+(st[i][1]-startPt[1])**2;
+        if(dd<bd){bd=dd;bi=i;}
       }
       if(bi>0){
         const rot=st.slice(bi).concat(st.slice(1,bi+1));
@@ -1410,39 +1432,52 @@ function orientUnderlay(u,startOfFill){
   return {stitches:st,jumps:jm};
 }
 
-/* ---------------- satin / running ---------------- */
-function makeSatin(path,widths,pitch,maxW){
-  const rp=resample(path,pitch);
-  if(rp.length<2)return null;
-  // 幅を再サンプル位置へ補間
-  const wsrc=widths, ws=[];
-  for(let i=0;i<rp.length;i++){
-    const f=i/(rp.length-1)*(wsrc.length-1);
-    const a=Math.floor(f), b=Math.min(wsrc.length-1,a+1), r=f-a;
-    ws.push(Math.min(maxW, wsrc[a]*(1-r)+wsrc[b]*r));
-  }
-  const out=[];
-  for(let i=0;i<rp.length;i++){
-    const a=rp[Math.max(0,i-1)], b=rp[Math.min(rp.length-1,i+1)];
-    let tx=b[0]-a[0], ty=b[1]-a[1];
-    const L=Math.hypot(tx,ty)||1e-9; tx/=L;ty/=L;
-    const nx=-ty, ny=tx, h=ws[i]/2;
-    const s=(i%2===0)?1:-1;
-    out.push([rp[i][0]+nx*h*s, rp[i][1]+ny*h*s]);
-  }
-  return out;
-}
-function makeRun(path,step,triple){
-  const rp=resample(path,step);
-  if(rp.length<2)return null;
-  if(!triple)return rp;
-  const back=rp.slice().reverse();
-  return rp.concat(back.slice(1), rp.slice(1));
+/* 入力された文字をマスクにする。フォントの輪郭をそのまま使う */
+function buildTextMask(W,H,ppm){
+  const t=(P.txt||"").replace(/\s+$/,"");
+  if(!t) return null;
+  const c=document.createElement("canvas"); c.width=W; c.height=H;
+  const g=c.getContext("2d",{willReadFrequently:true});
+  const px=P.txtSize*ppm;
+  g.font=`${P.txtW||700} ${px}px ${P.txtFont||"system-ui, sans-serif"}`;
+  g.textAlign="center"; g.textBaseline="middle"; g.fillStyle="#000";
+  g.save();
+  g.translate((P.txtX+S.sizeMm/2)*ppm, (P.txtY+S.sizeMm/2)*ppm);
+  g.rotate((P.txtRot||0)*Math.PI/180);
+  const lines=t.split("\n");
+  const lh=px*1.18, ls=(P.txtLS||0)*ppm;
+  lines.forEach((ln,i)=>{
+    const y=(i-(lines.length-1)/2)*lh;
+    if(Math.abs(ls)>0.01){
+      const chars=[...ln];
+      let total=0; for(const ch of chars) total+=g.measureText(ch).width;
+      total+=ls*Math.max(0,chars.length-1);
+      let x=-total/2;
+      for(const ch of chars){ const w=g.measureText(ch).width; g.fillText(ch,x+w/2,y); x+=w+ls; }
+    } else g.fillText(ln,0,y);
+  });
+  g.restore();
+  const d=g.getImageData(0,0,W,H).data;
+  const m=new Uint8Array(W*H); let any=false;
+  for(let i=0;i<W*H;i++) if(d[i*4+3]>=128){m[i]=1;any=true;}
+  return any?m:null;
 }
 
-/* ---------------- 生成本体 ---------------- */
+/* ---------------- 復元：減色とパレット ---------------- */
 async function doQuantize(){
-  if(!S.imgFill){say("塗り画像を選んで");return;}
+  if(!S.imgFill){
+    if((P.txt||"").trim()){        // 文字だけでも作れる
+      S.ppm=P.ppm; S.sizeMm=P.sizeMm;
+      S.W=S.H=Math.round(P.sizeMm*P.ppm);
+      S.idx=new Int32Array(S.W*S.H).fill(-1); S.pal=[];
+      S.lineSrc=null; S.edgeSrc=null; S.lineMask=null; S.edgeMask=null;
+      S.lineSet=new Set(); S.skipSet=new Set(); S.lineColorFix=null; S.edgeColorFix=null;
+      S.srcCanvas={data:new Uint8ClampedArray(S.W*S.H*4)};
+      renderChips(); $("#btnG").disabled=false; drawPreview();
+      say("文字だけで生成できます"); return;
+    }
+    say("塗り画像を選ぶか、文字を入力してください"); return;
+  }
   busy("減色中…"); await tick();
   const {fill,line,edge}=rasterize();
   const W=S.W,H=S.H;
@@ -1473,8 +1508,8 @@ async function doQuantize(){
         const ws=[];
         for(let i=0;i<W*H;i++) if(m[i]) ws.push(dt[i]);
         ws.sort((a,b)=>a-b);
-        const medW = ws[Math.floor(ws.length*0.90)]*2/S.ppm;   // 太い側から見た代表的な幅
-        if(medW > Math.max(2.0,P.satMax*0.7)) bl=999;          // 太いので線ではなく塗り扱い
+        const medW = ws[Math.floor(ws.length*0.90)]*2/S.ppm;
+        if(medW > Math.max(2.0,P.satMax*0.7)) bl=999;   // 太いので線ではなく塗り扱い
       }
     }
     if(bl<110) S.lineSet.add(dark);
@@ -1487,7 +1522,8 @@ async function doQuantize(){
 }
 
 function renderChips(){
-  const el=$("#chips"); el.innerHTML="";
+  const el=$("#chips"); if(!el)return;
+  el.innerHTML="";
   const stateOf=i=>S.skipSet.has(i)?"skip":(S.lineSet.has(i)?"line":"fill");
   const label={fill:"塗り",line:"線",skip:"縫わない"};
   S.pal.forEach((c,i)=>{
@@ -1505,6 +1541,198 @@ function renderChips(){
     el.appendChild(b);
   });
   $("#palHint").textContent = "タップで 塗り → 線 → 縫わない と切り替わる。布の色と同じ所は「縫わない」に。細い線として縫いたい色は「線」に。";
+}
+
+
+let routeBudget=0;
+let _rt={n:0};
+function routeInside(comp,compId,W,H,box,A,B,ppm,maxLenMm,maxDetourMm){
+  if(routeBudget<=0 || !(maxDetourMm>0)) return null;
+  const N=W*H;
+  if(_rt.n!==N) _rt={n:N,gen:0,stamp:new Int32Array(N),prev:new Int32Array(N),
+                     dep:new Int32Array(N),q:new Int32Array(N)};
+  const g=++_rt.gen, stamp=_rt.stamp, prev=_rt.prev, dep=_rt.dep, q=_rt.q;
+  routeBudget--;
+  const inC=i=>comp[i]===compId;
+  const toPx=p=>[Math.round((p[0]+S.sizeMm/2)*ppm), Math.round((p[1]+S.sizeMm/2)*ppm)];
+  const snap=(gx,gy)=>{
+    for(let r=0;r<=3;r++)
+      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        const x=gx+dx,y=gy+dy;
+        if(x>=0&&y>=0&&x<W&&y<H&&inC(y*W+x)) return y*W+x;
+      }
+    return -1;
+  };
+  const a=toPx(A), b=toPx(B);
+  const si=snap(a[0],a[1]), ti=snap(b[0],b[1]);
+  if(si<0||ti<0) return null;
+  if(si===ti) return null;
+  // 上限を決めた幅優先探索。遠くまで探しに行かないので重くならない
+  const maxDepth=Math.ceil(maxDetourMm*ppm);
+  let head=0,tail=0;
+  stamp[si]=g; prev[si]=-1; dep[si]=0; q[tail++]=si;
+  let found=false;
+  while(head<tail){
+    const p=q[head++];
+    const d0=dep[p];
+    if(d0>=maxDepth) continue;
+    const x=p%W, y=(p/W)|0;
+    for(let k=0;k<8;k++){
+      const dx=N8[k][0], dy=N8[k][1];
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||ny<0||nx>=W||ny>=H) continue;
+      const ni=ny*W+nx;
+      if(stamp[ni]===g) continue;
+      if(!inC(ni)) continue;
+      stamp[ni]=g; prev[ni]=p; dep[ni]=d0+1;
+      if(ni===ti){ found=true; break; }
+      q[tail++]=ni;
+    }
+    if(found) break;
+  }
+  if(!found) return null;
+  const path=[];
+  for(let p=ti;p!==-1;p=prev[p]) path.push(p);
+  path.reverse();
+  const mm=i=>[toMM(i%W), toMM((i/W)|0)];
+  const insideMM=(x,y)=>{
+    const gx=Math.round((x+S.sizeMm/2)*ppm), gy=Math.round((y+S.sizeMm/2)*ppm);
+    return gx>=0&&gy>=0&&gx<W&&gy<H&&inC(gy*W+gx);
+  };
+  const segOK=(p,r)=>{
+    const L=Math.hypot(r[0]-p[0],r[1]-p[1]);
+    const n=Math.max(4,Math.ceil(L*ppm*3));
+    for(let k=1;k<n;k++){
+      const f=k/n;
+      if(!insideMM(p[0]+(r[0]-p[0])*f, p[1]+(r[1]-p[1])*f)) return false;
+    }
+    return true;
+  };
+  // ひもを引くように、中を通れる限り遠くの点まで一気に飛ばす
+  const out=[]; let cur=0, total=0;
+  while(cur<path.length-1){
+    let best=cur+1;
+    for(let j=cur+2;j<path.length;j++){
+      const p=mm(path[cur]), r=mm(path[j]);
+      if(Math.hypot(r[0]-p[0],r[1]-p[1])>maxLenMm) break;
+      if(!segOK(p,r)) break;
+      best=j;
+    }
+    const p=mm(path[cur]), r=mm(path[best]);
+    total+=Math.hypot(r[0]-p[0],r[1]-p[1]);
+    if(total>maxDetourMm) return null;
+    out.push(r); cur=best;
+  }
+  return out.length?out:null;
+}
+
+/* ぱっと見が長方形（角丸を含む）の帯なら、きれいな角丸長方形の中心線に丸める。
+   骨格の暴れやトゲに影響されず、直線とアールだけで縫える */
+function snapRectPath(mask,W,H,ppm){
+  let x0=1e9,y0=1e9,x1=-1,y1=-1,n=0;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++) if(mask[y*W+x]){
+    n++; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+  }
+  if(n<50||x1<=x0||y1<=y0) return null;
+  const bw=x1-x0+1, bh=y1-y0+1;
+  if(bw<8||bh<8) return null;
+
+  // 外形（穴を埋めたもの）を作る
+  const out=new Uint8Array(W*H);
+  const q=new Int32Array(W*H); let head=0,tail=0;
+  const seed=i=>{ if(!out[i]&&!mask[i]){out[i]=1;q[tail++]=i;} };
+  for(let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
+  for(let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
+  while(head<tail){
+    const p=q[head++]; const x=p%W,y=(p/W)|0;
+    if(x>0)seed(p-1); if(x<W-1)seed(p+1);
+    if(y>0)seed(p-W); if(y<H-1)seed(p+W);
+  }
+  let filled=0;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++) if(!out[y*W+x]) filled++;
+  if(filled/(bw*bh) < 0.90) return null;          // 外形が矩形に近くない
+
+  // 帯の厚み：左右の辺の中央でマスクの連続長を測る
+  const midY=(y0+y1)>>1;
+  let tL=0; for(let x=x0;x<=x1&&mask[midY*W+x];x++) tL++;
+  let tR=0; for(let x=x1;x>=x0&&mask[midY*W+x];x--) tR++;
+  const midX=(x0+x1)>>1;
+  let tT=0; for(let y=y0;y<=y1&&mask[y*W+midX];y++) tT++;
+  let tB=0; for(let y=y1;y>=y0&&mask[y*W+midX];y--) tB++;
+  const ts=[tL,tR,tT,tB].filter(v=>v>0).sort((a,b)=>a-b);
+  if(ts.length<4) return null;
+  const t=(ts[1]+ts[2])/2;
+  if(t<1 || t>Math.min(bw,bh)/2) return null;
+  if(ts[3]>ts[0]*2.2) return null;                 // 太さがばらついている＝長方形ではない
+
+  // 角丸の半径：外形の角から最も近い画素までの距離から逆算
+  const cornerR=(cx,cy)=>{
+    let best=1e9;
+    const lim=Math.min(bw,bh)>>1;
+    for(let dy=0;dy<lim;dy++)for(let dx=0;dx<lim;dx++){
+      const x=cx+ (cx===x0?dx:-dx), y=cy+ (cy===y0?dy:-dy);
+      if(x<x0||x>x1||y<y0||y>y1)continue;
+      if(!out[y*W+x]){ const d=Math.hypot(dx,dy); if(d<best)best=d; }
+    }
+    return best===1e9?0:best/(Math.SQRT2-1);
+  };
+  const rs=[cornerR(x0,y0),cornerR(x1,y0),cornerR(x0,y1),cornerR(x1,y1)].sort((a,b)=>a-b);
+  let r=(rs[1]+rs[2])/2;
+  r=Math.max(0,Math.min(r,Math.min(bw,bh)/2-t/2));
+
+  // 中心線の角丸長方形を作る
+  const ax=x0+t/2, ay=y0+t/2, bx=x1-t/2, by=y1-t/2;
+  const rr=Math.max(0,r-t/2);
+  const pts=[];
+  const step=Math.max(1.2, ppm*0.4);
+  const arc=(cx,cy,a0,a1)=>{
+    const seg=Math.max(2,Math.ceil(Math.abs(a1-a0)*rr/step));
+    for(let i=0;i<=seg;i++){
+      const a=a0+(a1-a0)*i/seg;
+      pts.push([cx+Math.cos(a)*rr, cy+Math.sin(a)*rr]);
+    }
+  };
+  const line=(px,py,qx,qy)=>{
+    const L=Math.hypot(qx-px,qy-py), k=Math.max(1,Math.ceil(L/step));
+    for(let i=1;i<=k;i++) pts.push([px+(qx-px)*i/k, py+(qy-py)*i/k]);
+  };
+  if(rr<0.5){
+    pts.push([ax,ay]); line(ax,ay,bx,ay); line(bx,ay,bx,by); line(bx,by,ax,by); line(ax,by,ax,ay);
+  } else {
+    pts.push([ax+rr,ay]);
+    line(ax+rr,ay,bx-rr,ay); arc(bx-rr,ay+rr,-Math.PI/2,0);
+    line(bx,ay+rr,bx,by-rr); arc(bx-rr,by-rr,0,Math.PI/2);
+    line(bx-rr,by,ax+rr,by);  arc(ax+rr,by-rr,Math.PI/2,Math.PI);
+    line(ax,by-rr,ax,ay+rr);  arc(ax+rr,ay+rr,Math.PI,Math.PI*1.5);
+  }
+  // 合っているか確かめる：中心線から t/2 以内をマスクと比べる
+  let hit=0,miss=0;
+  for(const p of pts){
+    const xi=Math.round(p[0]), yi=Math.round(p[1]);
+    if(xi>=0&&yi>=0&&xi<W&&yi<H&&mask[yi*W+xi]) hit++; else miss++;
+  }
+  if(hit/(hit+miss) < 0.95) return null;
+  return {pts:pts.map(p=>[toMM(p[0]),toMM(p[1])]), width:t/ppm};
+}
+
+/* サテンの端を、その場所の半幅ぶんだけ延長する。文字や線の先端が縫い残らない */
+function extendEnds(pts,w){
+  if(pts.length<2) return {pts,w};
+  const P2=pts.map(p=>p.slice()), W2=w.slice();
+  const push=(atStart)=>{
+    const i0=atStart?0:P2.length-1, i1=atStart?Math.min(2,P2.length-1):Math.max(0,P2.length-3);
+    const a=P2[i1], b=P2[i0];
+    let dx=b[0]-a[0], dy=b[1]-a[1];
+    const L=Math.hypot(dx,dy); if(L<1e-6)return;
+    dx/=L; dy/=L;
+    const half=Math.max(0.2,(atStart?W2[0]:W2[W2.length-1])/2);
+    const np=[b[0]+dx*half, b[1]+dy*half];
+    if(atStart){ P2.unshift(np); W2.unshift(W2[0]); }
+    else { P2.push(np); W2.push(W2[W2.length-1]); }
+  };
+  const closed=Math.hypot(P2[0][0]-P2[P2.length-1][0],P2[0][1]-P2[P2.length-1][1])<0.5;
+  if(!closed){ push(true); push(false); }
+  return {pts:P2,w:W2};
 }
 
 /* 分岐点でぶつ切りになった枝を、素直に続く向き同士で1本に繋ぎ直す */
@@ -1550,7 +1778,9 @@ function chainPaths(paths,W){
           const s=cos(cd,dirOut(q));
           if(s>bs){bs=s;best=j;bq=q;}
         }
-        if(best<0||bs<0.35)break;           // 折り返すような繋ぎ方はしない
+        // 候補が1本だけなら、直角でも繋ぐ（矩形の角で切れないように）
+        const lim = cand.length===1 ? -0.5 : 0.35;
+        if(best<0||bs<lim)break;
         used[best]=1; bq.shift();
         if(forward) chain=chain.concat(bq);
         else chain=bq.reverse().concat(chain);
@@ -1565,7 +1795,24 @@ function chainPaths(paths,W){
 function buildLineBlocks(mask,color,W,H,ppm,stats,kind,O){
   const dist=distTransform(mask,W,H);
   const sk=thin2(mask,W,H);
-  const raw=chainPaths(tracePaths(sk,W,H),W);
+  // 角に生える行き止まりのトゲを落とす。残すと線が角を斜めに突っ切ってしまう
+  const deg=new Uint8Array(W*H);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x; if(!sk[i])continue;
+    let d2=0;
+    for(const [dx,dy] of N8){const xx=x+dx,yy=y+dy;
+      if(xx>=0&&yy>=0&&xx<W&&yy<H&&sk[yy*W+xx])d2++;}
+    deg[i]=d2;
+  }
+  const raw0=tracePaths(sk,W,H).filter(p=>{
+    if(p.length<2)return false;
+    const free = deg[p[0]]===1 || deg[p[p.length-1]]===1;
+    if(!free) return true;
+    let hw=0;
+    for(const i of p) if(dist[i]>hw) hw=dist[i];
+    return p.length >= 2.2*hw;      // トゲは局所の半幅と同じくらいの長さしかない
+  });
+  const raw=chainPaths(raw0,W);
   const segs=[];
   for(const p of raw){
     if(p.length<2)continue;
@@ -1608,14 +1855,17 @@ function buildLineBlocks(mask,color,W,H,ppm,stats,kind,O){
     const avgW=s.w.reduce((a,b)=>a+b,0)/s.w.length;
     let pts=null;
     if(avgW<O.satW){ pts=makeRun(s.pts,O.runLen,true); stats.run++; }
-    else { pts=makeSatin(s.pts,s.w,O.pitch,Math.max(O.satMax,O.minSW)); stats.satin++; }
+    else {
+      const ext = O.extend ? extendEnds(s.pts,s.w) : s;
+      pts=makeSatin(ext.pts,ext.w,O.pitch,Math.max(O.satMax,O.minSW)); stats.satin++;
+    }
     if(!pts||pts.length<2)continue;
     if(st.length) jm.push(st.length-1);   // 線どうしは縫って繋がない
     for(const p of pts) st.push(p);
     stats.paths++;
   }
-  return st.length>2 ? [{type:"line",color,colorIdx:(kind==="edge"?-2:-1),
-    region:(kind==="edge"?"edgeline":"line"),stitches:st,jumps:jm}] : [];
+  return st.length>2 ? [{type:"line",color,colorIdx:(kind==="edge"?-2:kind==="text"?-3:-1),
+    region:(kind==="edge"?"edgeline":kind==="text"?"textline":"line"),stitches:st,jumps:jm}] : [];
 }
 
 async function generate(){
@@ -1623,14 +1873,14 @@ async function generate(){
   const W=S.W,H=S.H,ppm=S.ppm;
   const pal=S.pal.map(c=>c.slice());
   const LP={satW:P.satW,satMax:P.satMax,pitch:P.pitch,runLen:P.runLen,
-            minW:P.minW,minLine:P.minLine,pathSm:P.pathSm,minSW:P.minSW,thinMode:P.thinMode};
+            minW:P.minW,minLine:P.minLine,pathSm:P.pathSm,minSW:P.minSW,thinMode:P.thinMode,extend:P.extend};
   const EP={satW:P.eSatW,satMax:P.eSatMax,pitch:P.ePitch,runLen:P.eRun,
-            minW:P.eMinW,minLine:P.eMinL,pathSm:P.eSmooth,minSW:P.eMinSW,thinMode:P.eThinMode};
+            minW:P.eMinW,minLine:P.eMinL,pathSm:P.eSmooth,minSW:P.eMinSW,thinMode:P.eThinMode,extend:P.extend};
   // マスクはしきい値が変わるたびに作り直す
   S.lineMask = S.lineSrc ? buildLineMask(S.lineSrc,P.lineTh) : null;
   S.edgeMask = S.edgeSrc ? buildLineMask(S.edgeSrc,P.eTh) : null;
-  routeBudget=1200;
-  busy("整形中…"); await tick();
+  routeBudget=400;
+  busy("画像を整形中…"); await tick();
 
   // 1) 線マスクを作る
   let lineMask=new Uint8Array(W*H);
@@ -1648,6 +1898,7 @@ async function generate(){
     lineMask=dropSlivers(lineMask,W,H,ppm,LP.thinMode==="drop"?LP.minW:0.06);
   }
   let hasLine=false; for(let i=0;i<W*H;i++) if(lineMask[i]){hasLine=true;break;}
+  const textMask=buildTextMask(W,H,ppm);
 
   // 2) 太い所は線から外して塗りに任せる（開処理）
   let thin=lineMask, thickN=0;
@@ -1729,6 +1980,7 @@ async function generate(){
       }
     }
   }
+  busy("背景を判定中…"); await tick();
   // 透明な余白：外周から届かない部分は背景色の糸で埋める
   if(P.bgMode!=="all"){
     const out=new Uint8Array(W*H);
@@ -1757,6 +2009,7 @@ async function generate(){
     const rm=new Uint8Array(W*H); let any=false;
     if(hasLine) for(let i=0;i<W*H;i++) if(thin[i]){rm[i]=1;any=true;}
     if(S.edgeMask) for(let i=0;i<W*H;i++) if(S.edgeMask[i]){rm[i]=1;any=true;}
+    if(textMask && P.txtCut) for(let i=0;i<W*H;i++) if(textMask[i]){rm[i]=1;any=true;}
     if(any){
       if(P.underMode==="dissolve") idx=dissolveLines(idx,rm,W,H);
       else for(let i=0;i<W*H;i++) if(rm[i]) idx[i]=-1;
@@ -1790,6 +2043,7 @@ async function generate(){
     for(let i=0;i<W*H;i++) if(clip[i]) idx[i]=-1;
   }
 
+  busy("領域を切り分け中…"); await tick();
   // 縫えないほど細い領域（画像のフチにできる帯など）を落とす
   if(P.minFillW>0.05){
     const bnd=new Uint8Array(W*H);
@@ -1878,6 +2132,46 @@ async function generate(){
     for(const x of b) blocks.push(x);
   }
 
+  // 4b) 文字は塗りと線のあと、枠線の前に縫う
+  if(textMask){
+    busy("文字を縫っています…"); await tick();
+    const tcol=hex2rgb(P.txtCol||"#1b1a3a");
+    const TP={satW:0.9,satMax:P.txtMax,pitch:P.pitch,runLen:P.runLen,
+              minW:0.12,minLine:0.5,pathSm:1,minSW:Math.max(0.6,P.minSW),
+              thinMode:"grow",extend:P.extend};
+    let tThin=null,tThick=null;
+    if(P.txtMode==="fill"){ tThick=textMask; }
+    else if(P.txtMode==="satin"){ tThin=textMask; }
+    else {
+      const sp=thinOnly(textMask,W,H,Math.max(1.2,(P.txtMax/2)*ppm),Math.max(2,0.25*ppm));
+      tThin=dropSlivers(sp.thin,W,H,ppm,0.12); tThick=sp.thick;
+      let has=false; for(let i=0;i<W*H;i++) if(tThin[i]){has=true;break;}
+      if(!has) tThin=null;
+    }
+    if(tThick){
+      const ti=new Int32Array(W*H).fill(-1); let any=false;
+      for(let i=0;i<W*H;i++) if(tThick[i]){ti[i]=0;any=true;}
+      if(any){
+        const L=labelComponents(ti,W,H);
+        for(const c of L.list){
+          if(c.n<0.3*ppm*ppm)continue;
+          const box={x0:c.x0-1,y0:c.y0-1,x1:c.x1+1,y1:c.y1+1};
+          const ang=P.pca?c.angle:P.angle;
+          const f=scanFill(L.comp,c.id,W,H,box,ang,P.dens,P.maxLen,
+            blocks.length?blocks[blocks.length-1].stitches[blocks[blocks.length-1].stitches.length-1]:null,false);
+          if(f.stitches.length>2) blocks.push({type:"fill",color:tcol,colorIdx:-3,region:"t"+c.id,...f});
+        }
+      }
+      await tick();
+    }
+    if(tThin){
+      const ts={paths:0,satin:0,run:0};
+      const b=buildLineBlocks(tThin,tcol,W,H,ppm,ts,"text",TP);
+      for(const x of b) blocks.push(x);
+      lineStats.text=ts.paths;
+    }
+  }
+
   // 5) 枠線は最後に縫う
   if(edgeThin||edgeThick){
     busy("枠線を縫っています…"); await tick();
@@ -1920,8 +2214,24 @@ async function generate(){
     }
     if(edgeThin){
       const es={paths:0,satin:0,run:0};
-      const b=buildLineBlocks(edgeThin,edgeColor,W,H,ppm,es,"edge",EP);
-      for(const x of b) blocks.push(x);
+      let done=false;
+      if(P.edgeRect){
+        const rp=snapRectPath(edgeThin,W,H,ppm);
+        if(rp){
+          const w=Math.max(EP.minSW,rp.width);
+          const pts=makeSatin(rp.pts, rp.pts.map(()=>w), EP.pitch, Math.max(EP.satMax,w));
+          if(pts&&pts.length>2){
+            blocks.push({type:"line",color:edgeColor,colorIdx:-2,region:"edgeline",
+                         stitches:pts,jumps:[]});
+            es.paths=1; es.satin=1; done=true;
+            lineStats.rect=true;
+          }
+        }
+      }
+      if(!done){
+        const b=buildLineBlocks(edgeThin,edgeColor,W,H,ppm,es,"edge",EP);
+        for(const x of b) blocks.push(x);
+      }
       lineStats.edge=es.paths;
     }
   }
@@ -1981,7 +2291,8 @@ function computeStats(ls){
     `<span>線 サテン<b>${ls.satin}</b> / ラン<b>${ls.run}</b></span>`+
     (ls.thick?`<span>太線→塗り <b>${(ls.thick/(S.ppm*S.ppm)).toFixed(0)}</b>mm²</span>`:"")+
     (ls.inside?`<span>内側の背景 <b>${(ls.inside/(S.ppm*S.ppm)).toFixed(0)}</b>mm²</span>`:"")+
-    (ls.edge?`<span>枠線 <b>${ls.edge}</b>本（最後）</span>`:"")+
+    (ls.text?`<span>文字 <b>${ls.text}</b>本</span>`:"")+
+    (ls.edge?`<span>枠線 <b>${ls.edge}</b>本（最後）${ls.rect?"・長方形に整形":""}</span>`:"")+
     (ls.covSaved?`<span>覆われて省略 <b>${ls.covSaved}</b>回</span>`:"");
 }
 
@@ -2326,9 +2637,10 @@ function exportPES(){
 /* ---------------- 設定の入出力 ---------------- */
 const CFG_IDS=["pSize","pPpm","pK","pTrim","pKeep","pDetour","pTrimPol","pBg","pBgFill","pCover",
   "pDens","pLen","pAng","pPca","pMinA","pMinFW","pSm","pUnder","pUL","pULC","pULIn","pULMin",
-  "pEdgeMode","pEdgeCol","pEdgeHex","pClipEdge","pETh","pESatW","pESatMax","pEPitch","pERun",
+  "pEdgeMode","pEdgeCol","pEdgeHex","pClipEdge","pERect","pETh","pESatW","pESatMax","pEPitch","pERun",
   "pEThinMode","pEMinSW","pEMinW","pEMinL","pESmooth",
-  "pUseLine","pLTh","pSatW","pSatMax","pPitch","pRun","pThinMode","pMinSW","pMinW","pMinL","pSmooth"];
+  "pTxt","pTxtFont","pTxtW","pTxtSize","pTxtLS","pTxtX","pTxtY","pTxtRot","pTxtCol","pTxtMode","pTxtMax","pTxtCut",
+  "pUseLine","pLTh","pSatW","pSatMax","pPitch","pRun","pThinMode","pExt","pMinSW","pMinW","pMinL","pSmooth"];
 function exportConfig(){
   const v={};
   for(const id of CFG_IDS){
@@ -2379,7 +2691,7 @@ function buildGroups(){
     cur.trims += b.trims ? b.trims.length : 0;
     if(b.region) (cur.regs||(cur.regs=new Set())).add(b.region);
     if(cur.idx.length>1 && b.trimBefore) cur.trims++;
-    cur.kinds.add(b.colorIdx===-1?"線":b.colorIdx===-2?"枠線":"塗り");
+    cur.kinds.add(b.colorIdx===-1?"線":b.colorIdx===-2?"枠線":b.colorIdx===-3?"文字":"塗り");
     cur.cid=b.colorIdx;
   });
   S.blocks.forEach(b=>b.group=-1);
@@ -2646,8 +2958,14 @@ function drawPreview(){
 }
 
 /* ---------------- events ---------------- */
-$("#btnQ").addEventListener("click",doQuantize);
-$("#btnG").addEventListener("click",generate);
+$("#btnQ").addEventListener("click",async()=>{
+  try{ await doQuantize(); }
+  catch(e){ console.error(e); say("減色に失敗: "+(e&&e.message?e.message:e)); }
+});
+$("#btnG").addEventListener("click",async()=>{
+  try{ await generate(); }
+  catch(e){ console.error(e); say("生成に失敗: "+(e&&e.message?e.message:e)); }
+});
 $("#play").addEventListener("input",drawPreview);
 $("#showJump").addEventListener("change",drawPreview);
 $("#showSrc").addEventListener("change",drawPreview);
