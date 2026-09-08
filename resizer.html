@@ -125,6 +125,17 @@ select{padding:9px 8px}
 .chk input{width:17px;height:17px;accent-color:var(--blue)}
 input[type=range]{flex:1;min-width:130px;accent-color:var(--blue)}
 .mm{font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+.gridbtn{
+  font:inherit;font-weight:700;font-size:14px;
+  background:#fff;color:var(--ink);
+  border:1.5px solid var(--ink);border-radius:3px;
+  padding:10px 16px;cursor:pointer;width:100%;
+}
+.gridbtn:active{background:var(--tape)}
+input[type=color]{
+  width:44px;height:38px;padding:2px;background:#fff;
+  border:1px solid var(--line);border-radius:3px;
+}
 
 /* ---- 出力設定 ---- */
 .out-settings{
@@ -227,6 +238,17 @@ footer{margin-top:22px;font-size:12px;color:var(--sub);text-align:center}
     <span class="unit">dpi</span>
     <label class="chk"><input type="checkbox" id="keepAR" checked>縦横比を保つ</label>
   </div>
+  <div class="row">
+    <button class="gridbtn" id="mkGrid">画像なしで格子を作る</button>
+  </div>
+  <div id="gridOpts" hidden>
+    <div class="row">
+      <label class="f" for="gridColor">線の色</label>
+      <input type="color" id="gridColor" value="#4a90c2">
+      <label class="chk"><input type="checkbox" id="gridBG" checked>白地にする</label>
+    </div>
+    <p class="hint">0.5mm間隔。1mm・5mm・10mmの線を濃くします。</p>
+  </div>
   <p class="hint" id="printHint"></p>
 </section>
 
@@ -275,6 +297,7 @@ let srcDpi = null;
 let srcObjURL = null;
 let outObjURL = null;
 let mode = 'long';
+let gridMode = false;
 let seq = 0;
 
 /* ===== 形式 ===== */
@@ -287,6 +310,7 @@ if(!webpOK){ const o = $('#fmt').querySelector('[value="image/webp"]'); if(o) o.
 function outType(){
   const v = $('#fmt').value;
   if(v !== 'auto') return v;
+  if(gridMode) return 'image/png';
   const t = (srcFile && srcFile.type) || '';
   if(t === 'image/png') return 'image/png';
   if(t === 'image/webp' && webpOK) return 'image/webp';
@@ -323,6 +347,8 @@ function load(file){
   const im = new Image();
   im.onload = async () => {
     img = im;
+    gridMode = false;
+    $('#gridOpts').hidden = true;
     srcDpi = await readDpi(file).catch(() => null);
     $('#drop').style.display = 'none';
     $('#preview').style.display = 'block';
@@ -339,6 +365,7 @@ function load(file){
 }
 
 function showSrc(){
+  $('#relink').textContent = '別の画像に差し替える';
   const bits = [
     '<b>' + escapeHTML(srcFile.name) + '</b>',
     img.naturalWidth + ' × ' + img.naturalHeight + ' px',
@@ -380,7 +407,7 @@ $('#ph').addEventListener('input', () => { arLock = 'h'; syncAR(); schedule(); }
 $('#keepAR').addEventListener('change', () => { arLock = 'w'; syncAR(); schedule(); });
 
 function syncAR(){
-  if(!img || !$('#keepAR').checked) return;
+  if(!img || gridMode || !$('#keepAR').checked) return;
   const ar = img.naturalWidth / img.naturalHeight;
   if(arLock === 'w'){
     const w = parseFloat($('#pw').value);
@@ -431,6 +458,7 @@ const toBlob = (c,t,q) => new Promise(res => c.toBlob(res, t, q));
 
 /* ===== 本体 ===== */
 async function run(){
+  if(gridMode && mode === 'print') return runGrid();
   if(!img) return;
   const my = ++seq;
   $('#busy').hidden = false;
@@ -526,28 +554,126 @@ async function fitSize(target, t){
   return best;
 }
 
+/* ===== 0.5mm 格子 ===== */
+$('#mkGrid').onclick = () => {
+  gridMode = true;
+  $('#gridOpts').hidden = false;
+  updateQRow();
+  run();
+};
+['#gridColor','#gridBG'].forEach(s => {
+  $(s).addEventListener('input', () => { if(gridMode) schedule(); });
+  $(s).addEventListener('change', () => { if(gridMode) schedule(); });
+});
+
+async function runGrid(){
+  const my = ++seq;
+  $('#busy').hidden = false;
+  $('#msg').textContent = '';
+
+  const u = $('#pUnit').value;
+  const dpi = clamp(parseInt($('#dpi').value,10) || 1, 1, 9600);
+  const mmW = toInch(parseFloat($('#pw').value) || 0, u) * 25.4;
+  const mmH = toInch(parseFloat($('#ph').value) || 0, u) * 25.4;
+  if(mmW <= 0 || mmH <= 0){
+    $('#busy').hidden = true;
+    $('#msg').textContent = '幅と高さを入力してください。';
+    $('#result').hidden = false;
+    return;
+  }
+
+  const per = dpi / 25.4;                       // 1mm あたりの px
+  const cap = capPixels({w:Math.max(1,Math.round(mmW*per)), h:Math.max(1,Math.round(mmH*per))});
+  const W = cap.d.w, H = cap.d.h;
+  const step = (W / mmW) * 0.5;                 // 0.5mm の px（上限で縮んだ場合も合わせる）
+
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const t = outType();
+  if($('#gridBG').checked || t !== 'image/png'){
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  const rgb = hexRGB($('#gridColor').value);
+  const base = Math.max(1, Math.round(dpi / 350));
+  const style = [
+    {a:.30, w:base},       // 0.5mm
+    {a:.50, w:base},       // 1mm
+    {a:.75, w:base * 2},   // 5mm
+    {a:1,   w:base * 3}    // 10mm
+  ];
+  const lvl = i => i % 20 === 0 ? 3 : i % 10 === 0 ? 2 : i % 2 === 0 ? 1 : 0;
+
+  const nX = Math.floor(W / step), nY = Math.floor(H / step);
+  for(let i = 0; i <= nX; i++){
+    const s = style[lvl(i)];
+    ctx.fillStyle = 'rgba(' + rgb + ',' + s.a + ')';
+    ctx.fillRect(clamp(Math.round(i*step - s.w/2), 0, W - s.w), 0, s.w, H);
+  }
+  for(let j = 0; j <= nY; j++){
+    const s = style[lvl(j)];
+    ctx.fillStyle = 'rgba(' + rgb + ',' + s.a + ')';
+    ctx.fillRect(0, clamp(Math.round(j*step - s.w/2), 0, H - s.w), W, s.w);
+  }
+
+  const q = lossy(t) ? clamp(parseInt($('#q').value,10)/100, .4, 1) : undefined;
+  let blob = await toBlob(c, t, q);
+  blob = await stampDpi(blob, t, dpi);
+  if(my !== seq) return;
+
+  let note = '';
+  if(cap.capped) note = '端末で扱える上限を超えたため ' + W + ' × ' + H + ' px に抑えました。0.5mm間隔は保っていますが、指定dpiより粗くなります。';
+  else if(step < 2) note = '0.5mmが ' + step.toFixed(1) + ' px しかありません。dpiを上げると線が潰れません。';
+
+  $('#busy').hidden = true;
+  show({
+    blob, w:W, h:H, q:lossy(t) ? q : null, dpi,
+    name:'grid_0.5mm_' + round2(mmW) + 'x' + round2(mmH) + 'mm_' + dpi + 'dpi',
+    label:round2(mmW) + ' × ' + round2(mmH) + ' mm の格子'
+  }, note);
+}
+
+function hexRGB(h){
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
+}
+
 function show(res, note){
   if(outObjURL) URL.revokeObjectURL(outObjURL);
   outObjURL = URL.createObjectURL(res.blob);
   $('#prevImg').src = outObjURL;
+  $('#drop').style.display = 'none';
+  $('#preview').style.display = 'block';
+  if(res.label){
+    $('#srcline').innerHTML = '<b>' + escapeHTML(res.label) + '</b>';
+    $('#relink').textContent = '画像を読み込む';
+  }
 
   $('#outDim').textContent = res.w + ' × ' + res.h + ' px';
   const meta = [fmtBytes(res.blob.size)];
-  if(srcFile) meta.push('元の ' + Math.round(res.blob.size / srcFile.size * 100) + '%');
+  if(srcFile && !res.label) meta.push('元の ' + Math.round(res.blob.size / srcFile.size * 100) + '%');
   if(res.q) meta.push('画質 ' + Math.round(res.q * 100));
   if(res.dpi) meta.push(res.dpi + ' dpi');
   $('#outMeta').textContent = meta.join('  /  ');
 
   const t = outType();
-  const stem = (srcFile.name || 'image').replace(/\.[^.]+$/, '');
-  const tag = mode === 'long' ? res.w >= res.h ? res.w + 'px' : res.h + 'px'
-            : mode === 'size' ? Math.round(res.blob.size / 1024) + 'KB'
-            : res.dpi + 'dpi';
+  let name;
+  if(res.label){
+    name = res.name + '.' + ext(t);
+  }else{
+    const stem = (srcFile.name || 'image').replace(/\.[^.]+$/, '');
+    const tag = mode === 'long' ? (res.w >= res.h ? res.w + 'px' : res.h + 'px')
+              : mode === 'size' ? Math.round(res.blob.size / 1024) + 'KB'
+              : res.dpi + 'dpi';
+    name = stem + '_' + tag + '.' + ext(t);
+  }
   const a = $('#save');
   a.href = outObjURL;
-  a.download = stem + '_' + tag + '.' + ext(t);
+  a.download = name;
 
-  const file = new File([res.blob], a.download, {type:t});
+  const file = new File([res.blob], name, {type:t});
   const sb = $('#share');
   if(navigator.canShare && navigator.canShare({files:[file]})){
     sb.hidden = false;
