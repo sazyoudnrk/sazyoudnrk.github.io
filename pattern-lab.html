@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#b9b6b0">
+<title>PATTERN LAB — 背景パターン生成</title>
+<style>
+:root{
+  --chrome:#b9b6b0;
+  --panel:#eeece7;
+  --panel2:#e2dfd9;
+  --ink:#20242a;
+  --ink2:#6a6f77;
+  --line:#c6c2ba;
+  --accent:#12615e;
+  --accent2:#0d4a48;
+  --radius:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--chrome);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  font-size:15px;line-height:1.6;
+  padding:0 0 96px;
+  -webkit-text-size-adjust:100%;
+}
+header{
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 10px;
+  display:flex;align-items:baseline;gap:10px;
+}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.16em}
+header span{font-size:11.5px;color:#5d6169}
+
+/* stage */
+.stage{
+  position:sticky;top:0;z-index:20;
+  background:var(--chrome);
+  padding:4px 16px 12px;
+  border-bottom:1px solid var(--line);
+}
+.frame{
+  height:34vh;min-height:190px;max-height:340px;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    linear-gradient(45deg,#a9a6a0 25%,transparent 25%,transparent 75%,#a9a6a0 75%),
+    linear-gradient(45deg,#a9a6a0 25%,#b4b1ab 25%,#b4b1ab 75%,#a9a6a0 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;
+  border-radius:var(--radius);overflow:hidden;
+}
+.frame > *{box-shadow:0 2px 10px rgba(0,0,0,.22)}
+#svgbox{max-width:100%;max-height:100%;display:block}
+#svgbox svg{display:block;max-width:100%;max-height:calc(34vh - 0px)}
+#tilebox{width:100%;height:100%;background-repeat:repeat;background-position:center}
+.meta{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:11.5px;color:#4e535a}
+.badge{border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:rgba(255,255,255,.4)}
+
+main{padding:14px 16px 0;max-width:720px;margin:0 auto}
+section{background:var(--panel);border-radius:var(--radius);padding:12px 13px;margin-bottom:12px;border:1px solid rgba(0,0,0,.07)}
+h2{font-size:12px;margin:0 0 9px;font-weight:700;letter-spacing:.08em;color:#3d424a}
+.desc{font-size:12.5px;color:#4b5058;margin:8px 2px 0;line-height:1.7}
+
+/* chips */
+.row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+button.chip{
+  font:inherit;font-size:13px;padding:7px 11px;border-radius:999px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  white-space:nowrap;cursor:pointer;
+}
+button.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button.chip.sm{font-size:12px;padding:5px 9px}
+
+/* sliders */
+.ctl{margin:11px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:12.5px;color:#4b5058;margin-bottom:2px}
+.ctl label b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{
+  width:100%;height:30px;-webkit-appearance:none;background:transparent;margin:0;
+}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--line);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:24px;height:24px;border-radius:50%;
+  background:var(--accent);border:3px solid var(--panel);margin-top:-11px;
+  box-shadow:0 1px 3px rgba(0,0,0,.3)
+}
+.ctl.off{opacity:.38;pointer-events:none}
+
+/* colors */
+.colors{display:flex;gap:10px;align-items:flex-end}
+.cc{flex:1;text-align:center;font-size:11px;color:#4b5058}
+.cc input[type=color]{
+  -webkit-appearance:none;appearance:none;width:100%;height:44px;padding:0;border:1px solid var(--line);
+  border-radius:8px;background:none;cursor:pointer
+}
+.cc input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+.cc input[type=color]::-webkit-color-swatch{border:none;border-radius:6px}
+.pal{display:flex;gap:5px;overflow-x:auto;margin-top:9px;padding-bottom:3px;scrollbar-width:none}
+.pal::-webkit-scrollbar{display:none}
+.pal button{border:1px solid var(--line);border-radius:8px;padding:0;width:52px;height:26px;flex:0 0 auto;display:flex;overflow:hidden;cursor:pointer;background:none}
+.pal button i{flex:1}
+.pal button i:first-child{flex:2}
+
+/* size */
+.sizerow{display:flex;gap:8px;align-items:center;margin-top:9px}
+.sizerow input[type=number]{
+  font:inherit;font-size:15px;width:100%;padding:9px 8px;border:1px solid var(--line);
+  border-radius:8px;background:#fff;color:var(--ink);text-align:center
+}
+.sizerow span{color:var(--ink2);font-size:13px}
+.tbox{font:inherit;font-size:15px;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.sizerow button{font:inherit;font-size:13px;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+
+.switch{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:13.5px;border-top:1px solid rgba(0,0,0,.06)}
+.switch:first-of-type{border-top:none}
+.tog{width:50px;height:29px;border-radius:999px;border:none;background:#c3bfb8;position:relative;cursor:pointer;flex:0 0 auto;transition:background .16s}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;transition:transform .16s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tog.on{background:var(--accent)}
+.tog.on::after{transform:translateX(21px)}
+.note{font-size:11.5px;color:#6a6f77;margin-top:6px}
+
+/* export bar */
+.bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  display:flex;gap:8px;padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);
+  background:rgba(185,182,176,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);
+}
+.bar button{
+  flex:1;font:inherit;font-size:14.5px;font-weight:600;padding:13px 6px;border-radius:10px;
+  border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer
+}
+.bar button.alt{background:var(--panel);color:var(--ink);border-color:var(--line)}
+.bar button:active{transform:translateY(1px)}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(20,22,25,.86);display:none;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal .in{max-width:100%;max-height:100%;text-align:center;color:#f2f0ec}
+.modal img{max-width:100%;max-height:72vh;border-radius:6px;background:#fff}
+.modal p{font-size:12.5px;margin:12px 0 10px;line-height:1.7}
+.modal button{font:inherit;font-size:14px;padding:11px 20px;border-radius:9px;border:none;background:#f2f0ec;color:#20242a;margin:0 4px;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(20,22,25,.9);color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PATTERN LAB</h1>
+  <span>背景パターン生成</span>
+</header>
+
+<div class="stage">
+  <div class="frame">
+    <div id="svgbox"></div>
+    <div id="tilebox" style="display:none"></div>
+  </div>
+  <div class="meta">
+    <span id="mLeft">—</span>
+    <span class="badge" id="mSeam">—</span>
+  </div>
+</div>
+
+<main>
+
+<section>
+  <h2>パターン</h2>
+  <div class="row" id="cats"></div>
+  <div class="chips" id="pats"></div>
+  <p class="desc" id="desc"></p>
+</section>
+
+<section>
+  <h2>調整</h2>
+  <div id="common"></div>
+  <div id="extra"></div>
+  <div class="chips" style="margin-top:12px">
+    <button class="chip sm" id="bRandP">パラメータをランダム</button>
+    <button class="chip sm" id="bSeed">乱数を引き直す</button>
+    <button class="chip sm" id="bRandAll">全部おまかせ</button>
+  </div>
+</section>
+
+<section>
+  <h2>色</h2>
+  <div class="colors">
+    <div class="cc"><input type="color" id="cBg"><div>背景</div></div>
+    <div class="cc"><input type="color" id="cFg"><div>主線</div></div>
+    <div class="cc"><input type="color" id="cAc"><div>アクセント</div></div>
+  </div>
+  <div class="pal" id="pal"></div>
+  <div class="chips" style="margin-top:8px">
+    <button class="chip sm" id="bSwap">背景と主線を入れ替え</button>
+  </div>
+</section>
+
+<section>
+  <h2>出力サイズ</h2>
+  <div class="row" id="sizeCats"></div>
+  <div class="chips" id="sizes"></div>
+  <div class="sizerow">
+    <input type="number" id="iW" min="16" max="4096" step="1">
+    <span>×</span>
+    <input type="number" id="iH" min="16" max="4096" step="1">
+    <button id="bSwapWH">縦横</button>
+  </div>
+  <div class="note" id="sizeNote"></div>
+</section>
+
+<section>
+  <h2>タイル</h2>
+  <div class="switch"><span>継ぎ目なし優先</span><button class="tog on" id="tSeam"></button></div>
+  <div class="switch"><span>タイル確認表示（2×2）</span><button class="tog" id="tCheck"></button></div>
+  <div class="note">「継ぎ目なし優先」は、模様の大きさを出力サイズにわずかに合わせ込み、上下左右がつながるようにします（角度は0°固定）。</div>
+</section>
+
+</main>
+
+<div class="bar">
+  <button class="alt" id="bSvg">SVGで保存</button>
+  <button id="bPng">PNGで保存</button>
+</div>
+
+<div class="modal" id="modal">
+  <div class="in">
+    <img id="mImg" alt="生成した画像">
+    <p>保存されない場合は画像を長押しして「写真に追加」を選んでください。</p>
+    <button id="mClose">閉じる</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const n=v=>Math.round(v*100)/100;
+const n6=v=>Math.round(v*1e6)/1e6;
+const R2=(x,y,w,h,f)=>`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${f}"/>`;
+const PT=(d,f,s,w,ex)=>`<path d="${d}" fill="${f||'none'}"${s?` stroke="${s}" stroke-width="${n(w)}" stroke-linejoin="round" stroke-linecap="butt"`:''}${ex||''}/>`;
+const PL=(p,f,s,w)=>`<polygon points="${p.map(q=>n(q[0])+','+n(q[1])).join(' ')}" fill="${f||'none'}"${s?` stroke="${s}" stroke-width="${n(w)}" stroke-linejoin="round"`:''}/>`;
+const CI=(x,y,r,f,s,w)=>`<circle cx="${n(x)}" cy="${n(y)}" r="${n(r)}" fill="${f||'none'}"${s?` stroke="${s}" stroke-width="${n(w)}"`:''}/>`;
+const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
+function mul(a){a=a>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const SQ3=Math.sqrt(3);
+function hexPts(cx,cy,R){const a=[];for(let i=0;i<6;i++){const t=Math.PI/180*(60*i-90);a.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}return a;}
+function hexD(cx,cy,R){return 'M'+hexPts(cx,cy,R).map(p=>n(p[0])+' '+n(p[1])).join('L')+'Z';}
+function mix(a,b,t){
+  const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const A=p(a),B=p(b);
+  return '#'+[0,1,2].map(i=>Math.round(A[i]+(B[i]-A[i])*t).toString(16).padStart(2,'0')).join('');
+}
+
+/* ---------- patterns ---------- */
+/* f(g) -> {tw,th,c}  … タイル方式（シームレス）
+   f(g) -> {full}     … 全面描画方式 */
+const PATS=[
+/* ===== 基本 ===== */
+{id:'stripes',cat:'基本',name:'ストライプ',seam:'○',
+ desc:'最も単純な反復。太さの比と角度だけで、上品にも大胆にもなります。',
+ ps:[{k:'ratio',l:'太さ比',min:5,max:95,v:50}],
+ f:g=>({tw:g.T,th:g.T,c:R2(0,0,g.T*g.p.ratio/100,g.T,g.fg)})},
+
+{id:'checker',cat:'基本',name:'市松',seam:'○',
+ desc:'四角を交互に並べた文様。日本では江戸時代に「市松模様」と呼ばれ、途切れず続くことから繁栄の意味を持ちます。',
+ ps:[{k:'ratio',l:'四角の大きさ',min:20,max:100,v:100}],
+ f:g=>{const u=g.T/2,s=u*g.p.ratio/100,o=(u-s)/2;
+   return{tw:g.T,th:g.T,c:R2(o,o,s,s,g.fg)+R2(u+o,u+o,s,s,g.fg)};}},
+
+{id:'dots',cat:'基本',name:'水玉',seam:'○',
+ desc:'円を規則的に並べたもの。千鳥（互い違い）配置にすると密度が上がり、柔らかい印象になります。',
+ ps:[{k:'r',l:'円の大きさ',min:3,max:50,v:22},{k:'stag',l:'千鳥配置',t:'b',v:1}],
+ f:g=>{const r=g.T*g.p.r/100;let c=CI(g.T/2,g.T/2,r,g.fg);
+   if(g.p.stag)c+=CI(0,0,r,g.fg)+CI(g.T,0,r,g.fg)+CI(0,g.T,r,g.fg)+CI(g.T,g.T,r,g.fg);
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'grid',cat:'基本',name:'格子',seam:'○',sw:1,
+ desc:'縦横の線。細い補助線を足すと方眼紙、太くすると建具のような表情になります。',
+ ps:[{k:'sub',l:'補助線',t:'b',v:0}],
+ f:g=>{let c=R2(0,0,g.T,g.sw,g.fg)+R2(0,0,g.sw,g.T,g.fg);
+   if(g.p.sub)c+=R2(0,g.T/2,g.T,g.sw/2,g.fg)+R2(g.T/2,0,g.sw/2,g.T,g.fg);
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'diamond',cat:'基本',name:'斜め格子',seam:'○',sw:1,
+ desc:'斜めに交差する線。菱形の連続は「菱文」として世界中の織物に見られます。',
+ ps:[],
+ f:g=>({tw:g.T,th:g.T,c:PT(`M${-g.sw} ${-g.sw}L${n(g.T+g.sw)} ${n(g.T+g.sw)}M${-g.sw} ${n(g.T+g.sw)}L${n(g.T+g.sw)} ${-g.sw}`,0,g.fg,g.sw)})},
+
+{id:'hatch',cat:'基本',name:'クロスハッチ',seam:'○',sw:1,
+ desc:'ペンの陰影と同じ原理の細い平行線。線の本数で濃さを作ります。',
+ ps:[{k:'n',l:'線の本数',min:1,max:12,v:4},{k:'both',l:'交差させる',t:'b',v:1}],
+ f:g=>{const T=g.T,N=g.p.n;let d='';
+   for(let k=-N;k<=2*N;k++){const c0=k*T/N;
+     d+=`M${-T} ${n(-T+c0)}L${n(2*T)} ${n(2*T+c0)}`;
+     if(g.p.both)d+=`M${-T} ${n(2*T-c0)}L${n(2*T)} ${n(-T-c0)}`;}
+   return{tw:T,th:T,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'brick',dsize:110,cat:'基本',name:'レンガ',seam:'○',
+ desc:'半分ずつずらした矩形の積み方。ずれ量を変えると芋目地・馬目地など積み方が変わります。',
+ ps:[{k:'gap',l:'目地の幅',min:1,max:25,v:6},{k:'off',l:'ずれ',min:0,max:100,v:50}],
+ f:g=>{const T=g.T,h=T/2,gp=T*g.p.gap/100,of=T*g.p.off/100;
+   let c=R2(0,0,T,T,g.fg)+R2(0,0,T,gp,g.bg)+R2(0,h,T,gp,g.bg);
+   c+=R2(-gp/2,0,gp,h,g.bg)+R2(T-gp/2,0,gp,h,g.bg);
+   for(const dx of[-T,0,T])c+=R2(of-gp/2+dx,h,gp,h,g.bg);
+   return{tw:T,th:T,c};}},
+
+{id:'tri',dsize:90,cat:'基本',name:'三角',seam:'○',sw:1,
+ desc:'正三角形の敷き詰め。平面を隙間なく埋められる3つの正多角形（三角・四角・六角）のひとつです。',
+ ps:[{k:'line',l:'線で描く',t:'b',v:0}],
+ f:g=>{const T=g.T,h=T*0.866;
+   if(g.p.line){const d=`M0 ${n(h)}H${n(T)}M0 ${n(h)}L${n(T/2)} 0M${n(T)} ${n(h)}L${n(T/2)} 0M0 0L${n(T/2)} ${n(h)}M${n(T)} 0L${n(T/2)} ${n(h)}M0 0H${n(T)}`;
+     return{tw:T,th:h,c:PT(d,0,g.fg,g.sw)};}
+   return{tw:T,th:h,c:R2(-1,-1,T+2,h+2,g.fg)+PL([[T/2,0],[0,h],[T,h]],g.ac)};}},
+
+{id:'hex',dsize:80,cat:'基本',name:'六角（ハニカム）',seam:'○',sw:1,
+ desc:'蜂の巣の形。同じ面積を最も短い境界線で囲める構造で、自然界にも多く現れます。',
+ ps:[{k:'fill',l:'塗りにする',t:'b',v:0}],
+ f:g=>{const R=g.T,w=SQ3*R,h=3*R;
+   const cs=[[0,0],[w,0],[-w/2,1.5*R],[w/2,1.5*R],[3*w/2,1.5*R],[0,3*R],[w,3*R]];
+   let c='';
+   for(const[x,y]of cs)c+=g.p.fill?PT(hexD(x,y,R*0.94),g.fg):PT(hexD(x,y,R),0,g.fg,g.sw);
+   return{tw:w,th:h,c};}},
+
+/* ===== 波・曲線 ===== */
+{id:'sine',dsize:120,cat:'波',name:'サインウェーブ',seam:'○',sw:1,
+ desc:'正弦波の連なり。波長と振幅という2つの数字だけで、穏やかな水面から激しいうねりまで表せます。',
+ ps:[{k:'wl',l:'波長',min:40,max:400,v:150},{k:'amp',l:'振幅',min:2,max:60,v:20},{k:'n',l:'本数',min:1,max:8,v:3}],
+ f:g=>{const T=g.T,L=T*g.p.wl/100,A=T*g.p.amp/100,N=g.p.n;let d='';
+   for(let k=-1;k<=N;k++){const y=k*T/N+T/(2*N);
+     d+=`M0 ${n(y)}Q${n(L/4)} ${n(y-2*A)} ${n(L/2)} ${n(y)}Q${n(3*L/4)} ${n(y+2*A)} ${n(L)} ${n(y)}`;}
+   return{tw:L,th:T,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'chevron',cat:'波',name:'シェブロン',seam:'○',sw:1,
+ desc:'山形（への字）の連続。紋章学のシェブロンに由来し、方向感と勢いを出したいときに向きます。',
+ ps:[{k:'amp',l:'山の高さ',min:5,max:80,v:30},{k:'n',l:'本数',min:1,max:8,v:3},{k:'fill',l:'塗りにする',t:'b',v:0}],
+ f:g=>{const T=g.T,A=T*g.p.amp/100,N=g.p.n,sp=T/N;let d='';
+   for(let k=-2;k<=N+2;k++){const y=k*sp;
+     if(g.p.fill)d+=`M0 ${n(y+A)}L${n(T/2)} ${n(y)}L${n(T)} ${n(y+A)}L${n(T)} ${n(y+A+sp/2)}L${n(T/2)} ${n(y+sp/2)}L0 ${n(y+A+sp/2)}Z`;
+     else d+=`M0 ${n(y+A)}L${n(T/2)} ${n(y)}L${n(T)} ${n(y+A)}`;}
+   return{tw:T,th:T,c:g.p.fill?PT(d,g.fg):PT(d,0,g.fg,g.sw)};}},
+
+{id:'concentric',dsize:40,cat:'波',name:'同心円・放射',seam:'×',full:1,sw:1,
+ desc:'一点から広がる円と線。視線を中心に集める効果が強く、集中線や波紋の下地になります。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['円','放射','両方'],v:0},{k:'rays',l:'放射の本数',min:6,max:120,v:36}],
+ f:g=>{const cx=g.W/2,cy=g.H/2,R=Math.hypot(g.W,g.H)/2+g.T;let c='';
+   if(g.p.mode!==1){for(let r=g.T/2;r<R;r+=g.T)c+=CI(cx,cy,r,0,g.fg,g.sw);}
+   if(g.p.mode!==0){let d='';for(let i=0;i<g.p.rays;i++){const a=i*2*Math.PI/g.p.rays;
+     d+=`M${n(cx)} ${n(cy)}L${n(cx+R*Math.cos(a))} ${n(cy+R*Math.sin(a))}`;}
+     c+=PT(d,0,g.ac,g.sw);}
+   return{full:c};}},
+
+{id:'moire',dsize:14,cat:'波',name:'モアレ',seam:'×',full:1,sw:1,
+ desc:'ほぼ同じ間隔の線を少しだけ回して重ねると、干渉によって存在しない縞が浮かびます。角度差を小さくするほど模様は大きくなります。',
+ ps:[{k:'ang',l:'角度差・ずれ',min:1,max:40,v:6},{k:'kind',l:'種類',t:'s',o:['直線','同心円'],v:0}],
+ f:g=>{const cx=g.W/2,cy=g.H/2,R=Math.hypot(g.W,g.H);
+   const lines=col=>{let d='';for(let y=-R;y<=R;y+=g.T)d+=`M${n(-R)} ${n(y)}H${n(R)}`;return PT(d,0,col,g.sw);};
+   const rings=col=>{let c='';for(let r=g.T/2;r<R;r+=g.T)c+=CI(0,0,r,0,col,g.sw);return c;};
+   if(g.p.kind===0)return{full:`<g transform="translate(${n(cx)} ${n(cy)})">`
+     +`<g transform="rotate(${n(-g.p.ang/2)})">${lines(g.fg)}</g>`
+     +`<g transform="rotate(${n(g.p.ang/2)})">${lines(g.ac)}</g></g>`};
+   const off=g.T*g.p.ang/8;
+   return{full:`<g transform="translate(${n(cx)} ${n(cy)})">`
+     +`<g transform="translate(${n(-off)} 0)">${rings(g.fg)}</g>`
+     +`<g transform="translate(${n(off)} 0)">${rings(g.ac)}</g></g>`};}},
+
+/* ===== 和柄 ===== */
+{id:'seigaiha',dsize:90,cat:'和柄',name:'青海波',seam:'○',sw:1,
+ desc:'半円を重ねた波。ペルシャ由来とされ、日本では雅楽の装束から広まりました。穏やかな海が末永く続くという願いが込められています。',
+ ps:[{k:'arcs',l:'弧の本数',min:2,max:8,v:4}],
+ f:g=>{const R=g.T,N=g.p.arcs;let c='';const list=[];
+   for(let j=-1;j<=2;j++)for(let i=-1;i<=2;i++)list.push([i*2*R+((j%2+2)%2?R:0),j*R]);
+   list.sort((a,b)=>a[1]-b[1]);
+   for(const[cx,cy]of list){
+     c+=PT(`M${n(cx-R)} ${n(cy)}A${n(R)} ${n(R)} 0 0 1 ${n(cx+R)} ${n(cy)}Z`,g.bg);
+     let d='';for(let k=1;k<=N;k++){const r=R*k/N;
+       d+=`M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 0 1 ${n(cx+r)} ${n(cy)}`;}
+     c+=PT(d,0,g.fg,g.sw);}
+   return{tw:2*R,th:2*R,c};}},
+
+{id:'asanoha',cat:'和柄',name:'麻の葉',seam:'○',sw:1,dsize:70,
+ desc:'正六角形の内側を18個の二等辺三角形に分けた文様。麻がまっすぐ丈夫に育つことから、子どもの産着によく使われました。',
+ ps:[{k:'star',l:'六芒星の弦',t:'b',v:1},{k:'spoke',l:'中心からの線',t:'b',v:1}],
+ f:g=>{const R=g.T,w=SQ3*R,h=3*R;
+   const cs=[[0,0],[w,0],[-w/2,1.5*R],[w/2,1.5*R],[3*w/2,1.5*R],[0,3*R],[w,3*R]];
+   let d='';
+   for(const[x,y]of cs){const V=hexPts(x,y,R);d+=hexD(x,y,R);
+     if(g.p.spoke)for(const q of V)d+=`M${n(x)} ${n(y)}L${n(q[0])} ${n(q[1])}`;
+     if(g.p.star)for(let i=0;i<6;i++){const a=V[i],b=V[(i+2)%6];
+       d+=`M${n(a[0])} ${n(a[1])}L${n(b[0])} ${n(b[1])}`;}}
+   return{tw:w,th:h,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'shippou',dsize:90,cat:'和柄',name:'七宝',seam:'○',sw:1,
+ desc:'同じ大きさの円を4分の1ずつ重ねた文様。円＝縁が永遠に連なる姿を、仏教の七つの宝になぞらえています。',
+ ps:[{k:'dot',l:'中心の飾り',t:'b',v:1}],
+ f:g=>{const s=g.T,r=s/2;const cs=[[0,0],[s,0],[0,s],[s,s],[s/2,s/2]];
+   let c='';for(const[x,y]of cs)c+=CI(x,y,r,0,g.fg,g.sw);
+   if(g.p.dot)for(const[x,y]of cs)c+=CI(x,y,r*0.18,g.ac);
+   return{tw:s,th:s,c};}},
+
+{id:'kikkou',dsize:80,cat:'和柄',name:'亀甲',seam:'○',sw:1,
+ desc:'亀の甲羅に由来する六角つなぎ。長寿の象徴で、内側に小さな六角を重ねると「子持ち亀甲」になります。',
+ ps:[{k:'inner',l:'内側の六角',min:0,max:80,v:55}],
+ f:g=>{const R=g.T,w=SQ3*R,h=3*R;
+   const cs=[[0,0],[w,0],[-w/2,1.5*R],[w/2,1.5*R],[3*w/2,1.5*R],[0,3*R],[w,3*R]];
+   let d='';for(const[x,y]of cs){d+=hexD(x,y,R);if(g.p.inner>0)d+=hexD(x,y,R*g.p.inner/100);}
+   return{tw:w,th:h,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'kagome',dsize:70,cat:'和柄',name:'籠目',seam:'○',sw:1,
+ desc:'竹かごの編み目。三方向の帯が重なり、六角の穴と三角が交互に現れます。魔除けの意味でも使われました。',
+ ps:[{k:'bw',l:'帯の幅',min:10,max:60,v:30}],
+ f:g=>{const d=g.T,tw=d,th=d*SQ3,s=d*SQ3/2,bw=Math.max(1,s*g.p.bw/100),L=(tw+th)*2;
+   let a='';
+   for(const deg of[0,60,120]){const t=deg*Math.PI/180,nx=-Math.sin(t),ny=Math.cos(t),dx=Math.cos(t),dy=Math.sin(t);
+     for(let k=-6;k<=6;k++){const c0=k*s,px=c0*nx,py=c0*ny;
+       a+=`M${n(px-dx*L)} ${n(py-dy*L)}L${n(px+dx*L)} ${n(py+dy*L)}`;}}
+   return{tw,th,c:PT(a,0,g.fg,bw)+PT(a,0,g.bg,Math.max(.4,bw-g.sw*2))};}},
+
+{id:'uroko',dsize:80,cat:'和柄',name:'鱗',seam:'○',
+ desc:'三角形を交互に並べた最古級の文様。蛇や魚の鱗を表し、脱皮＝再生や厄除けの意味を持ちます。',
+ ps:[{k:'h',l:'三角の高さ',min:40,max:120,v:75}],
+ f:g=>{const T=g.T,h=T*g.p.h/100;
+   let c='';
+   c+=PL([[0,h],[T/2,0],[T,h]],g.fg);
+   c+=PL([[-T/2,2*h],[0,h],[T/2,2*h]],g.ac);
+   c+=PL([[T/2,2*h],[T,h],[3*T/2,2*h]],g.ac);
+   return{tw:T,th:2*h,c};}},
+
+{id:'yagasuri',dsize:70,cat:'和柄',name:'矢絣',seam:'○',
+ desc:'矢羽根を並べた絣。放った矢は戻らないことから、明治期には嫁入りの着物に好まれました。',
+ ps:[{k:'notch',l:'羽根の切れ込み',min:5,max:45,v:22},{k:'h',l:'羽根の長さ',min:60,max:220,v:130}],
+ f:g=>{const T=g.T,h=T*g.p.h/100,nh=T*g.p.notch/100;
+   const feather=(x,y,col)=>PL([[x,y+nh],[x+T/2,y],[x+T,y+nh],[x+T,y+h+nh],[x+T/2,y+h],[x,y+h+nh]],col);
+   let c='';
+   for(let k=-2;k<=2;k++){const y=k*h,even=(((k%2)+2)%2)===0;
+     c+=feather(0,y,even?g.fg:g.bg)+feather(T,y,even?g.bg:g.fg);}
+   return{tw:2*T,th:2*h,c};}},
+
+{id:'tatewaku',dsize:90,cat:'和柄',name:'立涌',seam:'○',sw:1,
+ desc:'湯気や雲が立ちのぼる姿を、ふくらむ2本の曲線で表した有職文様。上昇や発展を意味します。',
+ ps:[{k:'gap',l:'線の間隔',min:10,max:60,v:28},{k:'bulge',l:'ふくらみ',min:5,max:50,v:22},{k:'h',l:'周期の高さ',min:80,max:300,v:180}],
+ f:g=>{const T=g.T,h=T*g.p.h/100,a=T*g.p.gap/100,b=T*g.p.bulge/100,cx=T/2;
+   const x0=cx-a/2,x1=cx+a/2;
+   const d=`M${n(x0)} 0C${n(x0-2*b)} ${n(h/3)} ${n(x0-2*b)} ${n(2*h/3)} ${n(x0)} ${n(h)}`
+          +`M${n(x1)} 0C${n(x1+2*b)} ${n(h/3)} ${n(x1+2*b)} ${n(2*h/3)} ${n(x1)} ${n(h)}`;
+   return{tw:T,th:h,c:PT(d,0,g.fg,g.sw)};}},
+
+/* ===== 古典・幾何 ===== */
+{id:'raimon',dsize:70,cat:'幾何',name:'雷文（メアンダー）',seam:'○',sw:1,
+ desc:'直角に折れ曲がる渦。ギリシャの神殿装飾ではメアンダー、中国では雷文と呼ばれ、雷や流水を象ります。',
+ ps:[{k:'turns',l:'渦の巻き',min:1,max:3,v:2}],
+ f:g=>{const u=g.T/5,t=g.p.turns;
+   let d=`M0 ${n(4*u)}H${n(5*u)}`;
+   d+=`M0 ${n(4*u)}V0H${n(4*u)}V${n(3*u)}`;
+   if(t>=2)d+=`H${n(1*u)}V${n(1*u)}H${n(3*u)}`;
+   if(t>=3)d+=`V${n(2*u)}H${n(2*u)}`;
+   return{tw:5*u,th:5*u,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'star8',dsize:110,cat:'幾何',name:'八芒星（イスラム）',seam:'○',sw:1,
+ desc:'イスラム建築の基本要素のひとつ、八角の星。正方形を2つ45度でずらした形が原型で、無限に続く秩序を表します。',
+ ps:[{k:'ri',l:'内側の半径',min:25,max:80,v:52},{k:'cross',l:'間の飾り',t:'b',v:1}],
+ f:g=>{const T=g.T,Ro=T/2,Ri=Ro*g.p.ri/100,cx=T/2,cy=T/2;const pts=[];
+   for(let i=0;i<16;i++){const r=i%2?Ri:Ro,a=Math.PI/180*(i*22.5-90);pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+   let c=PL(pts,0,g.fg,g.sw);
+   if(g.p.cross){const q=[];for(let i=0;i<8;i++){const a=Math.PI/180*(i*45+22.5);q.push([Ri*0.62*Math.cos(a),Ri*0.62*Math.sin(a)]);}
+     for(const[dx,dy]of[[0,0],[T,0],[0,T],[T,T]])c+=PL(q.map(p=>[p[0]+dx,p[1]+dy]),0,g.ac,g.sw);}
+   return{tw:T,th:T,c};}},
+
+{id:'flower',dsize:70,cat:'幾何',name:'フラワーオブライフ',seam:'○',sw:1,
+ desc:'同じ半径の円を中心が円周上に来るよう並べた図形。エジプトのアビドス神殿などに刻まれ、装飾と象徴の両面で古くから使われてきました。',
+ ps:[],
+ f:g=>{const R=g.T,tw=R,th=R*SQ3;let c='';
+   for(let j=-2;j<=3;j++)for(let i=-2;i<=3;i++){
+     const x=i*R+((j%2+2)%2?R/2:0),y=j*R*SQ3/2;
+     c+=CI(x,y,R,0,g.fg,g.sw);}
+   return{tw,th,c};}},
+
+{id:'penrose',cat:'幾何',name:'ペンローズ・タイル',seam:'×',full:1,sw:1,
+ desc:'2種類のひし形だけで平面を埋めながら、決して同じ繰り返しにならない非周期タイリング。1974年にロジャー・ペンローズが考案しました。',
+ ps:[{k:'gen',l:'細かさ',min:2,max:7,v:5},{k:'fill',l:'塗り分け',t:'b',v:1}],
+ f:g=>{const phi=(1+Math.sqrt(5))/2;let tris=[];
+   for(let i=0;i<10;i++){
+     let b={x:Math.cos((2*i-1)*Math.PI/10),y:Math.sin((2*i-1)*Math.PI/10)};
+     let c2={x:Math.cos((2*i+1)*Math.PI/10),y:Math.sin((2*i+1)*Math.PI/10)};
+     if(i%2===0){const t=b;b=c2;c2=t;}
+     tris.push([0,{x:0,y:0},b,c2]);}
+   for(let s=0;s<g.p.gen;s++){const nt=[];
+     for(const[col,a,b,c2]of tris){
+       if(col===0){const p={x:a.x+(b.x-a.x)/phi,y:a.y+(b.y-a.y)/phi};
+         nt.push([0,c2,p,b],[1,p,c2,a]);}
+       else{const q={x:b.x+(a.x-b.x)/phi,y:b.y+(a.y-b.y)/phi};
+         const r={x:b.x+(c2.x-b.x)/phi,y:b.y+(c2.y-b.y)/phi};
+         nt.push([1,r,c2,a],[1,q,r,b],[0,r,q,a]);}}
+     tris=nt;}
+   const S=Math.hypot(g.W,g.H)*0.56,cx=g.W/2,cy=g.H/2;
+   const P=p=>[cx+p.x*S,cy+p.y*S];
+   let fills='',lines='';
+   for(const[col,a,b,c2]of tris){const A=P(a),B=P(b),C=P(c2);
+     if(g.p.fill)fills+=PL([A,B,C],col?g.ac:mix(g.bg,g.fg,.12));
+     lines+=`M${n(B[0])} ${n(B[1])}L${n(A[0])} ${n(A[1])}L${n(C[0])} ${n(C[1])}`;}
+   return{full:fills+PT(lines,0,g.fg,g.sw)};}},
+
+{id:'truchet',dsize:90,cat:'幾何',name:'トルシェ・タイル',seam:'○',full:1,norot:1,sw:1,
+ desc:'1枚の同じタイルを、向きだけランダムに変えて並べる方法。18世紀のセバスチャン・トルシェの研究に由来し、少ない要素で無限の表情が生まれます。',
+ ps:[{k:'kind',l:'種類',t:'s',o:['円弧','斜線','三角塗り'],v:0}],
+ f:g=>{let nx=Math.max(1,Math.round(g.W/g.T)),ny=Math.max(1,Math.round(g.H/g.T));
+   const MAX=9000;if(nx*ny>MAX){const k=Math.sqrt(nx*ny/MAX);nx=Math.max(1,Math.round(nx/k));ny=Math.max(1,Math.round(ny/k));}
+   const cw=g.W/nx,ch=g.H/ny;let d='',fl='';
+   for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+     const x=i*cw,y=j*ch,flip=g.R()<0.5;
+     if(g.p.kind===0){
+       if(flip)d+=`M${n(x)} ${n(y+ch/2)}A${n(cw/2)} ${n(ch/2)} 0 0 1 ${n(x+cw/2)} ${n(y)}M${n(x+cw/2)} ${n(y+ch)}A${n(cw/2)} ${n(ch/2)} 0 0 1 ${n(x+cw)} ${n(y+ch/2)}`;
+       else d+=`M${n(x)} ${n(y+ch/2)}A${n(cw/2)} ${n(ch/2)} 0 0 0 ${n(x+cw/2)} ${n(y+ch)}M${n(x+cw/2)} ${n(y)}A${n(cw/2)} ${n(ch/2)} 0 0 0 ${n(x+cw)} ${n(y+ch/2)}`;}
+     else if(g.p.kind===1){
+       d+=flip?`M${n(x)} ${n(y)}L${n(x+cw)} ${n(y+ch)}`:`M${n(x+cw)} ${n(y)}L${n(x)} ${n(y+ch)}`;}
+     else{
+       fl+=flip?PL([[x,y],[x+cw,y],[x,y+ch]],g.fg):PL([[x+cw,y],[x+cw,y+ch],[x,y+ch]],g.fg);}}
+   return{full:fl+(d?PT(d,0,g.fg,g.sw):'')};}},
+
+/* ===== 織物 ===== */
+{id:'herring',dsize:90,cat:'織物',name:'ヘリンボーン',seam:'○',
+ desc:'ニシンの骨（herring bone）に見立てた矢筈張り。長さが幅のちょうど2倍のときだけ隙間なく噛み合うので、床材も2:1で作られます。',
+ ps:[{k:'gap',l:'すき間',min:0,max:20,v:6}],
+ f:g=>{const L=g.T,bw=L/2,gp=L*g.p.gap/200,tw=2*L,th=2*L;let c='';
+   for(let i=-9;i<=9;i++)for(let j=-9;j<=9;j++){
+     const x=i*(L+bw)+j*bw,y=i*bw-j*bw;
+     if(x>tw+L*1.2||x<-L*2.2||y>th+L*1.2||y<-L*2.2)continue;
+     c+=R2(x+gp,y+gp,L-2*gp,bw-2*gp,g.fg);
+     c+=R2(x+L+gp,y+gp,bw-2*gp,L-2*gp,g.ac);}
+   return{tw,th,c};}},
+
+{id:'basket',dsize:90,cat:'織物',name:'網代（バスケット）',seam:'○',
+ desc:'縦横の帯を交互に編み込む形。竹や檜を編んだ網代天井など、実際の編み構造をそのまま図案にしたものです。',
+ ps:[{k:'gap',l:'すき間',min:0,max:24,v:8}],
+ f:g=>{const u=g.T,bw=u/2,gp=u*g.p.gap/200;
+   const hb=(x,y,col)=>R2(x+gp,y+gp,u-2*gp,bw-2*gp,col)+R2(x+gp,y+bw+gp,u-2*gp,bw-2*gp,col);
+   const vb=(x,y,col)=>R2(x+gp,y+gp,bw-2*gp,u-2*gp,col)+R2(x+bw+gp,y+gp,bw-2*gp,u-2*gp,col);
+   return{tw:2*u,th:2*u,c:hb(0,0,g.fg)+vb(u,0,g.ac)+vb(0,u,g.ac)+hb(u,u,g.fg)};}},
+
+{id:'hound',dsize:150,cat:'織物',name:'千鳥格子',seam:'○',
+ desc:'2色の糸を4本ずつ、2/2の綾織で組んだときに現れる犬の牙のような形。英語では hound\u2019s tooth（猟犬の歯）と呼ばれます。',
+ ps:[],
+ f:g=>{const u=g.T/8;let c='';
+   for(let i=0;i<8;i++)for(let j=0;j<8;j++){
+     const warp=(((i-j)%4)+4)%4<2;
+     const dark=warp?i<4:j<4;
+     if(dark)c+=R2(i*u,j*u,u+.4,u+.4,g.fg);}
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'argyle',cat:'織物',name:'アーガイル',seam:'○',sw:1,
+ desc:'スコットランド・アーガイル地方のタータンに由来する菱形。細い斜線を重ねるのが定番です。',
+ ps:[{k:'ratio',l:'縦の伸び',min:80,max:220,v:140},{k:'line',l:'斜線',t:'b',v:1}],
+ f:g=>{const T=g.T,th=T*g.p.ratio/100;
+   const dia=(cx,cy)=>[[cx,cy-th/2],[cx+T/2,cy],[cx,cy+th/2],[cx-T/2,cy]];
+   let c=PL(dia(T/2,th/2),g.fg);
+   for(const[x,y]of[[0,0],[T,0],[0,th],[T,th]])c+=PL(dia(x,y),g.ac);
+   if(g.p.line){
+     const d=`M${-T/2} ${n(-th/2)}L${n(1.5*T)} ${n(1.5*th)}M${-T/2} ${n(1.5*th)}L${n(1.5*T)} ${n(-th/2)}`
+            +`M${n(-T)} ${n(th/2)}L${n(T)} ${n(-th/2+th)}`;
+     c+=PT(d,0,g.bg,g.sw,' stroke-dasharray="'+n(T*0.09)+' '+n(T*0.07)+'"');}
+   return{tw:T,th,c};}},
+
+/* ===== 生成 ===== */
+{id:'voronoi',cat:'生成',name:'ボロノイ',seam:'○',full:1,norot:1,sw:1,
+ desc:'点を置き、「どの点に一番近いか」で平面を区切った図。キリンの模様や乾いた泥のひび割れなど、自然界の分割によく一致します。',
+ ps:[{k:'n',l:'点の数',min:8,max:120,v:40},{k:'shrink',l:'縮み',min:0,max:30,v:0},{k:'fill',l:'塗りにする',t:'b',v:0}],
+ f:g=>{const N=g.p.n,W=g.W,H=g.H,pts=[];
+   for(let i=0;i<N;i++)pts.push([g.R()*W,g.R()*H]);
+   const all=[];for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const q of pts)all.push([q[0]+dx*W,q[1]+dy*H]);
+   const maxd=8*Math.sqrt(W*H/N),md2=maxd*maxd;
+   const clip=(poly,s,t)=>{const mx=(s[0]+t[0])/2,my=(s[1]+t[1])/2,nx=t[0]-s[0],ny=t[1]-s[1];
+     const f=p=>(p[0]-mx)*nx+(p[1]-my)*ny,out=[];
+     for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length],fp=f(p),fq=f(q);
+       if(fp<=0)out.push(p);
+       if((fp<0&&fq>0)||(fp>0&&fq<0)){const u=fp/(fp-fq);out.push([p[0]+u*(q[0]-p[0]),p[1]+u*(q[1]-p[1])]);}}
+     return out;};
+   let c='';
+   for(const s of all){
+     if(s[0]<-W*0.25||s[0]>W*1.25||s[1]<-H*0.25||s[1]>H*1.25)continue;
+     let poly=[[0,0],[W,0],[W,H],[0,H]];
+     for(const t of all){if(t===s)continue;
+       const d2=(t[0]-s[0])**2+(t[1]-s[1])**2;if(d2>md2||d2===0)continue;
+       poly=clip(poly,s,t);if(poly.length<3)break;}
+     if(poly.length<3)continue;
+     if(g.p.shrink>0){let ax=0,ay=0;for(const p of poly){ax+=p[0];ay+=p[1];}
+       ax/=poly.length;ay/=poly.length;const k=1-g.p.shrink/100;
+       poly=poly.map(p=>[ax+(p[0]-ax)*k,ay+(p[1]-ay)*k]);}
+     c+=PL(poly,g.p.fill?mix(g.bg,g.ac,0.25+g.R()*0.6):0,g.fg,g.sw);}
+   return{full:c};}},
+
+{id:'scatter',dsize:120,cat:'生成',name:'散布ドット',seam:'○',full:1,norot:1,
+ desc:'大きさをばらつかせた点をランダムに置いたもの。規則性を消したいときの下地に向きます。端でつながるので繰り返せます。',
+ ps:[{k:'n',l:'数',min:10,max:400,v:120},{k:'min',l:'最小サイズ',min:1,max:30,v:4},{k:'max',l:'最大サイズ',min:2,max:60,v:14},{k:'acc',l:'アクセント比',min:0,max:100,v:25}],
+ f:g=>{const W=g.W,H=g.H,mn=g.T*g.p.min/100,mx=Math.max(mn,g.T*g.p.max/100);let c='';
+   for(let i=0;i<g.p.n;i++){const x=g.R()*W,y=g.R()*H,r=mn+g.R()*(mx-mn),col=g.R()*100<g.p.acc?g.ac:g.fg;
+     for(const dx of[-W,0,W])for(const dy of[-H,0,H]){
+       if(x+dx<-r||x+dx>W+r||y+dy<-r||y+dy>H+r)continue;
+       c+=CI(x+dx,y+dy,r,col);}}
+   return{full:c};}},
+
+{id:'terrazzo',dsize:110,cat:'生成',name:'テラゾー',seam:'○',full:1,norot:1,
+ desc:'大理石の砕片をセメントで固めた床材の意匠。角ばった小片を散らすだけで、素材感のある背景になります。',
+ ps:[{k:'n',l:'数',min:20,max:400,v:140},{k:'size',l:'かけらの大きさ',min:3,max:40,v:12},{k:'var',l:'形のばらつき',min:0,max:100,v:60}],
+ f:g=>{const W=g.W,H=g.H,S=g.T*g.p.size/100;let c='';
+   const cols=[g.fg,g.ac,mix(g.fg,g.bg,.45),mix(g.ac,g.bg,.4)];
+   for(let i=0;i<g.p.n;i++){
+     const x=g.R()*W,y=g.R()*H,rot=g.R()*Math.PI*2,k=3+Math.floor(g.R()*4);
+     const col=cols[Math.floor(g.R()*cols.length)],base=S*(0.5+g.R());
+     const pts=[];for(let j=0;j<k;j++){const a=rot+j*2*Math.PI/k,rr=base*(1-g.p.var/200+g.R()*g.p.var/100);
+       pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
+     for(const dx of[-W,0,W])for(const dy of[-H,0,H]){
+       if(x+dx<-base*2||x+dx>W+base*2||y+dy<-base*2||y+dy>H+base*2)continue;
+       c+=PL(pts.map(p=>[p[0]+x+dx,p[1]+y+dy]),col);}}
+   return{full:c};}},
+
+{id:'spiro',cat:'生成',name:'スピログラフ',seam:'×',full:1,sw:1,
+ desc:'円の内側を転がる小円上の一点が描く軌跡（ハイポトロコイド）。歯数の比が整数比になるほど閉じた花形になります。',
+ ps:[{k:'R',l:'外円の歯数',min:3,max:16,v:9},{k:'r',l:'内円の歯数',min:1,max:15,v:4},{k:'d',l:'ペン位置',min:10,max:150,v:90},{k:'cp',l:'重ねる数',min:1,max:8,v:1}],
+ f:g=>{const Rr=Math.max(2,Math.round(g.p.R)),r=Math.max(1,Math.min(Math.round(g.p.r),Rr-1)),d=r*g.p.d/100;
+   const gcd=(a,b)=>b?gcd(b,a%b):a,turns=r/gcd(Rr,r);
+   const S=Math.min(g.W,g.H)*0.45/Rr,cx=g.W/2,cy=g.H/2;
+   let path='';const steps=Math.min(5000,Math.ceil(turns*180));
+   for(let i=0;i<=steps;i++){const t=i/steps*turns*2*Math.PI;
+     const x=(Rr-r)*Math.cos(t)+d*Math.cos((Rr-r)/r*t);
+     const y=(Rr-r)*Math.sin(t)-d*Math.sin((Rr-r)/r*t);
+     path+=(i?'L':'M')+n(cx+x*S)+' '+n(cy+y*S);}
+   let c='';for(let i=0;i<g.p.cp;i++){
+     c+=`<g transform="rotate(${n(i*360/g.p.cp)} ${n(cx)} ${n(cy)})">${PT(path,0,i%2?g.ac:g.fg,g.sw)}</g>`;}
+   return{full:c};}},
+
+{id:'noise',dsize:110,cat:'生成',name:'ノイズ',seam:'○',full:1,norot:1,
+ desc:'数式で作る乱れ（パーリンノイズ系）。階調を落とすと版画のようなムラ、細かくすると紙の質感になります。',
+ ps:[{k:'f',l:'粒の細かさ',min:1,max:120,v:20},{k:'oct',l:'重ね数',min:1,max:6,v:4},{k:'lv',l:'階調',min:2,max:12,v:3},{k:'frac',l:'なめらか',t:'b',v:1}],
+ f:g=>{const bf=(g.p.f/10000).toFixed(5);
+   const L=g.p.lv,tv=[];for(let i=0;i<L;i++)tv.push((i/(L-1)).toFixed(3));
+   const defs=`<filter id="nz" x="0" y="0" width="100%" height="100%">`
+     +`<feTurbulence type="${g.p.frac?'fractalNoise':'turbulence'}" baseFrequency="${bf}" numOctaves="${g.p.oct}" seed="${g.seed}" stitchTiles="stitch" result="t"/>`
+     +`<feColorMatrix in="t" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.34 0.34 0.34 0 0" result="m"/>`
+     +`<feComponentTransfer in="m" result="p"><feFuncA type="discrete" tableValues="${tv.join(' ')}"/></feComponentTransfer>`
+     +`<feFlood flood-color="${g.fg}" result="fl"/><feComposite in="fl" in2="p" operator="in"/></filter>`;
+   return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#nz)"/>`};}},
+
+/* ===== 糸掛け ===== */
+{id:'stringcircle',dsize:110,cat:'糸掛け',name:'糸掛け（円）',seam:'×',full:1,sw:1,
+ desc:'円周をn等分し、i番目の点をi×k番目の点と直線で結んだもの。k=2で心臓形（カージオイド）、k=3で腎臓形が浮かびます。糸掛け曼荼羅の原理です。',
+ ps:[{k:'n',l:'点の数',min:12,max:400,v:150},{k:'k',l:'かける数',min:2,max:80,v:2},{k:'ring',l:'外周の円',t:'b',v:1}],
+ f:g=>{const N=Math.round(g.p.n),K=Math.round(g.p.k),R=Math.min(g.W,g.H)*Math.min(0.48,g.T/250),cx=g.W/2,cy=g.H/2;
+   const P=i=>[cx+R*Math.cos(2*Math.PI*i/N-Math.PI/2),cy+R*Math.sin(2*Math.PI*i/N-Math.PI/2)];
+   let d='';for(let i=0;i<N;i++){const a=P(i),b=P((i*K)%N);d+=`M${n(a[0])} ${n(a[1])}L${n(b[0])} ${n(b[1])}`;}
+   return{full:(g.p.ring?CI(cx,cy,R,0,g.ac,g.sw):'')+PT(d,0,g.fg,g.sw)};}},
+
+{id:'stringpoly',dsize:110,cat:'糸掛け',name:'糸掛け（多角形）',seam:'×',full:1,sw:1,
+ desc:'直線だけを並べて曲線を浮かび上がらせる曲線縫い。角に集めると放物線、周回で結ぶと大きなうねりが現れます。',
+ ps:[{k:'m',l:'辺の数',min:3,max:12,v:3},{k:'mode',l:'結び方',t:'s',o:['かど','まわし'],v:0},
+     {k:'c',l:'線の本数',min:4,max:80,v:28},{k:'step',l:'送り',min:2,max:60,v:9},{k:'edge',l:'外形線',t:'b',v:1}],
+ f:g=>{const m=Math.round(g.p.m),R=Math.min(g.W,g.H)*Math.min(0.48,g.T/250),cx=g.W/2,cy=g.H/2;
+   const V=[];for(let i=0;i<m;i++){const a=2*Math.PI*i/m-Math.PI/2;V.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+   const lp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+   let d='';
+   if(g.p.mode===0){const c=Math.round(g.p.c);
+     for(let i=0;i<m;i++){const A=V[i],B=V[(i+1)%m],C=V[(i+2)%m];
+       for(let j=0;j<=c;j++){const p1=lp(B,A,j/c),p2=lp(B,C,1-j/c);
+         d+=`M${n(p1[0])} ${n(p1[1])}L${n(p2[0])} ${n(p2[1])}`;}}}
+   else{const per=Math.round(g.p.c),S=m*per,K=Math.round(g.p.step);
+     const P=i=>{const e=Math.floor(i/per)%m,t=(i%per)/per;return lp(V[e],V[(e+1)%m],t);};
+     for(let i=0;i<S;i++){const a=P(i),b=P((i*K)%S);d+=`M${n(a[0])} ${n(a[1])}L${n(b[0])} ${n(b[1])}`;}}
+   return{full:(g.p.edge?PL(V,0,g.ac,g.sw):'')+PT(d,0,g.fg,g.sw)};}},
+
+{id:'spiralpoly',dsize:110,cat:'糸掛け',name:'渦巻き多角形',seam:'×',full:1,sw:1,
+ desc:'多角形の各辺を一定の比で分けた点を結び、それを繰り返したもの。同じ操作の反復だけで回転と縮小が生まれ、渦になります。',
+ ps:[{k:'m',l:'辺の数',min:3,max:14,v:3},{k:'c',l:'枚数',min:2,max:80,v:26},{k:'t',l:'送り比',min:1,max:45,v:10},{k:'two',l:'2色にする',t:'b',v:0}],
+ f:g=>{const m=Math.round(g.p.m),R=Math.min(g.W,g.H)*Math.min(0.48,g.T/250),cx=g.W/2,cy=g.H/2,t=g.p.t/100;
+   let V=[];for(let i=0;i<m;i++){const a=2*Math.PI*i/m-Math.PI/2;V.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+   let c='';
+   for(let s=0;s<Math.round(g.p.c);s++){
+     c+=PL(V,0,(g.p.two&&s%2)?g.ac:g.fg,g.sw);
+     V=V.map((p,i)=>{const q=V[(i+1)%m];return [p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];});}
+   return{full:c};}},
+
+{id:'harmono',dsize:110,cat:'糸掛け',name:'ハーモノグラフ',seam:'×',full:1,sw:1,
+ desc:'2つの振り子の揺れを合成して描く曲線。19世紀の実験装置で、周波数の比がわずかにずれると帯のようなうねりが生まれます。',
+ ps:[{k:'f1',l:'横の周波数',min:1,max:9,v:2},{k:'f2',l:'縦の周波数',min:1,max:9,v:3},
+     {k:'de',l:'ずれ',min:0,max:60,v:12},{k:'dec',l:'減衰',min:0,max:100,v:30},{k:'ph',l:'位相',min:0,max:100,v:25}],
+ f:g=>{const A=Math.min(g.W,g.H)*Math.min(0.46,g.T/260),cx=g.W/2,cy=g.H/2;
+   const f1=Math.round(g.p.f1),f2=Math.round(g.p.f2),de=g.p.de/1000,dec=g.p.dec/6000,ph=g.p.ph/100*Math.PI;
+   const T=140,steps=4000;let d='';
+   for(let i=0;i<=steps;i++){const t=i/steps*T;
+     const e1=Math.exp(-dec*t),e2=Math.exp(-dec*1.3*t);
+     const x=A*0.5*(Math.sin(f1*t+ph)*e1+Math.sin((f1+de)*t)*e2);
+     const y=A*0.5*(Math.sin(f2*t)*e1+Math.sin((f2+de)*t+ph)*e2);
+     d+=(i?'L':'M')+n(cx+x)+' '+n(cy+y);}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+/* ===== コード ===== */
+{id:'barcode',dsize:150,cat:'コード',name:'バーコード風',seam:'×',full:1,
+ desc:'見た目だけのダミーのバーコードです。読み取りはできないので、実在の商品と取り違えられる心配なく小道具に使えます。数字を変えると並びも変わります。',
+ ps:[{k:'code',l:'数字',t:'t',v:'4901234567894'},{k:'dens',l:'バーの本数',min:31,max:141,v:95},
+     {k:'h',l:'高さ',min:15,max:80,v:40},{k:'num',l:'数字を表示',t:'b',v:1},{k:'guard',l:'ガードバー',t:'b',v:1}],
+ f:g=>{const cv=g.p.code;const code=(typeof cv==='string')?cv:(typeof cv==='number'&&isFinite(cv))?String(cv):'';
+   const R=mul((hash(code)^(g.seed*2654435761))>>>0);
+   const M=Math.max(31,Math.round(g.p.dens)),bits=new Array(M).fill(0);
+   let prev=-1,run=0;
+   for(let x=0;x<M;x++){let b=R()<0.5?1:0;
+     if(b===prev){run++;if(run>=3){b=1-b;run=0;}}else run=0;prev=b;bits[x]=b;}
+   const gi=new Set();
+   if(g.p.guard){const put=(p,a)=>a.forEach((v,j)=>{if(p+j>=0&&p+j<M){bits[p+j]=v;gi.add(p+j);}});
+     put(0,[1,0,1]);put(M-3,[1,0,1]);put(Math.floor(M/2)-2,[0,1,0,1,0]);}
+   const Wb=Math.min(g.W*0.9,g.W*Math.min(1,g.T/160)),u=Wb/M,Hb=g.H*g.p.h/100;
+   const x0=(g.W-Wb)/2,y0=(g.H-Hb)/2;
+   let d='';
+   for(let x=0;x<M;x++){if(!bits[x])continue;
+     const h=Hb*(gi.has(x)?1:0.93);
+     d+=`M${n(x0+x*u)} ${n(y0)}H${n(x0+(x+1)*u)}V${n(y0+h)}H${n(x0+x*u)}Z`;}
+   let tx='';
+   if(g.p.num&&code){const fs=Math.max(6,Hb*0.15),ty=y0+Hb+fs*0.95;
+     const T2=(t,x,anc)=>`<text x="${n(x)}" y="${n(ty)}" font-size="${n(fs)}" fill="${g.fg}" text-anchor="${anc}" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="${n(u*0.55)}">${t.replace(/[<&>]/g,'')}</text>`;
+     if(code.length>=13)tx=T2(code.slice(0,1),x0-u*1.5,'end')+T2(code.slice(1,7),x0+Wb*0.28,'middle')+T2(code.slice(7,13),x0+Wb*0.72,'middle');
+     else tx=T2(code,g.W/2,'middle');}
+   return{full:PT(d,g.fg)+tx};}},
+
+{id:'qr',dsize:150,cat:'コード',name:'QRコード風',seam:'×',full:1,
+ desc:'見た目だけのダミーのQRコードです。三隅の四角（切り出しシンボル）と点線の目盛りだけ本物の配置にしてあり、中身はランダムなので読み取れません。',
+ ps:[{k:'ver',l:'細かさ',min:1,max:8,v:3},{k:'fill',l:'黒の割合',min:25,max:65,v:47},{k:'logo',l:'中央を空ける',t:'b',v:0}],
+ f:g=>{const v=Math.round(g.p.ver),N=21+4*(v-1),R=g.R;
+   const S=Math.min(g.W,g.H)*Math.min(0.95,g.T/160),u=S/N,x0=(g.W-S)/2,y0=(g.H-S)/2;
+   const gr=[];for(let y=0;y<N;y++){const row=[];for(let x=0;x<N;x++)row.push(R()*100<g.p.fill?1:0);gr.push(row);}
+   const set=(x,y,val)=>{if(x>=0&&y>=0&&x<N&&y<N)gr[y][x]=val;};
+   const finder=(fx,fy)=>{for(let y=-1;y<=7;y++)for(let x=-1;x<=7;x++){
+     const inB=x>=0&&x<7&&y>=0&&y<7;let val=0;
+     if(inB){const b=(x===0||x===6||y===0||y===6),c=(x>=2&&x<=4&&y>=2&&y<=4);val=(b||c)?1:0;}
+     set(fx+x,fy+y,val);}};
+   finder(0,0);finder(N-7,0);finder(0,N-7);
+   for(let i=8;i<N-8;i++){set(i,6,i%2===0?1:0);set(6,i,i%2===0?1:0);}
+   if(v>1){const ax=N-7,ay=N-7;for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){
+     const b=Math.abs(x)===2||Math.abs(y)===2,c=x===0&&y===0;set(ax+x,ay+y,(b||c)?1:0);}}
+   set(8,N-8,1);
+   if(g.p.logo){const r=Math.max(2,Math.round(N*0.12)),c0=Math.floor(N/2);
+     for(let y=c0-r;y<=c0+r;y++)for(let x=c0-r;x<=c0+r;x++)set(x,y,0);}
+   let d='';
+   for(let y=0;y<N;y++)for(let x=0;x<N;x++){if(!gr[y][x])continue;
+     const px=x0+x*u,py=y0+y*u;
+     d+=`M${n(px)} ${n(py)}H${n(px+u*1.02)}V${n(py+u*1.02)}H${n(px)}Z`;}
+   return{full:PT(d,g.fg)};}}
+];
+
+const CATS=['基本','波','和柄','幾何','織物','糸掛け','コード','生成'];
+
+const PALS=[
+ {n:'モノクロ',bg:'#ffffff',fg:'#141414',ac:'#8c8c8c'},
+ {n:'藍',bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e'},
+ {n:'墨',bg:'#f6f4ef',fg:'#2b2926',ac:'#a8352c'},
+ {n:'霞',bg:'#e9eef0',fg:'#5b7d8c',ac:'#d8c9a3'},
+ {n:'夜',bg:'#141821',fg:'#e7e4dd',ac:'#4f9d8b'},
+ {n:'蛍光',bg:'#101014',fg:'#00e0d0',ac:'#ff2f8e'},
+ {n:'土',bg:'#e6ddcd',fg:'#6b4b2a',ac:'#9d6a3f'},
+ {n:'苔',bg:'#eef0e6',fg:'#3f5738',ac:'#b6893f'},
+ {n:'桃',bg:'#fdf2ee',fg:'#e79aa0',ac:'#7f95c6'},
+ {n:'赤黒',bg:'#f0ece6',fg:'#111111',ac:'#d0342c'}
+];
+
+const SIZES=[
+ {g:'SNS',items:[['X ヘッダー',1500,500],['X 投稿',1600,900],['正方形 1080',1080,1080],['ストーリー',1080,1920],['サムネ 16:9',1280,720],['アイコン',800,800]]},
+ {g:'印刷 350dpi',items:[['A4 縦',2894,4093],['A4 横',4093,2894],['B5 縦',2150,3035],['ポストカード',1378,2039],['名刺',1254,758],['正方形10cm',1378,1378]]},
+ {g:'壁紙',items:[['iPhone',1179,2556],['デスクトップ',1920,1080],['タブレット',2048,2732]]}
+];
+
+/* ---------- state ---------- */
+const st={pat:'seigaiha',cat:'和柄',sizeCat:'SNS',W:1080,H:1080,
+  bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e',
+  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,p:{}};
+const byId=id=>PATS.find(p=>p.id===id);
+function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
+PATS.forEach(p=>st.p[p.id]=defP(p));
+
+/* ---------- build ---------- */
+function buildSVG(W,H){
+  const P=byId(st.pat);
+  const g={W,H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
+  let r;
+  try{r=P.f(g);}catch(e){r={full:''};}
+  let defs=r.defs||'',body='';
+  const rot=(st.seamless||P.norot)?0:st.rot;
+  if(r.c!==undefined){
+    let tw=Math.max(1,r.tw),th=Math.max(1,r.th),tr=[];
+    if(st.seamless){
+      const sx=W/(Math.max(1,Math.round(W/tw))*tw), sy=H/(Math.max(1,Math.round(H/th))*th);
+      if(Math.abs(sx-1)>1e-9||Math.abs(sy-1)>1e-9)tr.push(`scale(${n6(sx)},${n6(sy)})`);
+    }else if(rot)tr.push(`rotate(${rot})`);
+    defs+=`<pattern id="pt" patternUnits="userSpaceOnUse" width="${n(tw)}" height="${n(th)}"${tr.length?` patternTransform="${tr.join(' ')}"`:''}>${r.c}</pattern>`;
+    body=`<rect width="${W}" height="${H}" fill="url(#pt)" opacity="${st.op/100}"/>`;
+  }else{
+    body=`<g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+    +(defs?`<defs>${defs}</defs>`:'')
+    +`<rect width="${W}" height="${H}" fill="${st.bg}"/>${body}</svg>`;
+}
+
+/* ---------- render ---------- */
+const $=s=>document.querySelector(s);
+let raf=0;
+function render(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;draw();});}
+function draw(){
+  const svg=buildSVG(st.W,st.H);
+  const box=$('#svgbox'),tile=$('#tilebox');
+  if(st.check){
+    box.style.display='none';tile.style.display='block';
+    tile.style.backgroundImage=`url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
+    tile.style.backgroundSize=(st.W>=st.H?'50%':'auto 50%');
+  }else{
+    tile.style.display='none';box.style.display='block';
+    box.innerHTML=svg;
+    const el=box.querySelector('svg');
+    el.removeAttribute('width');el.removeAttribute('height');
+    el.style.width='auto';el.style.height='auto';
+    el.style.maxWidth='100%';el.style.maxHeight='100%';
+    el.setAttribute('preserveAspectRatio','xMidYMid meet');
+    const fr=$('.frame').getBoundingClientRect();
+    const s=Math.min(fr.width/st.W,fr.height/st.H);
+    el.style.width=Math.floor(st.W*s)+'px';el.style.height=Math.floor(st.H*s)+'px';
+  }
+  const P=byId(st.pat);
+  $('#mLeft').textContent=`${P.name} ／ ${st.W}×${st.H}px`;
+  const seam=P.seam==='○'?(st.seamless?'継ぎ目なし':'継ぎ目なし可'):'継ぎ目あり';
+  $('#mSeam').textContent=seam;
+}
+
+/* ---------- UI ---------- */
+function buildCats(){
+  const el=$('#cats');el.innerHTML='';
+  CATS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='chip'+(c===st.cat?' on':'');b.textContent=c;
+    b.onclick=()=>{st.cat=c;buildCats();buildPats();};
+    el.appendChild(b);});
+}
+function buildPats(){
+  const el=$('#pats');el.innerHTML='';
+  PATS.filter(p=>p.cat===st.cat).forEach(p=>{
+    const b=document.createElement('button');
+    b.className='chip'+(p.id===st.pat?' on':'');b.textContent=p.name;
+    b.onclick=()=>{st.pat=p.id;st.size=p.dsize||110;buildPats();buildCommon();buildExtra();render();};
+    el.appendChild(b);});
+  $('#desc').textContent=byId(st.pat).desc;
+}
+function slider(label,val,min,max,step,onInput,off){
+  const d=document.createElement('div');d.className='ctl'+(off?' off':'');
+  d.innerHTML=`<label><span>${label}</span><b></b></label>`;
+  const i=document.createElement('input');i.type='range';i.min=min;i.max=max;i.step=step;i.value=val;
+  const b=d.querySelector('b');b.textContent=val;
+  i.addEventListener('input',()=>{b.textContent=i.value;onInput(parseFloat(i.value));render();});
+  d.appendChild(i);return d;
+}
+function toggle(label,val,onC){
+  const d=document.createElement('div');d.className='switch';
+  d.innerHTML=`<span>${label}</span>`;
+  const b=document.createElement('button');b.className='tog'+(val?' on':'');
+  b.onclick=()=>{const v=!b.classList.contains('on');b.classList.toggle('on',v);onC(v?1:0);render();};
+  d.appendChild(b);return d;
+}
+function textbox(label,val,onC){
+  const d=document.createElement('div');d.className='ctl';
+  d.innerHTML=`<label><span>${label}</span></label>`;
+  const i=document.createElement('input');i.type='text';i.className='tbox';i.value=val;
+  i.addEventListener('input',()=>{onC(i.value);render();});
+  d.appendChild(i);return d;
+}
+function select(label,val,opts,onC){
+  const d=document.createElement('div');d.className='ctl';
+  d.innerHTML=`<label><span>${label}</span></label>`;
+  const w=document.createElement('div');w.className='chips';
+  opts.forEach((o,i)=>{const b=document.createElement('button');
+    b.className='chip sm'+(i===val?' on':'');b.textContent=o;
+    b.onclick=()=>{onC(i);buildExtra();render();};w.appendChild(b);});
+  d.appendChild(w);return d;
+}
+function buildCommon(){
+  const P=byId(st.pat),el=$('#common');el.innerHTML='';
+  el.appendChild(slider('模様の大きさ',st.size,8,400,1,v=>st.size=v));
+  if(P.sw)el.appendChild(slider('線の太さ',st.sw,0.5,40,0.5,v=>st.sw=v));
+  const rotOff=st.seamless||P.norot;
+  el.appendChild(slider('角度',st.rot,0,90,1,v=>st.rot=v,rotOff));
+  el.appendChild(slider('濃さ',st.op,5,100,1,v=>st.op=v));
+}
+function buildExtra(){
+  const P=byId(st.pat),el=$('#extra');el.innerHTML='';
+  (P.ps||[]).forEach(q=>{
+    const cur=st.p[P.id][q.k];
+    if(q.t==='t')el.appendChild(textbox(q.l,cur,v=>st.p[P.id][q.k]=v));
+    else if(q.t==='b')el.appendChild(toggle(q.l,cur,v=>st.p[P.id][q.k]=v));
+    else if(q.t==='s')el.appendChild(select(q.l,cur,q.o,v=>st.p[P.id][q.k]=v));
+    else el.appendChild(slider(q.l,cur,q.min,q.max,q.step||1,v=>st.p[P.id][q.k]=v));
+  });
+}
+function buildPal(){
+  const el=$('#pal');el.innerHTML='';
+  PALS.forEach(p=>{const b=document.createElement('button');b.title=p.n;
+    b.innerHTML=`<i style="background:${p.bg}"></i><i style="background:${p.fg}"></i><i style="background:${p.ac}"></i>`;
+    b.onclick=()=>{st.bg=p.bg;st.fg=p.fg;st.ac=p.ac;syncColors();render();};
+    el.appendChild(b);});
+}
+function syncColors(){$('#cBg').value=st.bg;$('#cFg').value=st.fg;$('#cAc').value=st.ac;}
+function buildSizes(){
+  const cs=$('#sizeCats');cs.innerHTML='';
+  SIZES.forEach(s=>{const b=document.createElement('button');
+    b.className='chip'+(s.g===st.sizeCat?' on':'');b.textContent=s.g;
+    b.onclick=()=>{st.sizeCat=s.g;buildSizes();};cs.appendChild(b);});
+  const el=$('#sizes');el.innerHTML='';
+  const grp=SIZES.find(s=>s.g===st.sizeCat);
+  grp.items.forEach(([nm,w,h])=>{const b=document.createElement('button');
+    b.className='chip sm'+(w===st.W&&h===st.H?' on':'');b.textContent=`${nm}`;
+    b.onclick=()=>{st.W=w;st.H=h;syncSize();buildSizes();render();};el.appendChild(b);});
+}
+function syncSize(){
+  $('#iW').value=st.W;$('#iH').value=st.H;
+  const px=st.W*st.H;
+  $('#sizeNote').textContent=`${(px/1e6).toFixed(1)}メガピクセル`+(px>1.2e7?'／端末によっては書き出しに失敗することがあります':'');
+}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800);}
+
+/* ---------- events ---------- */
+['cBg','cFg','cAc'].forEach((id,i)=>{
+  $('#'+id).addEventListener('input',e=>{st[['bg','fg','ac'][i]]=e.target.value;render();});
+});
+$('#bSwap').onclick=()=>{const t=st.bg;st.bg=st.fg;st.fg=t;syncColors();render();};
+$('#iW').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.W=v;syncSize();render();}};
+$('#iH').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.H=v;syncSize();render();}};
+$('#bSwapWH').onclick=()=>{const t=st.W;st.W=st.H;st.H=t;syncSize();buildSizes();render();};
+$('#tSeam').onclick=function(){st.seamless=!st.seamless;this.classList.toggle('on',st.seamless);buildCommon();render();};
+$('#tCheck').onclick=function(){st.check=!st.check;this.classList.toggle('on',st.check);render();};
+$('#bSeed').onclick=()=>{st.seed=(st.seed+1)%9999;render();toast('乱数を引き直しました');};
+$('#bRandP').onclick=()=>{
+  const P=byId(st.pat);
+  (P.ps||[]).forEach(q=>{
+    if(q.t==='t'){const cur=String(st.p[P.id][q.k]||'');
+      if(/^\d+$/.test(cur))st.p[P.id][q.k]=Array.from(cur,()=>Math.floor(Math.random()*10)).join('');}
+    else if(q.t==='b')st.p[P.id][q.k]=Math.random()<0.5?1:0;
+    else if(q.t==='s')st.p[P.id][q.k]=Math.floor(Math.random()*q.o.length);
+    else st.p[P.id][q.k]=Math.round(q.min+Math.random()*(q.max-q.min));});
+  st.size=Math.round(30+Math.random()*180);
+  st.seed=Math.floor(Math.random()*9999);
+  buildExtra();buildCommon();render();
+};
+$('#bRandAll').onclick=()=>{
+  const p=PATS[Math.floor(Math.random()*PATS.length)];
+  st.pat=p.id;st.cat=p.cat;
+  const pal=PALS[Math.floor(Math.random()*PALS.length)];
+  st.bg=pal.bg;st.fg=pal.fg;st.ac=pal.ac;
+  st.sw=Math.round((1+Math.random()*10)*2)/2;
+  buildCats();buildPats();syncColors();
+  $('#bRandP').click();
+};
+
+/* ---------- export ---------- */
+function dl(blob,name){
+  const u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(u);a.remove();},2000);
+}
+$('#bSvg').onclick=()=>{
+  const svg=buildSVG(st.W,st.H);
+  dl(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),`pattern-${st.pat}-${st.W}x${st.H}.svg`);
+  toast('SVGを書き出しました');
+};
+$('#bPng').onclick=()=>{
+  const svg=buildSVG(st.W,st.H);
+  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
+  const img=new Image();
+  img.onload=()=>{
+    const cv=document.createElement('canvas');cv.width=st.W;cv.height=st.H;
+    const cx=cv.getContext('2d');
+    cx.fillStyle=st.bg;cx.fillRect(0,0,st.W,st.H);
+    cx.drawImage(img,0,0,st.W,st.H);
+    URL.revokeObjectURL(url);
+    cv.toBlob(b=>{
+      if(!b){toast('書き出しに失敗しました。サイズを下げて再試行してください');return;}
+      dl(b,`pattern-${st.pat}-${st.W}x${st.H}.png`);
+      const u2=URL.createObjectURL(b);
+      $('#mImg').src=u2;$('#modal').classList.add('on');
+    },'image/png');
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);toast('画像化に失敗しました');};
+  img.src=url;
+};
+$('#mClose').onclick=()=>{$('#modal').classList.remove('on');};
+$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('on');};
+window.addEventListener('resize',()=>render());
+
+/* ---------- init ---------- */
+st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildPal();syncColors();buildSizes();syncSize();render();
+</script>
+</body>
+</html>
