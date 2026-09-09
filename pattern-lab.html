@@ -185,6 +185,13 @@ input[type=range]::-webkit-slider-thumb{
 </section>
 
 <section>
+  <h2>ゆがみ</h2>
+  <div class="chips" id="warps"></div>
+  <div id="warpCtl"></div>
+  <div class="note">どのパターンにも後がけできます。SVGで書き出しても効果は保たれます。ゆがみを使うと継ぎ目はつながりません。</div>
+</section>
+
+<section>
   <h2>色</h2>
   <div class="colors">
     <div class="cc"><input type="color" id="cBg"><div>背景</div></div>
@@ -243,6 +250,18 @@ const PT=(d,f,s,w,ex)=>`<path d="${d}" fill="${f||'none'}"${s?` stroke="${s}" st
 const PL=(p,f,s,w)=>`<polygon points="${p.map(q=>n(q[0])+','+n(q[1])).join(' ')}" fill="${f||'none'}"${s?` stroke="${s}" stroke-width="${n(w)}" stroke-linejoin="round"`:''}/>`;
 const CI=(x,y,r,f,s,w)=>`<circle cx="${n(x)}" cy="${n(y)}" r="${n(r)}" fill="${f||'none'}"${s?` stroke="${s}" stroke-width="${n(w)}"`:''}/>`;
 const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
+function mk3(rx,ry,per,S,cx,cy){const a=rx*Math.PI/180,b=ry*Math.PI/180,
+  ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),pp=per/100*0.55;
+  return(x,y,z)=>{const y1=y*ca-z*sa,z1=y*sa+z*ca,x1=x*cb+z1*sb,z2=-x*sb+z1*cb;
+    const k=1/Math.max(0.18,1+pp*z2);return[cx+x1*k*S,cy+y1*k*S];};}
+function vnz(R){const G=64,tb=[];for(let i=0;i<G*G;i++)tb.push(R());
+  const sm=t=>t*t*(3-2*t),at=(a,b)=>tb[(((a%G)+G)%G)*G+(((b%G)+G)%G)];
+  return(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),u=sm(x-xi),v=sm(y-yi);
+    return(at(xi,yi)*(1-u)+at(xi+1,yi)*u)*(1-v)+(at(xi,yi+1)*(1-u)+at(xi+1,yi+1)*u)*v;};}
+function fitPath(pts,W,H,pad){let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;
+  for(const q of pts){if(q[0]<x0)x0=q[0];if(q[0]>x1)x1=q[0];if(q[1]<y0)y0=q[1];if(q[1]>y1)y1=q[1];}
+  const k=Math.min(W*pad/Math.max(1e-6,x1-x0),H*pad/Math.max(1e-6,y1-y0));
+  return q=>[W/2+(q[0]-(x0+x1)/2)*k,H/2+(q[1]-(y0+y1)/2)*k];}
 function mul(a){a=a>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const SQ3=Math.sqrt(3);
 function hexPts(cx,cy,R){const a=[];for(let i=0;i<6;i++){const t=Math.PI/180*(60*i-90);a.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}return a;}
@@ -642,7 +661,7 @@ const PATS=[
    return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#nz)"/>`};}},
 
 /* ===== 糸掛け ===== */
-{id:'stringcircle',dsize:110,cat:'糸掛け',name:'糸掛け（円）',seam:'×',full:1,sw:1,
+{id:'stringcircle',dsize:110,cat:'線画',name:'糸掛け（円）',seam:'×',full:1,sw:1,
  desc:'円周をn等分し、i番目の点をi×k番目の点と直線で結んだもの。k=2で心臓形（カージオイド）、k=3で腎臓形が浮かびます。糸掛け曼荼羅の原理です。',
  ps:[{k:'n',l:'点の数',min:12,max:400,v:150},{k:'k',l:'かける数',min:2,max:80,v:2},{k:'ring',l:'外周の円',t:'b',v:1}],
  f:g=>{const N=Math.round(g.p.n),K=Math.round(g.p.k),R=Math.min(g.W,g.H)*Math.min(0.48,g.T/250),cx=g.W/2,cy=g.H/2;
@@ -650,7 +669,7 @@ const PATS=[
    let d='';for(let i=0;i<N;i++){const a=P(i),b=P((i*K)%N);d+=`M${n(a[0])} ${n(a[1])}L${n(b[0])} ${n(b[1])}`;}
    return{full:(g.p.ring?CI(cx,cy,R,0,g.ac,g.sw):'')+PT(d,0,g.fg,g.sw)};}},
 
-{id:'stringpoly',dsize:110,cat:'糸掛け',name:'糸掛け（多角形）',seam:'×',full:1,sw:1,
+{id:'stringpoly',dsize:110,cat:'線画',name:'糸掛け（多角形）',seam:'×',full:1,sw:1,
  desc:'直線だけを並べて曲線を浮かび上がらせる曲線縫い。角に集めると放物線、周回で結ぶと大きなうねりが現れます。',
  ps:[{k:'m',l:'辺の数',min:3,max:12,v:3},{k:'mode',l:'結び方',t:'s',o:['かど','まわし'],v:0},
      {k:'c',l:'線の本数',min:4,max:80,v:28},{k:'step',l:'送り',min:2,max:60,v:9},{k:'edge',l:'外形線',t:'b',v:1}],
@@ -667,7 +686,7 @@ const PATS=[
      for(let i=0;i<S;i++){const a=P(i),b=P((i*K)%S);d+=`M${n(a[0])} ${n(a[1])}L${n(b[0])} ${n(b[1])}`;}}
    return{full:(g.p.edge?PL(V,0,g.ac,g.sw):'')+PT(d,0,g.fg,g.sw)};}},
 
-{id:'spiralpoly',dsize:110,cat:'糸掛け',name:'渦巻き多角形',seam:'×',full:1,sw:1,
+{id:'spiralpoly',dsize:110,cat:'線画',name:'渦巻き多角形',seam:'×',full:1,sw:1,
  desc:'多角形の各辺を一定の比で分けた点を結び、それを繰り返したもの。同じ操作の反復だけで回転と縮小が生まれ、渦になります。',
  ps:[{k:'m',l:'辺の数',min:3,max:14,v:3},{k:'c',l:'枚数',min:2,max:80,v:26},{k:'t',l:'送り比',min:1,max:45,v:10},{k:'two',l:'2色にする',t:'b',v:0}],
  f:g=>{const m=Math.round(g.p.m),R=Math.min(g.W,g.H)*Math.min(0.48,g.T/250),cx=g.W/2,cy=g.H/2,t=g.p.t/100;
@@ -678,7 +697,7 @@ const PATS=[
      V=V.map((p,i)=>{const q=V[(i+1)%m];return [p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];});}
    return{full:c};}},
 
-{id:'harmono',dsize:110,cat:'糸掛け',name:'ハーモノグラフ',seam:'×',full:1,sw:1,
+{id:'harmono',dsize:110,cat:'線画',name:'ハーモノグラフ',seam:'×',full:1,sw:1,
  desc:'2つの振り子の揺れを合成して描く曲線。19世紀の実験装置で、周波数の比がわずかにずれると帯のようなうねりが生まれます。',
  ps:[{k:'f1',l:'横の周波数',min:1,max:9,v:2},{k:'f2',l:'縦の周波数',min:1,max:9,v:3},
      {k:'de',l:'ずれ',min:0,max:60,v:12},{k:'dec',l:'減衰',min:0,max:100,v:30},{k:'ph',l:'位相',min:0,max:100,v:25}],
@@ -691,6 +710,481 @@ const PATS=[
      const y=A*0.5*(Math.sin(f2*t)*e1+Math.sin((f2+de)*t+ph)*e2);
      d+=(i?'L':'M')+n(cx+x)+' '+n(cy+y);}
    return{full:PT(d,0,g.fg,g.sw)};}},
+
+
+{id:'ribbon',dsize:110,cat:'線画',name:'ブレンド帯',seam:'×',full:1,sw:1,
+ desc:'2本の曲線のあいだを等分に補間して並べたもの。Illustratorのブレンドと同じ考え方で、線の束が面やリボンのように見えます。形は「乱数を引き直す」で変わります。',
+ ps:[{k:'n',l:'本数',min:4,max:150,v:45},{k:'rot',l:'ねじれ',min:-180,max:180,v:70},
+     {k:'sc',l:'ちぢみ',min:15,max:140,v:65},{k:'amp',l:'曲がり',min:10,max:100,v:65}],
+ f:g=>{const R=g.R,cx=g.W/2,cy=g.H/2,S=Math.min(g.W,g.H)*Math.min(0.5,g.T/230);
+   const P=[];for(let i=0;i<4;i++)P.push([cx+(R()*2-1)*g.p.amp/100*S*1.5,cy+(R()*2-1)*g.p.amp/100*S*1.5]);
+   const th=g.p.rot*Math.PI/180,sc=g.p.sc/100;
+   const Q=P.map(q=>{const dx=q[0]-cx,dy=q[1]-cy;
+     return[cx+(dx*Math.cos(th)-dy*Math.sin(th))*sc,cy+(dx*Math.sin(th)+dy*Math.cos(th))*sc];});
+   const N=Math.round(g.p.n),cur=[];let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+   for(let i=0;i<=N;i++){const t=i/N;
+     const L=P.map((q,j)=>[q[0]+(Q[j][0]-q[0])*t,q[1]+(Q[j][1]-q[1])*t]);
+     L.forEach(q=>{if(q[0]<x0)x0=q[0];if(q[0]>x1)x1=q[0];if(q[1]<y0)y0=q[1];if(q[1]>y1)y1=q[1];});
+     cur.push(L);}
+   const kf=Math.min(g.W*0.88/Math.max(1,x1-x0),g.H*0.88/Math.max(1,y1-y0));
+   const F=q=>[g.W/2+(q[0]-(x0+x1)/2)*kf,g.H/2+(q[1]-(y0+y1)/2)*kf];
+   let d='';
+   for(const L of cur){const A=L.map(F);
+     d+=`M${n(A[0][0])} ${n(A[0][1])}C${n(A[1][0])} ${n(A[1][1])} ${n(A[2][0])} ${n(A[2][1])} ${n(A[3][0])} ${n(A[3][1])}`;}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+{id:'wavering',dsize:110,cat:'線画',name:'環ブレンド',seam:'×',full:1,sw:1,
+ desc:'波打つ閉じた曲線を、少しずつ回しながら重ねたもの。重なりの密度差だけでリボンのような立体感が出ます。',
+ ps:[{k:'k',l:'山の数',min:3,max:14,v:8},{k:'amp',l:'波の深さ',min:3,max:45,v:16},
+     {k:'n',l:'本数',min:3,max:80,v:24},{k:'span',l:'回す角度',min:2,max:180,v:45},{k:'sh',l:'ちぢみ',min:0,max:40,v:6}],
+ f:g=>{const R0=Math.min(g.W,g.H)*Math.min(0.46,g.T/250),cx=g.W/2,cy=g.H/2;
+   const k=Math.round(g.p.k),A=g.p.amp/100,N=Math.round(g.p.n),span=g.p.span*Math.PI/180;
+   const M=Math.min(220,Math.max(60,Math.round(12000/N)));let d='';
+   for(let i=0;i<N;i++){const u=N>1?i/(N-1):0,ph=span*u,sc=1-g.p.sh/100*u;
+     for(let j=0;j<=M;j++){const t=j/M*2*Math.PI,r=R0*sc*(1+A*Math.sin(k*t));
+       d+=(j?'L':'M')+n(cx+r*Math.cos(t+ph))+' '+n(cy+r*Math.sin(t+ph));}}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+{id:'gravity',dsize:110,cat:'線画',name:'重力場',seam:'×',full:1,sw:1,
+ desc:'重い天体が空間を沈ませる、あの図。中心ほど深く落ち込む面をワイヤーフレームで描いています。「格子」は平面をレンズのように引き込んだもの。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['漏斗','格子','波紋'],v:0},{k:'depth',l:'強さ',min:5,max:100,v:45},
+     {k:'ring',l:'輪・横線の数',min:3,max:30,v:12},{k:'ray',l:'すじ・縦線の数',min:4,max:48,v:20},
+     {k:'tilt',l:'傾き / 波の細かさ',min:8,max:95,v:38}],
+ f:g=>{const nr=Math.round(g.p.ring),na=Math.round(g.p.ray);
+   if(g.p.mode===0){
+     const R=Math.min(g.W,g.H)*Math.min(0.48,g.T/230),cx=g.W/2,cy=g.H*0.40;
+     const ky=g.p.tilt/100,D=R*g.p.depth/100,rm=R*0.13;
+     const zf=r=>D*R/(r+R*0.18)-D*R/(R+R*0.18);
+     const P=(r,t)=>[cx+r*Math.cos(t),cy+r*Math.sin(t)*ky+zf(r)];
+     let d='';
+     for(let i=1;i<=nr;i++){const r=rm+(R-rm)*i/nr;
+       for(let j=0;j<=96;j++){const p=P(r,j/96*2*Math.PI);d+=(j?'L':'M')+n(p[0])+' '+n(p[1]);}}
+     for(let j=0;j<na;j++){const t=j/na*2*Math.PI;
+       for(let i=0;i<=40;i++){const p=P(rm+(R-rm)*i/40,t);d+=(i?'L':'M')+n(p[0])+' '+n(p[1]);}}
+     return{full:PT(d,0,g.fg,g.sw)};}
+   const cx=g.W/2,cy=g.H/2,R=Math.min(g.W,g.H)/2;
+   const fr=g.p.mode===1
+     ?(r=>r*(1-(g.p.depth/110)/(1+(r/(R*0.5))*(r/(R*0.5)))))
+     :(r=>r+R*g.p.depth/300*Math.sin(r/(R*Math.max(0.04,g.p.tilt/450))));
+   const Wp=(x,y)=>{const dx=x-cx,dy=y-cy,len=Math.hypot(dx,dy)||1e-6,nrr=fr(len);
+     return[cx+dx/len*nrr,cy+dy/len*nrr];};
+   let d='';
+   for(let i=0;i<=na;i++){const x=g.W*i/na;
+     for(let j=0;j<=160;j++){const p=Wp(x,g.H*j/160);d+=(j?'L':'M')+n(p[0])+' '+n(p[1]);}}
+   for(let j=0;j<=nr;j++){const y=g.H*j/nr;
+     for(let i=0;i<=160;i++){const p=Wp(g.W*i/160,y);d+=(i?'L':'M')+n(p[0])+' '+n(p[1]);}}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+
+/* ===== フラクタル ===== */
+{id:'sierpinski',dsize:110,cat:'フラクタル',name:'シェルピンスキー',seam:'×',full:1,
+ desc:'同じ形が無限に入れ子になる自己相似図形。三角形のほうは面積がゼロに近づくのに、周囲の長さは無限に伸びていきます。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['三角形','カーペット'],v:0},{k:'d',l:'深さ',min:1,max:8,v:5}],
+ f:g=>{const S=Math.min(g.W,g.H)*Math.min(0.95,g.T/120),cx=g.W/2,cy=g.H/2;let c='';
+   if(g.p.mode===0){const d=Math.min(8,Math.round(g.p.d)),h=S*SQ3/2;
+     const md=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+     let tr=[[[cx-S/2,cy+h/2],[cx+S/2,cy+h/2],[cx,cy-h/2]]];
+     for(let i=0;i<d;i++){const nt=[];
+       for(const[a,b,e]of tr){const ab=md(a,b),be=md(b,e),ea=md(e,a);nt.push([a,ab,ea],[ab,b,be],[ea,be,e]);}
+       tr=nt;}
+     for(const t of tr)c+=PL(t,g.fg);
+   }else{const d=Math.min(4,Math.round(g.p.d));let sq=[[cx-S/2,cy-S/2,S]];
+     for(let i=0;i<d;i++){const ns=[];
+       for(const[x,y,s2]of sq){const u=s2/3;
+         for(let j=0;j<3;j++)for(let k=0;k<3;k++){if(j===1&&k===1)continue;ns.push([x+j*u,y+k*u,u]);}}
+       sq=ns;}
+     for(const[x,y,s2]of sq)c+=R2(x,y,s2+0.4,s2+0.4,g.fg);}
+   return{full:c};}},
+
+{id:'koch',dsize:110,cat:'フラクタル',name:'コッホ雪片',seam:'×',full:1,sw:1,
+ desc:'線分の真ん中を三角に折る操作を繰り返した曲線。1904年にコッホが示した、どの点にも接線を引けない図形です。',
+ ps:[{k:'d',l:'深さ',min:0,max:6,v:4},{k:'n',l:'元の辺の数',min:3,max:12,v:3},{k:'in',l:'内向き',t:'b',v:0},{k:'fill',l:'塗る',t:'b',v:0}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.46,g.T/240),cx=g.W/2,cy=g.H/2,m=Math.round(g.p.n);
+   let pts=[];for(let i=0;i<m;i++){const a=2*Math.PI*i/m-Math.PI/2;pts.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+   const sg=g.p.in?-1:1;
+   for(let it=0;it<Math.min(6,Math.round(g.p.d));it++){
+     if(pts.length>12000)break;const np=[];
+     for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];
+       const dx=(b[0]-a[0])/3,dy=(b[1]-a[1])/3;
+       const p1=[a[0]+dx,a[1]+dy],p2=[a[0]+2*dx,a[1]+2*dy];
+       const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;
+       np.push(a,p1,[mx-sg*dy*SQ3/2,my+sg*dx*SQ3/2],p2);}
+     pts=np;}
+   const d='M'+pts.map(q=>n(q[0])+' '+n(q[1])).join('L')+'Z';
+   return{full:g.p.fill?PT(d,g.fg):PT(d,0,g.fg,g.sw)};}},
+
+{id:'hilbert',dsize:110,cat:'フラクタル',name:'ヒルベルト曲線',seam:'×',full:1,sw:1,
+ desc:'正方形の内部を一筆書きで隙間なく塗りつぶしていく曲線。次数を上げるほど平面そのものを覆います。',
+ ps:[{k:'d',l:'次数',min:1,max:7,v:5}],
+ f:g=>{const d=Math.min(7,Math.round(g.p.d)),N=1<<d,tot=N*N;
+   const S=Math.min(g.W,g.H)*Math.min(0.95,g.T/120),u=S/N;
+   const x0=(g.W-S)/2+u/2,y0=(g.H-S)/2+u/2;let path='';
+   for(let t=0;t<tot;t++){let rx,ry,x=0,y=0,tt=t;
+     for(let s=1;s<N;s*=2){rx=1&Math.floor(tt/2);ry=1&(tt^rx);
+       if(ry===0){if(rx===1){x=s-1-x;y=s-1-y;}const tp=x;x=y;y=tp;}
+       x+=s*rx;y+=s*ry;tt=Math.floor(tt/4);}
+     path+=(t?'L':'M')+n(x0+x*u)+' '+n(y0+y*u);}
+   return{full:PT(path,0,g.fg,g.sw)};}},
+
+{id:'dragon',dsize:110,cat:'フラクタル',name:'ドラゴン曲線',seam:'×',full:1,sw:1,
+ desc:'紙を同じ向きに半分に折り続け、すべての折り目を直角に開いたときに現れる形。自分自身と決して交差しません。',
+ ps:[{k:'d',l:'折る回数',min:4,max:14,v:11}],
+ f:g=>{const it=Math.min(14,Math.round(g.p.d)),N=1<<it;
+   let x=0,y=0,dx=1,dy=0;const pts=[[0,0]];
+   for(let i=1;i<=N;i++){x+=dx;y+=dy;pts.push([x,y]);
+     if((((i&-i)<<1)&i)!==0){const nx=dy,ny=-dx;dx=nx;dy=ny;}
+     else{const nx=-dy,ny=dx;dx=nx;dy=ny;}}
+   const F=fitPath(pts,g.W,g.H,0.9);
+   return{full:PT('M'+pts.map(q=>{const a=F(q);return n(a[0])+' '+n(a[1]);}).join('L'),0,g.fg,g.sw)};}},
+
+{id:'ptree',dsize:110,cat:'フラクタル',name:'再帰の樹',seam:'×',full:1,sw:1,
+ desc:'枝分かれを繰り返すだけで木の姿になります。ピタゴラスの木は、正方形の上に直角三角形を積み上げていく古典的な図形です。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['枝','ピタゴラスの木'],v:0},{k:'d',l:'深さ',min:1,max:12,v:9},
+     {k:'ang',l:'開き角',min:5,max:75,v:28},{k:'sc',l:'縮小率',min:50,max:85,v:72},{k:'bend',l:'左右の傾き',min:-30,max:30,v:0}],
+ f:g=>{const A=g.p.ang*Math.PI/180,B=g.p.bend*Math.PI/180,sc=g.p.sc/100;let d='',c='';
+   if(g.p.mode===0){const dep=Math.min(12,Math.round(g.p.d));
+     const L0=Math.min(g.W,g.H)*Math.min(0.3,g.T/380);
+     const rec=(x,y,L,a,k)=>{if(k<=0||L<0.4)return;
+       const x2=x+L*Math.cos(a),y2=y+L*Math.sin(a);
+       d+=`M${n(x)} ${n(y)}L${n(x2)} ${n(y2)}`;
+       rec(x2,y2,L*sc,a-A+B,k-1);rec(x2,y2,L*sc,a+A+B,k-1);};
+     rec(g.W/2,g.H*0.96,L0,-Math.PI/2,dep);
+     return{full:PT(d,0,g.fg,g.sw)};}
+   const dep=Math.min(11,Math.round(g.p.d)),S0=Math.min(g.W,g.H)*Math.min(0.22,g.T/500);
+   const al=Math.min(1.4,A);
+   const rec=(a,b,k)=>{if(k<=0)return;
+     const dx=b[0]-a[0],dy=b[1]-a[1];
+     const D=[a[0]+dy,a[1]-dx],C=[b[0]+dy,b[1]-dx];
+     c+=PL([a,b,C,D],k%2?mix(g.bg,g.ac,0.5):'none',g.fg,g.sw);
+     const vx=C[0]-D[0],vy=C[1]-D[1],ca=Math.cos(al),sa=Math.sin(al);
+     const E=[D[0]+(vx*ca-vy*(-sa))*ca,D[1]+(vx*(-sa)+vy*ca)*ca];
+     rec(D,E,k-1);rec(E,C,k-1);};
+   rec([g.W/2-S0/2,g.H*0.94],[g.W/2+S0/2,g.H*0.94],dep);
+   return{full:c};}},
+
+{id:'apollo',dsize:110,cat:'フラクタル',name:'アポロニウスの窓',seam:'×',full:1,sw:1,
+ desc:'互いに接する3つの円のすきまに、接する円を無限に詰めていった図形。紀元前のアポロニウスに由来し、曲率がすべて整数になる組み合わせが存在します。',
+ ps:[{k:'d',l:'深さ',min:1,max:10,v:7},{k:'min',l:'最小の円',min:1,max:40,v:5},{k:'fill',l:'塗る',t:'b',v:0}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.47,g.T/240),cx=g.W/2,cy=g.H/2;
+   const out=[],lim=R*g.p.min/1000,MX=3000;
+   const C=(k,x,y)=>({k,x,y});
+   const seed=[C(-1,0,0),C(2,-0.5,0),C(2,0.5,0),C(3,0,-2/3)];
+   out.push(...seed);
+   const rec=(q,skip,dep)=>{if(dep<=0||out.length>MX)return;
+     for(let i=0;i<4;i++){if(i===skip||i===0&&dep!==-1&&q[0].k<0&&i===0)continue;
+       let sk=0,sx=0,sy=0;
+       for(let j=0;j<4;j++){if(j===i)continue;sk+=q[j].k;sx+=q[j].x*q[j].k;sy+=q[j].y*q[j].k;}
+       const k2=2*sk-q[i].k;if(Math.abs(k2)<1e-9)continue;
+       const bx=2*sx-q[i].x*q[i].k,by=2*sy-q[i].y*q[i].k;
+       const nc=C(k2,bx/k2,by/k2);
+       if(1/Math.abs(k2)*R<lim)continue;
+       out.push(nc);if(out.length>MX)return;
+       const nq=q.slice();nq[i]=nc;rec(nq,i,dep-1);}};
+   rec(seed,0,Math.min(10,Math.round(g.p.d)));
+   let c='';
+   for(const o of out){const r=Math.abs(1/o.k)*R;if(r<0.4)continue;
+     c+=CI(cx+o.x*R,cy+o.y*R,r,g.p.fill?mix(g.bg,g.ac,Math.min(0.85,0.15+r/R)):0,g.fg,g.sw);}
+   return{full:c};}},
+
+/* ===== 曲線 ===== */
+{id:'rose',dsize:110,cat:'曲線',name:'バラ曲線',seam:'×',full:1,sw:1,
+ desc:'r = cos(kθ) が描く花形。kが奇数ならk枚、偶数なら2k枚の花びらになります。分数にすると閉じるまで長く回り続けます。',
+ ps:[{k:'a',l:'分子',min:1,max:16,v:5},{k:'b',l:'分母',min:1,max:16,v:1},
+     {k:'n',l:'重ね数',min:1,max:12,v:1},{k:'sh',l:'重ねのちぢみ',min:2,max:30,v:10}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.46,g.T/250),cx=g.W/2,cy=g.H/2;
+   const gcd=(x,y)=>y?gcd(y,x%y):x;
+   let a=Math.round(g.p.a),b=Math.round(g.p.b);const gg=gcd(a,b);a/=gg;b/=gg;
+   const turns=(a*b)%2===0?2*b:b,steps=Math.min(6000,Math.ceil(turns*180));
+   let c='';
+   for(let m=0;m<Math.round(g.p.n);m++){const sc=1-g.p.sh/100*m;if(sc<=0.02)break;let d='';
+     for(let i=0;i<=steps;i++){const t=i/steps*turns*2*Math.PI,r=R*sc*Math.cos(a/b*t);
+       d+=(i?'L':'M')+n(cx+r*Math.cos(t))+' '+n(cy+r*Math.sin(t));}
+     c+=PT(d,0,m%2?g.ac:g.fg,g.sw);}
+   return{full:c};}},
+
+{id:'lissajous',dsize:110,cat:'曲線',name:'リサージュ曲線',seam:'×',full:1,sw:1,
+ desc:'横と縦を別々の速さで振動させたときの軌跡。振動数の比が単純なほど早く閉じます。オシロスコープでおなじみの図形です。',
+ ps:[{k:'a',l:'横の振動数',min:1,max:14,v:3},{k:'b',l:'縦の振動数',min:1,max:14,v:4},
+     {k:'ph',l:'位相',min:0,max:100,v:25},{k:'n',l:'重ね数',min:1,max:24,v:1},{k:'sp',l:'位相のずらし',min:1,max:50,v:8}],
+ f:g=>{const A=Math.min(g.W,g.H)*Math.min(0.46,g.T/250),cx=g.W/2,cy=g.H/2;
+   const a=Math.round(g.p.a),b=Math.round(g.p.b),steps=Math.min(4000,600+120*Math.max(a,b));
+   let c='';
+   for(let m=0;m<Math.round(g.p.n);m++){
+     const ph=(g.p.ph/100+m*g.p.sp/200)*Math.PI;let d='';
+     for(let i=0;i<=steps;i++){const t=i/steps*2*Math.PI;
+       d+=(i?'L':'M')+n(cx+A*Math.sin(a*t+ph))+' '+n(cy+A*Math.sin(b*t));}
+     c+=PT(d,0,m%2?g.ac:g.fg,g.sw);}
+   return{full:c};}},
+
+{id:'phyllo',dsize:110,cat:'曲線',name:'ひまわり（黄金角）',seam:'×',full:1,
+ desc:'137.5°ずつ回しながら外へ点を置くだけで、ひまわりの種のらせんが現れます。この角度が最も隙間なく詰められるためです。少しずらすと途端に崩れます。',
+ ps:[{k:'n',l:'点の数',min:50,max:2000,v:700},{k:'ang',l:'角度の微調整',min:-100,max:100,v:0},
+     {k:'r',l:'点の大きさ',min:2,max:50,v:16},{k:'grow',l:'外ほど大きく',min:0,max:100,v:40},{k:'acc',l:'色を混ぜる',t:'b',v:0}],
+ f:g=>{const N=Math.round(g.p.n),R=Math.min(g.W,g.H)*Math.min(0.47,g.T/240),cx=g.W/2,cy=g.H/2;
+   const ga=(137.5077+g.p.ang/100)*Math.PI/180;let c='';
+   for(let i=1;i<=N;i++){const q=Math.sqrt(i/N),r=R*q,a=i*ga;
+     const rad=Math.max(0.3,R*g.p.r/1000*(1-g.p.grow/100+g.p.grow/100*q));
+     c+=CI(cx+r*Math.cos(a),cy+r*Math.sin(a),rad,(g.p.acc&&i%8===0)?g.ac:g.fg);}
+   return{full:c};}},
+
+{id:'spiralcv',dsize:110,cat:'曲線',name:'らせん',seam:'×',full:1,sw:1,
+ desc:'アルキメデスらせんは間隔が一定、フェルマーらせんは一巻きの面積が一定、対数らせんは拡大しても形が変わりません。オウムガイの殻は対数らせんです。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['アルキメデス','フェルマー','対数'],v:0},{k:'turn',l:'巻き数',min:1,max:20,v:6},
+     {k:'n',l:'本数',min:1,max:24,v:1},{k:'tight',l:'きつさ',min:5,max:60,v:22}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.47,g.T/240),cx=g.W/2,cy=g.H/2;
+   const T=g.p.turn*2*Math.PI,steps=Math.min(6000,Math.ceil(g.p.turn*180)),N=Math.round(g.p.n);
+   const rf=t=>{const u=t/T;
+     if(g.p.mode===0)return R*u;
+     if(g.p.mode===1)return R*Math.sqrt(u);
+     const b=g.p.tight/100;return R*Math.exp(b*(t-T));};
+   let c='';
+   for(let m=0;m<N;m++){const off=2*Math.PI*m/N;let d='';
+     for(let i=0;i<=steps;i++){const t=i/steps*T,r=rf(t);
+       d+=(i?'L':'M')+n(cx+r*Math.cos(t+off))+' '+n(cy+r*Math.sin(t+off));}
+     c+=PT(d,0,m%2?g.ac:g.fg,g.sw);}
+   return{full:c};}},
+
+{id:'epitro',dsize:110,cat:'曲線',name:'外トロコイド',seam:'×',full:1,sw:1,
+ desc:'円の外側を転がる円の上の点が描く軌跡。歯車の歯の形はこの曲線から作られています。スピログラフの外回り版です。',
+ ps:[{k:'R',l:'固定円',min:1,max:16,v:5},{k:'r',l:'転がる円',min:1,max:16,v:3},
+     {k:'d',l:'ペン位置',min:10,max:200,v:100},{k:'cp',l:'重ねる数',min:1,max:8,v:1}],
+ f:g=>{const Rr=Math.max(1,Math.round(g.p.R)),r=Math.max(1,Math.round(g.p.r)),d=r*g.p.d/100;
+   const gcd=(a,b)=>b?gcd(b,a%b):a,turns=r/gcd(Rr,r);
+   const S=Math.min(g.W,g.H)*Math.min(0.47,g.T/240)/(Rr+r+d),cx=g.W/2,cy=g.H/2;
+   const steps=Math.min(5000,Math.ceil(turns*200));let path='';
+   for(let i=0;i<=steps;i++){const t=i/steps*turns*2*Math.PI;
+     const x=(Rr+r)*Math.cos(t)-d*Math.cos((Rr+r)/r*t);
+     const y=(Rr+r)*Math.sin(t)-d*Math.sin((Rr+r)/r*t);
+     path+=(i?'L':'M')+n(cx+x*S)+' '+n(cy+y*S);}
+   let c='';for(let i=0;i<Math.round(g.p.cp);i++)
+     c+=`<g transform="rotate(${n(i*360/g.p.cp)} ${n(cx)} ${n(cy)})">${PT(path,0,i%2?g.ac:g.fg,g.sw)}</g>`;
+   return{full:c};}},
+
+/* ===== 数論 ===== */
+{id:'ulam',dsize:110,cat:'数論',name:'ウラムの螺旋',seam:'×',full:1,
+ desc:'1,2,3…を渦巻き状に並べ、素数だけ塗ったもの。なぜか斜めの線が浮かび上がります。1963年、ウラムが退屈な講演中の落書きで気づきました。',
+ ps:[{k:'n',l:'一辺のマス',min:15,max:161,v:81},{k:'shape',l:'形',t:'s',o:['四角','丸'],v:0},{k:'sz',l:'大きさ',min:25,max:100,v:70}],
+ f:g=>{const N=Math.round(g.p.n)|1,tot=N*N;
+   const sv=new Uint8Array(tot+1);sv[0]=1;if(tot>0)sv[1]=1;
+   for(let i=2;i*i<=tot;i++)if(!sv[i])for(let j=i*i;j<=tot;j+=i)sv[j]=1;
+   const S=Math.min(g.W,g.H)*Math.min(0.95,g.T/120),u=S/N;
+   const x0=(g.W-S)/2,y0=(g.H-S)/2,sz=u*g.p.sz/100;
+   let X=Math.floor(N/2),Y=Math.floor(N/2),v=1,len=1,dir=0,d='';
+   const dirs=[[1,0],[0,-1],[-1,0],[0,1]];
+   const put=(x,y)=>{const px=x0+x*u+(u-sz)/2,py=y0+y*u+(u-sz)/2;
+     if(g.p.shape===0)d+=`M${n(px)} ${n(py)}H${n(px+sz)}V${n(py+sz)}H${n(px)}Z`;
+     else{const r=sz/2,cx=px+r,cy=py+r;
+       d+=`M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 0 ${n(cx+r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 0 ${n(cx-r)} ${n(cy)}Z`;}};
+   while(v<tot){for(let rp=0;rp<2;rp++){const[ddx,ddy]=dirs[dir%4];
+       for(let s2=0;s2<len;s2++){X+=ddx;Y+=ddy;v++;if(v>tot)break;
+         if(X<0||Y<0||X>=N||Y>=N)continue;if(!sv[v])put(X,Y);}
+       dir++;if(v>tot)break;}
+     len++;}
+   return{full:PT(d,g.fg)};}},
+
+{id:'pascal',dsize:110,cat:'数論',name:'パスカルの三角形',seam:'×',full:1,
+ desc:'二項係数を並べた三角形。偶数のマスを抜くとシェルピンスキーの三角形が現れます。割る数を変えると別の自己相似模様になります。',
+ ps:[{k:'rows',l:'行数',min:8,max:160,v:64},{k:'m',l:'割る数',min:2,max:9,v:2},{k:'shape',l:'形',t:'s',o:['三角','丸','四角'],v:0}],
+ f:g=>{const N=Math.round(g.p.rows),M=Math.round(g.p.m);
+   const S=Math.min(g.W,g.H)*Math.min(0.95,g.T/120),u=S/N;
+   const cx=g.W/2,y0=(g.H-N*u*0.9)/2;let c='';
+   let row=[1];
+   for(let i=0;i<N;i++){
+     for(let j=0;j<=i;j++){const val=row[j]%M;if(val===0)continue;
+       const x=cx+(j-i/2)*u,y=y0+i*u*0.9;
+       const col=M===2?g.fg:mix(g.fg,g.ac,(val-1)/Math.max(1,M-2));
+       if(g.p.shape===0)c+=PL([[x,y],[x-u*0.46,y+u*0.8],[x+u*0.46,y+u*0.8]],col);
+       else if(g.p.shape===1)c+=CI(x,y+u*0.45,u*0.42,col);
+       else c+=R2(x-u*0.46,y,u*0.92,u*0.84,col);}
+     const nr=[1];for(let j=0;j<row.length-1;j++)nr.push((row[j]+row[j+1])%M);nr.push(1);row=nr;}
+   return{full:c};}},
+
+{id:'eca',dsize:110,cat:'数論',name:'セルオートマトン',seam:'×',full:1,
+ desc:'左右と自分の3マスだけを見て次の行を決める単純な規則。ルール30は乱数のように、ルール90はシェルピンスキー模様になります。',
+ ps:[{k:'rule',l:'ルール番号',min:0,max:255,v:30},{k:'w',l:'幅（マス）',min:31,max:161,v:101},
+     {k:'init',l:'初期値',t:'s',o:['中央1点','ランダム'],v:0}],
+ f:g=>{const Wn=Math.round(g.p.w)|1,u=g.W/Wn,rows=Math.min(200,Math.max(4,Math.floor(g.H/u)));
+   const rule=Math.round(g.p.rule);let row=new Uint8Array(Wn);
+   if(g.p.init===0)row[Wn>>1]=1;else for(let i=0;i<Wn;i++)row[i]=g.R()<0.5?1:0;
+   const y0=(g.H-rows*u)/2;let d='';
+   for(let y=0;y<rows;y++){
+     for(let x=0;x<Wn;x++){if(!row[x])continue;const px=x*u,py=y0+y*u;
+       d+=`M${n(px)} ${n(py)}H${n(px+u*1.02)}V${n(py+u*1.02)}H${n(px)}Z`;}
+     const nx=new Uint8Array(Wn);
+     for(let x=0;x<Wn;x++){const l=row[(x-1+Wn)%Wn],c0=row[x],r=row[(x+1)%Wn];
+       nx[x]=(rule>>((l<<2)|(c0<<1)|r))&1;}
+     row=nx;}
+   return{full:PT(d,g.fg)};}},
+
+{id:'ford',dsize:110,cat:'数論',name:'フォード円',seam:'×',full:1,sw:1,
+ desc:'分数 p/q の位置に半径 1/(2q²) の円を置くと、どの2つの円も決して重ならず、接するか離れるかのどちらかになります。分数の世界の地図です。',
+ ps:[{k:'q',l:'最大の分母',min:3,max:60,v:20},{k:'fill',l:'塗る',t:'b',v:0},{k:'mirror',l:'上下対称',t:'b',v:0},{k:'axis',l:'数直線',t:'b',v:1}],
+ f:g=>{const Q=Math.round(g.p.q),Wd=g.W*0.94,x0=g.W*0.03;
+   const gcd=(a,b)=>b?gcd(b,a%b):a;
+   const base=g.p.mirror?g.H/2:g.H*0.8;let c='';
+   if(g.p.axis)c+=R2(x0,base-g.sw/2,Wd,Math.max(0.5,g.sw),g.ac);
+   for(let q=1;q<=Q;q++)for(let p=0;p<=q;p++){
+     if(gcd(p,q)!==1)continue;
+     const r=Wd/(2*q*q),x=x0+Wd*p/q;if(r<0.35)continue;
+     const fl=g.p.fill?mix(g.bg,g.fg,Math.min(0.85,0.12+2/q)):0;
+     c+=CI(x,base-r,r,fl,g.fg,g.sw);
+     if(g.p.mirror)c+=CI(x,base+r,r,fl,g.fg,g.sw);}
+   return{full:c};}},
+
+/* ===== 立体 ===== */
+{id:'platonic',dsize:110,cat:'立体',name:'正多面体',seam:'×',full:1,sw:1,
+ desc:'すべての面と角が等しい立体は、この5種類しか存在しません。プラトンは4種を火・土・空気・水に、正十二面体を宇宙に対応させました。',
+ ps:[{k:'k',l:'種類',t:'s',o:['正四面体','立方体','正八面体','正十二面体','正二十面体'],v:4},
+     {k:'rx',l:'X回転',min:0,max:360,v:25},{k:'ry',l:'Y回転',min:0,max:360,v:35},
+     {k:'per',l:'遠近',min:0,max:100,v:35},{k:'dot',l:'頂点を出す',t:'b',v:0}],
+ f:g=>{const P=(1+Math.sqrt(5))/2,k=Math.round(g.p.k);let V=[];
+   if(k===0)V=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]];
+   else if(k===1){for(const x of[-1,1])for(const y of[-1,1])for(const z of[-1,1])V.push([x,y,z]);}
+   else if(k===2)V=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+   else if(k===3){for(const x of[-1,1])for(const y of[-1,1])for(const z of[-1,1])V.push([x,y,z]);
+     for(const a of[-1,1])for(const b of[-1,1])V.push([0,a/P,b*P],[a/P,b*P,0],[b*P,0,a/P]);}
+   else{for(const a of[-1,1])for(const b of[-1,1])V.push([0,a,b*P],[a,b*P,0],[b*P,0,a]);}
+   const nm=V.map(v=>{const L=Math.hypot(v[0],v[1],v[2]);return[v[0]/L,v[1]/L,v[2]/L];});
+   let mn=1e9;
+   for(let i=0;i<nm.length;i++)for(let j=i+1;j<nm.length;j++){
+     const d=Math.hypot(nm[i][0]-nm[j][0],nm[i][1]-nm[j][1],nm[i][2]-nm[j][2]);if(d<mn)mn=d;}
+   const pr=mk3(g.p.rx,g.p.ry,g.p.per,1,0,0);
+   const PJ=nm.map(v=>pr(v[0],v[1],v[2]));
+   const F=fitPath(PJ,g.W,g.H,Math.min(0.92,g.T/125));
+   const Q=PJ.map(F);let d='',dots='';
+   for(let i=0;i<nm.length;i++){
+     if(g.p.dot)dots+=CI(Q[i][0],Q[i][1],Math.max(1,g.sw*1.8),g.ac);
+     for(let j=i+1;j<nm.length;j++){
+       const dd=Math.hypot(nm[i][0]-nm[j][0],nm[i][1]-nm[j][1],nm[i][2]-nm[j][2]);
+       if(dd>mn*1.02)continue;
+       d+=`M${n(Q[i][0])} ${n(Q[i][1])}L${n(Q[j][0])} ${n(Q[j][1])}`;}}
+   return{full:PT(d,0,g.fg,g.sw)+dots};}},
+
+{id:'surface',dsize:110,cat:'立体',name:'曲面ワイヤー',seam:'×',full:1,sw:1,
+ desc:'トーラス（ドーナツ）、メビウスの帯、球の経緯線。メビウスの帯は、表と裏の区別がない一枚の面です。',
+ ps:[{k:'k',l:'種類',t:'s',o:['トーラス','メビウス','球'],v:0},
+     {k:'u',l:'輪の数',min:4,max:60,v:26},{k:'v',l:'すじの数',min:4,max:60,v:14},
+     {k:'rx',l:'X回転',min:0,max:360,v:62},{k:'ry',l:'Y回転',min:0,max:360,v:18},
+     {k:'th',l:'太さ',min:5,max:70,v:38},{k:'per',l:'遠近',min:0,max:100,v:30}],
+ f:g=>{const pr=mk3(g.p.rx,g.p.ry,g.p.per,1,0,0);
+   const th=g.p.th/100,k=Math.round(g.p.k);
+   const NU=Math.round(g.p.u),NV=Math.round(g.p.v);
+   const S3=(u,v)=>{
+     if(k===0){const a=u*2*Math.PI,b=v*2*Math.PI,R2_=1-th;
+       return[(R2_+th*Math.cos(b))*Math.cos(a),(R2_+th*Math.cos(b))*Math.sin(a),th*Math.sin(b)];}
+     if(k===1){const a=u*2*Math.PI,s=(v-0.5)*2*th;
+       return[(1-th+s*Math.cos(a/2))*Math.cos(a),(1-th+s*Math.cos(a/2))*Math.sin(a),s*Math.sin(a/2)];}
+     const a=u*2*Math.PI,b=(v-0.5)*Math.PI;
+     return[Math.cos(b)*Math.cos(a),Math.cos(b)*Math.sin(a),Math.sin(b)];};
+   const M=Math.max(40,NV*3),M2=Math.max(40,NU*3),segs=[];
+   for(let i=0;i<NU;i++){const u=i/NU,ln=[];
+     for(let j=0;j<=M;j++){const p=S3(u,j/M);ln.push(pr(p[0],p[1],p[2]));}segs.push(ln);}
+   for(let j=0;j<=NV;j++){const v=j/NV,ln=[];
+     for(let i=0;i<=M2;i++){const p=S3(i/M2,v);ln.push(pr(p[0],p[1],p[2]));}segs.push(ln);}
+   const all=[];for(const ln of segs)for(const q of ln)all.push(q);
+   const F=fitPath(all,g.W,g.H,Math.min(0.92,g.T/125));
+   let d='';
+   for(const ln of segs){for(let i=0;i<ln.length;i++){const q=F(ln[i]);
+     d+=(i?'L':'M')+n(q[0])+' '+n(q[1]);}}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+{id:'tesseract',dsize:110,cat:'立体',name:'4次元立方体',seam:'×',full:1,sw:1,
+ desc:'立方体を4次元方向へ伸ばした形（正八胞体）。3次元に落として見ると、大きな立方体の中に小さな立方体が入った姿になります。',
+ ps:[{k:'a',l:'XW回転',min:0,max:360,v:35},{k:'b',l:'YZ回転',min:0,max:360,v:20},
+     {k:'rx',l:'X回転',min:0,max:360,v:15},{k:'ry',l:'Y回転',min:0,max:360,v:25},
+     {k:'per',l:'遠近',min:0,max:100,v:45},{k:'dot',l:'頂点を出す',t:'b',v:0}],
+ f:g=>{const V=[];for(const x of[-1,1])for(const y of[-1,1])for(const z of[-1,1])for(const w of[-1,1])V.push([x,y,z,w]);
+   const A=g.p.a*Math.PI/180,B=g.p.b*Math.PI/180;
+   const R4=v=>{let[x,y,z,w]=v;
+     let x1=x*Math.cos(A)-w*Math.sin(A),w1=x*Math.sin(A)+w*Math.cos(A);
+     let y1=y*Math.cos(B)-z*Math.sin(B),z1=y*Math.sin(B)+z*Math.cos(B);
+     const kk=2.6/(2.6-w1);return[x1*kk,y1*kk,z1*kk];};
+   const pr=mk3(g.p.rx,g.p.ry,g.p.per,1,0,0);
+   const P0=V.map(v=>{const q=R4(v);return pr(q[0],q[1],q[2]);});
+   const F=fitPath(P0,g.W,g.H,Math.min(0.92,g.T/125));const P=P0.map(F);
+   let d='',dots='';
+   for(let i=0;i<16;i++){if(g.p.dot)dots+=CI(P[i][0],P[i][1],Math.max(1,g.sw*1.6),g.ac);
+     for(let j=i+1;j<16;j++){let df=0;for(let m=0;m<4;m++)if(V[i][m]!==V[j][m])df++;
+       if(df!==1)continue;
+       d+=`M${n(P[i][0])} ${n(P[i][1])}L${n(P[j][0])} ${n(P[j][1])}`;}}
+   return{full:PT(d,0,g.fg,g.sw)+dots};}},
+
+/* ===== 生成（追加） ===== */
+{id:'flow',dsize:110,cat:'生成',name:'流線場',seam:'×',full:1,norot:1,sw:1,
+ desc:'見えない流れの向きに沿って粒を流した軌跡。風や水流の可視化と同じ考え方で、線の束だけで空気感が出ます。',
+ ps:[{k:'n',l:'線の本数',min:30,max:800,v:320},{k:'len',l:'線の長さ',min:5,max:120,v:50},
+     {k:'sc',l:'流れの大きさ',min:5,max:100,v:30},{k:'tw',l:'ねじれ',min:1,max:100,v:40}],
+ f:g=>{const R=g.R,nz=vnz(R),f=1/(Math.min(g.W,g.H)*Math.max(0.05,g.p.sc/100));
+   const N=Math.round(g.p.n),L=Math.min(Math.round(g.p.len),Math.max(4,Math.round(30000/N)));
+   const step=Math.max(1.5,Math.min(g.W,g.H)/280);let d='';
+   for(let i=0;i<N;i++){let x=R()*g.W,y=R()*g.H;d+='M'+n(x)+' '+n(y);
+     for(let s2=0;s2<L;s2++){const a=nz(x*f,y*f)*Math.PI*2*g.p.tw/25;
+       x+=Math.cos(a)*step;y+=Math.sin(a)*step;
+       if(x<-40||y<-40||x>g.W+40||y>g.H+40)break;
+       d+='L'+n(x)+' '+n(y);}}
+   return{full:PT(d,0,g.fg,g.sw)};}},
+
+{id:'packing',dsize:110,cat:'生成',name:'円充填',seam:'○',full:1,norot:1,sw:1,
+ desc:'重ならないように隙間へ円を詰めていったもの。泡や細胞のような密度が出ます。端でつながるので繰り返せます。',
+ ps:[{k:'n',l:'個数',min:20,max:500,v:180},{k:'max',l:'最大の大きさ',min:5,max:60,v:24},
+     {k:'min',l:'最小の大きさ',min:1,max:20,v:3},{k:'gap',l:'すき間',min:0,max:20,v:3},{k:'fill',l:'塗る',t:'b',v:0}],
+ f:g=>{const R=g.R,W=g.W,H=g.H;
+   const mx=g.T*g.p.max/100,mn=g.T*g.p.min/100,gp=g.T*g.p.gap/200,N=Math.round(g.p.n);
+   const dst=(x1,y1,x2,y2)=>{let dx=Math.abs(x1-x2),dy=Math.abs(y1-y2);
+     if(dx>W/2)dx=W-dx;if(dy>H/2)dy=H-dy;return Math.hypot(dx,dy);};
+   const cs=[];
+   for(let t=0;t<N*8&&cs.length<N;t++){
+     const x=R()*W,y=R()*H;let r=mx,ok=true;
+     for(const c2 of cs){const dd=dst(x,y,c2[0],c2[1])-c2[2]-gp;
+       if(dd<r)r=dd;if(r<mn){ok=false;break;}}
+     if(ok&&r>=mn)cs.push([x,y,r,R()]);}
+   let c='';
+   for(const[x,y,r,rr]of cs){const fl=g.p.fill?mix(g.bg,g.ac,0.15+rr*0.6):0;
+     for(const dx of[-W,0,W])for(const dy of[-H,0,H]){
+       if(x+dx<-r||x+dx>W+r||y+dy<-r||y+dy>H+r)continue;
+       c+=CI(x+dx,y+dy,r,fl,g.fg,g.sw);}}
+   return{full:c};}},
+
+{id:'delaunay',dsize:110,cat:'生成',name:'ドロネー三角形分割',seam:'×',full:1,norot:1,sw:1,
+ desc:'点を三角形に分けるとき、どの三角形の外接円の中にも他の点が入らないようにした分け方。ボロノイ図のちょうど裏返しです。',
+ ps:[{k:'n',l:'点の数',min:8,max:60,v:26},{k:'fill',l:'塗り分け',t:'b',v:0},{k:'dot',l:'点を出す',t:'b',v:1}],
+ f:g=>{const N=Math.min(60,Math.round(g.p.n)),P=[[0,0],[g.W,0],[0,g.H],[g.W,g.H]];
+   for(let i=0;i<N;i++)P.push([g.R()*g.W,g.R()*g.H]);
+   const M=P.length;let c='';
+   for(let i=0;i<M;i++)for(let j=i+1;j<M;j++)for(let k=j+1;k<M;k++){
+     const[ax,ay]=P[i],[bx,by]=P[j],[cx2,cy2]=P[k];
+     const dd=2*(ax*(by-cy2)+bx*(cy2-ay)+cx2*(ay-by));
+     if(Math.abs(dd)<1e-9)continue;
+     const sa=ax*ax+ay*ay,sb=bx*bx+by*by,sc=cx2*cx2+cy2*cy2;
+     const ux=(sa*(by-cy2)+sb*(cy2-ay)+sc*(ay-by))/dd;
+     const uy=(sa*(cx2-bx)+sb*(ax-cx2)+sc*(bx-ax))/dd;
+     const r2=(ax-ux)*(ax-ux)+(ay-uy)*(ay-uy);
+     let ok=true;
+     for(let m=0;m<M;m++){if(m===i||m===j||m===k)continue;
+       const q=P[m];if((q[0]-ux)*(q[0]-ux)+(q[1]-uy)*(q[1]-uy)<r2-1e-6){ok=false;break;}}
+     if(ok)c+=PL([P[i],P[j],P[k]],g.p.fill?mix(g.bg,g.ac,0.1+0.7*g.R()):0,g.fg,g.sw);}
+   if(g.p.dot)for(const q of P)c+=CI(q[0],q[1],Math.max(1,g.sw*1.4),g.ac);
+   return{full:c};}},
+
+{id:'interfere',dsize:60,cat:'波',name:'干渉縞',seam:'×',full:1,sw:1,
+ desc:'2つの波源から出た波が強め合う場所をつなぐと双曲線の族になります。ゾーンプレートは半径が√nに比例する同心円で、レンズのように光を集めます。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['2点波源','ゾーンプレート'],v:0},{k:'n',l:'本数',min:3,max:60,v:16},{k:'d',l:'波源の間隔',min:10,max:95,v:50}],
+ f:g=>{const cx=g.W/2,cy=g.H/2,R=Math.hypot(g.W,g.H)/2,N=Math.round(g.p.n);
+   if(g.p.mode===1){let c='';
+     for(let i=N;i>=1;i--){const r=Math.min(g.W,g.H)*0.48*Math.sqrt(i/N);
+       c+=CI(cx,cy,r,i%2?g.fg:g.bg);}
+     return{full:c};}
+   const cc=Math.min(g.W,g.H)*g.p.d/200;let d='';
+   d+=`M${n(cx)} 0V${n(g.H)}`;
+   for(let i=1;i<=N;i++){const a=cc*i/(N+1);if(a>=cc)break;
+     const b=Math.sqrt(cc*cc-a*a);
+     for(const sg of[1,-1]){let first=true;
+       for(let t=-3.2;t<=3.2;t+=0.08){
+         const x=cx+sg*a*Math.cosh(t),y=cy+b*Math.sinh(t);
+         if(Math.abs(y-cy)>R*1.5||x<-R||x>g.W+R){first=true;continue;}
+         d+=(first?'M':'L')+n(x)+' '+n(y);first=false;}}}
+   const dots=CI(cx-cc,cy,Math.max(1.5,g.sw*1.6),g.ac)+CI(cx+cc,cy,Math.max(1.5,g.sw*1.6),g.ac);
+   return{full:PT(d,0,g.fg,g.sw)+dots};}},
 
 /* ===== コード ===== */
 {id:'barcode',dsize:150,cat:'コード',name:'バーコード風',seam:'×',full:1,
@@ -744,7 +1238,9 @@ const PATS=[
    return{full:PT(d,g.fg)};}}
 ];
 
-const CATS=['基本','波','和柄','幾何','織物','糸掛け','コード','生成'];
+const WARPS=[{n:'なし'},{n:'うねり',t:'fractalNoise',o:3},{n:'波',t:'turbulence',o:1},{n:'こまかい',t:'fractalNoise',o:5}];
+
+const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','コード','生成'];
 
 const PALS=[
  {n:'モノクロ',bg:'#ffffff',fg:'#141414',ac:'#8c8c8c'},
@@ -768,7 +1264,7 @@ const SIZES=[
 /* ---------- state ---------- */
 const st={pat:'seigaiha',cat:'和柄',sizeCat:'SNS',W:1080,H:1080,
   bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e',
-  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,p:{}};
+  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,warp:0,wamt:40,wsize:60,p:{}};
 const byId=id=>PATS.find(p=>p.id===id);
 function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
 PATS.forEach(p=>st.p[p.id]=defP(p));
@@ -781,6 +1277,14 @@ function buildSVG(W,H){
   try{r=P.f(g);}catch(e){r={full:''};}
   let defs=r.defs||'',body='';
   const rot=(st.seamless||P.norot)?0:st.rot;
+  let fx='';
+  if(st.warp>0){const w=WARPS[st.warp];
+    const bf=(0.5/Math.max(4,st.wsize)).toFixed(5);
+    defs+=`<filter id="wp" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">`
+      +`<feTurbulence type="${w.t}" baseFrequency="${bf}" numOctaves="${w.o}" seed="${st.seed}" result="wv"/>`
+      +`<feDisplacementMap in="SourceGraphic" in2="wv" scale="${n(st.wamt)}" xChannelSelector="R" yChannelSelector="G"/></filter>`;
+    fx=' filter="url(#wp)"';}
+  const m=st.warp>0?st.wamt*1.2:0;
   if(r.c!==undefined){
     let tw=Math.max(1,r.tw),th=Math.max(1,r.th),tr=[];
     if(st.seamless){
@@ -788,9 +1292,9 @@ function buildSVG(W,H){
       if(Math.abs(sx-1)>1e-9||Math.abs(sy-1)>1e-9)tr.push(`scale(${n6(sx)},${n6(sy)})`);
     }else if(rot)tr.push(`rotate(${rot})`);
     defs+=`<pattern id="pt" patternUnits="userSpaceOnUse" width="${n(tw)}" height="${n(th)}"${tr.length?` patternTransform="${tr.join(' ')}"`:''}>${r.c}</pattern>`;
-    body=`<rect width="${W}" height="${H}" fill="url(#pt)" opacity="${st.op/100}"/>`;
+    body=`<g${fx}><rect x="${n(-m)}" y="${n(-m)}" width="${n(W+2*m)}" height="${n(H+2*m)}" fill="url(#pt)" opacity="${st.op/100}"/></g>`;
   }else{
-    body=`<g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g>`;
+    body=`<g${fx}><g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +(defs?`<defs>${defs}</defs>`:'')
@@ -822,7 +1326,7 @@ function draw(){
   }
   const P=byId(st.pat);
   $('#mLeft').textContent=`${P.name} ／ ${st.W}×${st.H}px`;
-  const seam=P.seam==='○'?(st.seamless?'継ぎ目なし':'継ぎ目なし可'):'継ぎ目あり';
+  const seam=st.warp>0?'ゆがみ中':(P.seam==='○'?(st.seamless?'継ぎ目なし':'継ぎ目なし可'):'継ぎ目あり');
   $('#mSeam').textContent=seam;
 }
 
@@ -892,6 +1396,18 @@ function buildExtra(){
     else if(q.t==='s')el.appendChild(select(q.l,cur,q.o,v=>st.p[P.id][q.k]=v));
     else el.appendChild(slider(q.l,cur,q.min,q.max,q.step||1,v=>st.p[P.id][q.k]=v));
   });
+}
+function buildWarps(){
+  const el=$('#warps');el.innerHTML='';
+  WARPS.forEach((w,i)=>{const b=document.createElement('button');
+    b.className='chip sm'+(i===st.warp?' on':'');b.textContent=w.n;
+    b.onclick=()=>{st.warp=i;buildWarps();buildWarpCtl();render();};el.appendChild(b);});
+}
+function buildWarpCtl(){
+  const el=$('#warpCtl');el.innerHTML='';
+  if(!st.warp)return;
+  el.appendChild(slider('強さ',st.wamt,2,200,1,v=>st.wamt=v));
+  el.appendChild(slider('うねりの大きさ',st.wsize,4,300,1,v=>st.wsize=v));
 }
 function buildPal(){
   const el=$('#pal');el.innerHTML='';
@@ -989,7 +1505,7 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('o
 window.addEventListener('resize',()=>render());
 
 /* ---------- init ---------- */
-st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildPal();syncColors();buildSizes();syncSize();render();
+st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildWarps();buildWarpCtl();buildPal();syncColors();buildSizes();syncSize();render();
 </script>
 </body>
 </html>
