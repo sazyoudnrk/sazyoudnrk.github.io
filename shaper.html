@@ -81,7 +81,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
       <button class="chip" id="cFit">全体表示</button>
       <button class="chip" id="cEdit">頂点編集</button>
       <button class="chip" id="cAdd">頂点追加</button>
-      <span class="chip" id="ver" style="opacity:.6">v1.7</span>
+      <span class="chip" id="ver" style="opacity:.6">v1.9</span>
     </div>
     <div id="readout"></div>
   </div>
@@ -219,6 +219,16 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
         </div>
         <p class="note">距離場から等高線を引き直す方式なので、大きく動かしても線が破綻しません。画像モードのみ有効です。</p>
         <div class="row">
+          <div class="lab">フチ（白フチ／カット線）の幅 <b id="vEd">0</b> px</div>
+          <input type="range" id="ed" min="0" max="120" step="1" value="0">
+        </div>
+        <div class="two row">
+          <div><div class="lab">印刷解像度 dpi</div><input type="number" id="dpi" value="350"></div>
+          <div><div class="lab">フチの実寸</div>
+            <div id="edMM" style="padding:10px 2px;font-variant-numeric:tabular-nums">0.00 mm</div></div>
+        </div>
+        <p class="note">元の形の外側にもう1本、指定幅の輪郭を作ります。図形（矩形・星・自由）でも画像の輪郭でも使えます。角はフチ幅ぶんの半径で自動的に丸まるので、そのままカット線にできます。</p>
+        <div class="row">
           <div class="lab"><span id="tgtMax">点の数（目標）</span> <b id="vTgt">160</b></div>
           <input type="range" id="tgt" min="6" max="600" step="1" value="160">
         </div>
@@ -235,6 +245,14 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 
       <!-- 書き出し -->
       <div class="page" data-page="out">
+        <div class="row">
+          <div class="lab">書き出す輪郭</div>
+          <select id="outSel">
+            <option value="both">元＋フチ（塗るとフチ帯になる）</option>
+            <option value="edge">フチ（カット線）のみ</option>
+            <option value="main">元の輪郭のみ</option>
+          </select>
+        </div>
         <div class="row">
           <div class="seg" id="drawMode">
             <button data-d="stroke" class="on">線</button>
@@ -283,13 +301,15 @@ const S={
   img:null, imgW:0, imgH:0,
   basis:'alpha', th:0.5, tol:0.18, bg:[255,255,255], inv:false,
   showImg:true, minA:0.5, roundImg:false,
-  offset:0, target:160, smooth:2, scale:100, morph:0,
+  offset:0, edge:0, dpi:350, outSel:'both', target:160, smooth:2, scale:100, morph:0,
   draw:'stroke', lw:2, margin:8,
   view:{x:0,y:0,z:1},
-  paths:[], loops:[]                 // 出力ジオメトリ
+  paths:[], loops:[], pathsMain:[], pathsEdge:[], mainLoops:[], edgeLoops:[]
 };
 /* 距離場（画像モード） */
 const F={phi:null,phiM:null,morphR:0,w:0,h:0,pad:96,s:1,ox:0,oy:0};
+/* 図形モード用の距離場（フチ生成に使う） */
+const G={phi:null,w:0,h:0,pad:72,s:1,ox:0,oy:0,key:''};
 
 /* ============ 幾何ユーティリティ ============ */
 const hyp=(x,y)=>Math.sqrt(x*x+y*y);
@@ -695,38 +715,79 @@ function contours(phi,w,h,L){
 /* ============ ジオメトリ再構築 ============ */
 function rebuild(){
   const k=S.scale/100;
-  S.paths=[]; S.loops=[];
+  S.paths=[]; S.loops=[]; S.pathsMain=[]; S.pathsEdge=[]; S.mainLoops=[]; S.edgeLoops=[];
   if(S.mode==='shape'){
-    let pts=S.pts;
+    const pts=S.pts;
     if(pts.length>=2){
       const sp=scalePts(pts,k);
-      S.loops=[sp];
+      S.loops=[sp]; S.mainLoops=[sp];
       S.paths=[roundPath(sp,S.R*k,S.rMode==='each')];
+      S.pathsMain=S.paths;
+      if(S.edge>0){
+        shapeField();
+        if(G.phi){
+          let lp=contours(G.phi,G.w,G.h,S.edge*k*G.s);
+          lp=lp.map(l=>l.map(p=>({x:(p.x-G.pad)/G.s+G.ox,y:(p.y-G.pad)/G.s+G.oy})));
+          lp=lp.filter(l=>l.length>=8);
+          lp=lp.map(l=>chaikin(simplifyToCount(l,Math.max(6,S.target)),Math.min(2,S.smooth)));
+          S.edgeLoops=lp;
+          S.pathsEdge=lp.map(l=>roundPath(l,0,false));
+          S.loops=S.mainLoops.concat(lp);
+          S.paths=S.pathsMain.concat(S.pathsEdge);
+        }
+      }
     }
-  }else{
-    if(!F.phi) return;
-    const useM=!!(F.phiM&&S.morph>0);
-    const phi=useM?F.phiM:F.phi;
-    const L=(useM?F.morphR:0)+S.offset*F.s;   // 元画像px→作業px
+    return;
+  }
+  if(!F.phi) return;
+  const useM=!!(F.phiM&&S.morph>0);
+  const phi=useM?F.phiM:F.phi;
+  const base=(useM?F.morphR:0)+S.offset*F.s;   // 元画像px→作業px
+  const extract=(L,rec)=>{
     let loops=contours(phi,F.w,F.h,L);
-    // 座標を元画像pxへ
     loops=loops.map(l=>l.map(p=>({x:(p.x-F.pad)/F.s+F.ox,y:(p.y-F.pad)/F.s+F.oy})));
     if(loops.length){
-      const areas=loops.map(area), mx=Math.max(...areas);
-      const lim=mx*S.minA/100;
+      const areas=loops.map(area), mx=Math.max(...areas), lim=mx*S.minA/100;
       loops=loops.filter((l,i)=>areas[i]>=lim);
     }
     loops=loops.filter(l=>l.length>=8);
-    F.rawMax=loops.reduce((a,l)=>Math.max(a,l.length),0);
+    if(rec) F.rawMax=loops.reduce((a,l)=>Math.max(a,l.length),0);
     loops=loops.map(l=>{
       const a=simplifyToCount(l,Math.max(6,S.target));
       const b=chaikin(a,S.smooth);
       return S.smooth?simplifyToCount(b,S.target):b;
     });
-    loops=loops.map(l=>l.map(p=>({x:(p.x-S.imgW/2)*k,y:(p.y-S.imgH/2)*k})));
-    S.loops=loops;
-    S.paths=loops.map(l=>roundPath(l,S.roundImg?S.R*k:0,false));
-  }
+    return loops.map(l=>l.map(p=>({x:(p.x-S.imgW/2)*k,y:(p.y-S.imgH/2)*k})));
+  };
+  const main=extract(base,true);
+  const edge=S.edge>0?extract(base+S.edge*F.s,false):[];
+  const rp=l=>roundPath(l,S.roundImg?S.R*k:0,false);
+  S.mainLoops=main; S.edgeLoops=edge;
+  S.loops=main.concat(edge);
+  S.pathsMain=main.map(rp); S.pathsEdge=edge.map(rp);
+  S.paths=S.pathsMain.concat(S.pathsEdge);
+}
+
+/* 図形パスをラスタライズして距離場を作る（フチ用） */
+function shapeKey(){
+  let sum=0; for(const p of S.pts) sum+=p.x*13.1+p.y*7.3+(p.r==null?-1:p.r)*3.7;
+  return [S.pts.length,Math.round(sum*100),S.R,S.rMode,S.scale].join('|');
+}
+function shapeField(){
+  if(G.key===shapeKey()&&G.phi) return;
+  if(!S.pathsMain.length){G.phi=null;G.key='';return;}
+  const b=bbox(S.mainLoops), T=380, PAD=G.pad;
+  const s=Math.min(4,T/Math.max(b.w,b.h,1));
+  const W=Math.round(b.w*s)+PAD*2, H=Math.round(b.h*s)+PAD*2;
+  const oc=document.createElement('canvas'); oc.width=W; oc.height=H;
+  const c=oc.getContext('2d',{willReadFrequently:true});
+  c.clearRect(0,0,W,H);
+  const f=p=>({x:(p.x-b.x0)*s+PAD,y:(p.y-b.y0)*s+PAD}); f.k=s;
+  c.beginPath(); for(const cmds of S.pathsMain) tracePath(c,cmds,f);
+  c.fillStyle='#000'; c.fill('evenodd');
+  const d=c.getImageData(0,0,W,H).data, mask=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++) mask[i]=d[i*4+3]>127?1:0;
+  G.phi=sdfOf(mask,W,H); G.w=W; G.h=H; G.s=s; G.ox=b.x0; G.oy=b.y0; G.key=shapeKey();
 }
 
 /* スライダの上限を対象のサイズに合わせる */
@@ -737,14 +798,21 @@ function syncRanges(){
     $('#tgtMax').textContent=`点の数（最大 ${el.max}＝間引きなし）`;
     put('tgt','vTgt');
   }
-  if(F.phi&&F.s){
+  if(S.mode==='image'&&F.phi&&F.s){
     const lim=Math.max(5,Math.floor((F.pad-8)/F.s));   // 距離場の外周を超えない範囲
     const of=$('#of'); of.min=-lim; of.max=lim; put('of','vOf',v=>v.toFixed(1));
     const mo=$('#mo'); mo.max=lim; put('mo','vMo');
+    const ed=$('#ed'); ed.max=lim; put('ed','vEd');
+  }else if(S.mode==='shape'&&S.mainLoops.length){
+    const b2=bbox(S.mainLoops), k2=S.scale/100;
+    const s2=Math.min(4,380/Math.max(b2.w,b2.h,1));
+    const lim=Math.max(10,Math.round((G.pad-8)/(s2*k2)));
+    const ed=$('#ed'); ed.max=lim; put('ed','vEd');
   }
   const b=bbox();
   const rr=$('#rr'); rr.max=Math.max(50,Math.round(Math.max(b.w,b.h)/2)); put('rr','vR');
   S.target=+$('#tgt').value; S.offset=+$('#of').value; S.morph=+$('#mo').value;
+  S.edge=+$('#ed').value; showMM();
   if(!(S.rMode==='each'&&S.sel>=0)) S.R=+$('#rr').value;
 }
 
@@ -759,9 +827,10 @@ function resize(){
 const toScr=p=>({x:(p.x-S.view.x)*S.view.z+CW/2, y:(p.y-S.view.y)*S.view.z+CH/2});
 const toDoc=(sx,sy)=>({x:(sx-CW/2)/S.view.z+S.view.x, y:(sy-CH/2)/S.view.z+S.view.y});
 
-function bbox(){
+function bbox(loops){
+  loops=loops||S.loops;
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  for(const l of S.loops) for(const p of l){
+  for(const l of loops) for(const p of l){
     if(p.x<x0)x0=p.x; if(p.y<y0)y0=p.y; if(p.x>x1)x1=p.x; if(p.y>y1)y1=p.y;
   }
   if(x0>x1){
@@ -1088,12 +1157,20 @@ bindRange('mo','vMo','morph',null,v=>{
     statLine(Math.round(performance.now()-t0)); draw();
   },160);
 });
+function showMM(){
+  const mm=S.edge*(S.scale/100)/Math.max(1,S.dpi)*25.4;
+  const el=$('#edMM'); if(el) el.textContent=mm.toFixed(2)+' mm';
+}
+bindRange('ed','vEd','edge',null,v=>{S.edge=v;showMM();update();});
+$('#dpi').oninput=e=>{S.dpi=Math.max(1,+e.target.value||350);showMM();};
+$('#outSel').onchange=e=>{S.outSel=e.target.value;};
 bindRange('of','vOf','offset',v=>v.toFixed(1),v=>{S.offset=v;update();});
 bindRange('tgt','vTgt','target',null,v=>{S.target=v;update();});
 bindRange('sm','vSm','smooth',null,v=>{S.smooth=v;update();});
 bindRange('sc','vSc','scale',null,v=>{S.scale=v;update();});
 $('#resetFin').onclick=()=>{
-  S.offset=0;S.target=160;S.smooth=2;S.scale=100;S.morph=0;F.phiM=null;
+  S.offset=0;S.target=160;S.smooth=2;S.scale=100;S.morph=0;S.edge=0;F.phiM=null;
+  $('#ed').value=0;$('#vEd').textContent='0';showMM();
   $('#mo').value=0;$('#vMo').textContent='0';
   $('#of').value=0;$('#vOf').textContent='0.0';
   $('#tgt').value=160;$('#vTgt').textContent='160';
@@ -1109,10 +1186,20 @@ $$('#drawMode button').forEach(b=>b.onclick=()=>{
 bindRange('lw','vLw','lw',v=>v,v=>{S.lw=v;draw();});
 bindRange('mg','vMg','margin',null,v=>{S.margin=v;draw();});
 
+function outPaths(){
+  if(S.outSel==='edge'&&S.pathsEdge.length) return S.pathsEdge;
+  if(S.outSel==='main') return S.pathsMain;
+  return S.paths;
+}
+function outLoops(){
+  if(S.outSel==='edge'&&S.edgeLoops.length) return S.edgeLoops;
+  if(S.outSel==='main') return S.mainLoops;
+  return S.loops;
+}
 function pathD(dx,dy){
   const n=v=>Math.round(v*1000)/1000;
   let d='';
-  for(const cmds of S.paths){
+  for(const cmds of outPaths()){
     for(const m of cmds){
       if(m.t==='M') d+=`M${n(m.x+dx)} ${n(m.y+dy)}`;
       else if(m.t==='L') d+=`L${n(m.x+dx)} ${n(m.y+dy)}`;
@@ -1127,7 +1214,7 @@ function pathD(dx,dy){
   return d;
 }
 function svgText(){
-  const b=bbox(), m=S.margin+(S.draw==='fill'?0:S.lw/2);
+  const b=bbox(outLoops()), m=S.margin+(S.draw==='fill'?0:S.lw/2);
   const W=b.w+m*2, H=b.h+m*2;
   const d=pathD(-b.x0+m,-b.y0+m);
   const fill=S.draw==='stroke'?'none':'#000000';
@@ -1143,23 +1230,23 @@ function save(blob,name){
   $('#stat').textContent=name+' を書き出しました。';
 }
 $('#svg').onclick=()=>{
-  if(!S.paths.length){$('#stat').textContent='書き出す形がありません。';return;}
+  if(!outPaths().length){$('#stat').textContent='書き出す形がありません。';return;}
   save(new Blob([svgText()],{type:'image/svg+xml'}),'shape.svg');
 };
 $('#png').onclick=()=>{
-  if(!S.paths.length){$('#stat').textContent='書き出す形がありません。';return;}
-  const b=bbox(), m=S.margin+(S.draw==='fill'?0:S.lw/2);
+  if(!outPaths().length){$('#stat').textContent='書き出す形がありません。';return;}
+  const b=bbox(outLoops()), m=S.margin+(S.draw==='fill'?0:S.lw/2);
   const W=Math.max(1,Math.ceil(b.w+m*2)), H=Math.max(1,Math.ceil(b.h+m*2));
   const oc=document.createElement('canvas'); oc.width=W; oc.height=H;
   const c=oc.getContext('2d');
   const f=p=>({x:p.x-b.x0+m,y:p.y-b.y0+m}); f.k=1;
-  c.beginPath(); for(const cmds of S.paths) tracePath(c,cmds,f);
+  c.beginPath(); for(const cmds of outPaths()) tracePath(c,cmds,f);
   if(S.draw!=='stroke'){c.fillStyle='#000';c.fill('evenodd');}
   if(S.draw!=='fill'){c.strokeStyle='#000';c.lineWidth=S.lw;c.lineJoin='round';c.stroke();}
   oc.toBlob(bl=>save(bl,'shape.png'),'image/png');
 };
 $('#copy').onclick=async()=>{
-  const b=bbox(), m=S.margin;
+  const b=bbox(outLoops()), m=S.margin;
   const d=pathD(-b.x0+m,-b.y0+m);
   try{await navigator.clipboard.writeText(d);$('#stat').textContent='パスデータをコピーしました。';}
   catch(_){
