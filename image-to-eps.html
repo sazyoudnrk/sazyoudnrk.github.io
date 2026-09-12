@@ -121,6 +121,13 @@ details[open]>summary::after{content:"−"}
   width:28px;height:28px;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
 .ordrow .pol{width:auto;padding:0 8px;font-size:11.5px;white-space:nowrap}
 .ordrow .pol.all,.ordrow .pol.length{border-color:#c0392b;color:#a5341f;background:#fdf0ee}
+.threadbox{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--panel);margin:-2px 0 4px}
+.threadgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:6px}
+.threadgrid button{aspect-ratio:1;border-radius:5px;border:1px solid rgba(0,0,0,.15);padding:0;cursor:pointer;position:relative}
+.threadgrid button.on{outline:2.5px solid var(--indigo);outline-offset:1px}
+.threadgrid button .num{position:absolute;bottom:1px;right:2px;font-size:8px;color:rgba(0,0,0,.35);
+  text-shadow:0 0 2px #fff,0 0 2px #fff}
+.threadname{font-size:12px;color:var(--ink-2);margin-top:6px}
 .ordrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--indigo)}
 .cfgbox{border:1px solid var(--line);border-radius:8px;padding:2px 11px 8px;background:var(--panel);margin:-2px 0 4px}
 .cfgbox .row{padding:6px 0}
@@ -567,7 +574,7 @@ const S={
   pal:[],              // [[r,g,b],...]
   lineSet:new Set(), skipSet:new Set(),
   lineMask:null, edgeMask:null,
-  blocks:[], stats:null, groups:[], hi:null, lineStats:null, viewMode:"thread", trimByColor:new Map(), selByColor:new Set(), colorOpt:new Map(), cfgOpen:null,
+  blocks:[], stats:null, groups:[], hi:null, lineStats:null, viewMode:"thread", trimByColor:new Map(), selByColor:new Set(), colorOpt:new Map(), cfgOpen:null, threadOpen:null, threadFix:new Map(),
   srcCanvas:null
 };
 
@@ -2508,8 +2515,8 @@ function buildCommands(){
 function writePES(name){
   const cmds=buildCommands();
   if(!cmds.length) return null;
-  const colors=[]; { let last=null;
-    for(const b of S.blocks){ const k=b.color.join(","); if(k!==last){ colors.push(b.color); last=k; } } }
+  const colors=[], colorKeys=[]; { let last=null;
+    for(const b of S.blocks){ const k=b.color.join(","); if(k!==last){ colors.push(b.color); colorKeys.push(k); last=k; } } }
   let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
   for(const c of cmds) if(c.x!==undefined){
     if(c.x<minx)minx=c.x; if(c.x>maxx)maxx=c.x;
@@ -2536,7 +2543,10 @@ function writePES(name){
   [0x20,0x20,0x20,0x20,0x64,0x20,0x00,0x20,0x00,0x20,0x20,0x20].forEach(u8);
   const n=Math.min(colors.length,255);
   u8(n-1);
-  const idxs=colors.slice(0,n).map(pecIndexFor);
+  const idxs=colors.slice(0,n).map((c,i)=>{
+    const fixed=S.threadFix.get(colorKeys[i]);
+    return fixed!=null ? fixed : pecIndexFor(c);
+  });
   idxs.forEach(i=>u8(i+1));
   fill(462-(n-1),0x20);
   if(out.length-pecStart!==512) throw new Error("PECヘッダ長 "+(out.length-pecStart));
@@ -2707,9 +2717,10 @@ function renderOrder(){
     row.className="ordrow"+(S.hi===i?" on":"");
     row.innerHTML=
       `<span class="no">${i+1}</span>`+
-      `<span class="sq" style="background:rgb(${g.color.join(",")})"></span>`+
+      `<span class="sq" style="background:rgb(${(S.threadFix.get(g.key)!=null?hex2rgb(PEC_PALETTE[S.threadFix.get(g.key)][0]):g.color).join(",")})"></span>`+
       `<span class="meta">${[...g.kinds].join("・")}<small>${g.n.toLocaleString()}針`+
         (g.regs?` ・${g.regs.size}領域`:"")+(g.pol==="color"?" ・切らない":` ・途中で${g.trims}回切る`)+`</small></span>`+
+      `<button class="mv" data-thread="${i}" title="ブラザー糸色">🧵</button>`+
       `<button class="mv pol ${g.pol}" data-pol="${i}">`+
         (g.pol==="all"?"毎回":g.pol==="length"?"長い時":"切らない")+`</button>`+
       `<button class="mv" data-cfg="${i}">⚙</button>`+
@@ -2721,6 +2732,32 @@ function renderOrder(){
       S.hi = S.hi===i ? null : i; renderOrder(); drawPreview();
     });
     el.appendChild(row);
+    if(S.threadOpen===i){
+      const box=document.createElement("div");
+      box.className="threadbox";
+      const forced=S.threadFix.get(g.key);
+      const auto=pecIndexFor(g.color);
+      const cur = forced!=null ? forced : auto;
+      box.innerHTML =
+        `<div class="row"><span class="lb">ブラザー糸色<small>${forced!=null?"自分で指定中":"自動で選んだ色"}</small></span>`+
+        (forced!=null?`<button class="mv" data-threadreset="${i}" title="自動に戻す">⟲</button>`:'')+
+        `</div><div class="threadgrid" id="tgrid${i}"></div>`+
+        `<div class="threadname" id="tname${i}"></div>`;
+      el.appendChild(box);
+      const grid=box.querySelector(`#tgrid${i}`), nameEl=box.querySelector(`#tname${i}`);
+      PEC_PALETTE.forEach((p,pi)=>{
+        const b=document.createElement("button");
+        b.style.background=p[0];
+        b.className=pi===cur?"on":"";
+        b.innerHTML=`<span class="num">${pi+1}</span>`;
+        b.title=`#${pi+1} ${p[1]}`;
+        b.addEventListener("click",()=>{
+          S.threadFix.set(g.key,pi); renderOrder();
+        });
+        grid.appendChild(b);
+      });
+      nameEl.textContent = `#${cur+1} ${PEC_PALETTE[cur][1]}`;
+    }
     if(S.cfgOpen===i && g.cid>=0){
       const o=S.colorOpt.get(g.cid)||{};
       const box=document.createElement("div");
@@ -2746,8 +2783,14 @@ function renderOrder(){
       el.appendChild(box);
     }
   });
+  el.querySelectorAll("[data-thread]").forEach(b=>b.addEventListener("click",()=>{
+    const i=+b.dataset.thread; S.threadOpen = S.threadOpen===i ? null : i; S.cfgOpen=null; renderOrder();
+  }));
+  el.querySelectorAll("[data-threadreset]").forEach(b=>b.addEventListener("click",()=>{
+    const g=S.groups[+b.dataset.threadreset]; S.threadFix.delete(g.key); renderOrder();
+  }));
   el.querySelectorAll("[data-cfg]").forEach(b=>b.addEventListener("click",()=>{
-    const i=+b.dataset.cfg; S.cfgOpen = S.cfgOpen===i ? null : i; renderOrder();
+    const i=+b.dataset.cfg; S.cfgOpen = S.cfgOpen===i ? null : i; S.threadOpen=null; renderOrder();
   }));
   el.querySelectorAll("[data-pol]").forEach(b=>b.addEventListener("click",()=>{
     const g=S.groups[+b.dataset.pol];
@@ -2845,6 +2888,11 @@ function shade(c,amt){
 }
 let bgColor="#e8e0cd";
 function resetFabric(){fabricFor=null;}
+function displayColor(b){
+  const fixed=S.threadFix.get(b.color.join(","));
+  if(fixed!=null) return hex2rgb(PEC_PALETTE[fixed][0]);
+  return b.color;
+}
 function drawPreview(){
   const cv=$("#pv"), wrap=cv.parentElement;
   const dpr=Math.min(2,window.devicePixelRatio||1);
@@ -2882,7 +2930,7 @@ function drawPreview(){
     // ブロック間の移動はすべてジャンプ（縫わない）。切らない場合は糸が残る
     if(prevEnd && !b.trimBefore && showJ && count<upto){
       const a=T(prevEnd), c=T(b.stitches[0]);
-      g.globalAlpha=0.5; g.strokeStyle="#d08b00"; g.lineWidth=1;
+      g.globalAlpha=0.5; g.strokeStyle="#d08b00"; g.lineWidth=1; void displayColor;
       g.setLineDash([4,3]);
       g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(c[0],c[1]); g.stroke();
       g.setLineDash([]);
@@ -2913,16 +2961,16 @@ function drawPreview(){
       const off=Math.max(0.5,lw*0.28);
       g.globalAlpha=alpha*0.5;
       g.save(); g.translate(off*0.8,off);
-      g.strokeStyle=shade(b.color,-58); g.lineWidth=lw*1.05; g.stroke(path); g.restore();
+      g.strokeStyle=shade(displayColor(b),-58); g.lineWidth=lw*1.05; g.stroke(path); g.restore();
       g.globalAlpha=alpha;
-      g.strokeStyle=`rgb(${b.color.join(",")})`; g.lineWidth=lw; g.stroke(path);
+      g.strokeStyle=`rgb(${displayColor(b).join(",")})`; g.lineWidth=lw; g.stroke(path);
       g.globalAlpha=alpha*0.55;
       g.save(); g.translate(-off*0.5,-off*0.6);
-      g.strokeStyle=shade(b.color,62); g.lineWidth=lw*0.34; g.stroke(path); g.restore();
+      g.strokeStyle=shade(displayColor(b),62); g.lineWidth=lw*0.34; g.stroke(path); g.restore();
       g.globalAlpha=alpha;
     } else {
       g.globalAlpha=alpha;
-      g.strokeStyle=`rgb(${b.color.join(",")})`;
+      g.strokeStyle=`rgb(${displayColor(b).join(",")})`;
       g.lineWidth=lw; g.stroke(path);
     }
     if(showJ){
