@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wix画像まとめ保存</title>
+<style>
+:root{--ink:#333;--sub:#777;--line:#ddd;--btn:#1a1a1a;--ok:#2a7d46;--ng:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;max-width:760px;margin:auto;font:16px/1.7 system-ui,-apple-system,"Hiragino Sans",sans-serif;color:var(--ink);background:#fff}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:18px;margin:28px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+p{margin:6px 0}.sub{color:var(--sub);font-size:14px}
+button{font:700 15px/1.2 inherit;padding:10px 16px;border:3px solid var(--btn);border-radius:999px;background:#fff;color:var(--btn);cursor:pointer}
+button.main{background:var(--btn);color:#fff}
+button:disabled{opacity:.4}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.grid a{display:block;color:var(--ink);text-decoration:none;font-size:11px;line-height:1.3;word-break:break-all}
+.grid img{width:100%;aspect-ratio:1;object-fit:contain;background:#f3f3f3;display:block;margin-bottom:2px}
+.bar{height:10px;background:#eee;border-radius:5px;overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;width:0;background:var(--btn);transition:width .15s}
+#log{font-size:13px;white-space:pre-wrap;word-break:break-all}
+.ok{color:var(--ok)}.ng{color:var(--ng)}
+.box{border:1px solid var(--line);padding:10px 14px;margin:12px 0;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Wix画像まとめ保存</h1>
+<p class="sub">元のWixサイトの画像を、新サイトで使う名前に付け替えてzipで保存します。</p>
+<div class="box">
+<b>使い方</b><br>
+1. このファイルをGitHub Pagesに上げて、そのURLをSafariで開く（ファイルを直接開くと動かないことがあります）<br>
+2. 下のボタンでzipを保存 → ファイルアプリで解凍<br>
+3. 解凍してできた <code>images</code> フォルダの中身を、GitHubの Add file → Upload files で上げる<br>
+<span class="sub">保存できなかったときは、下の一覧の画像をタップして開き、長押しで保存してください。名前は画像の下に出ている通りに付けます。</span>
+</div>
+<p><button class="main" id="all">全部をまとめて保存（1つのzip）</button></p>
+<p class="sub">枚数が多くてメモリが足りないときは、各見出しの横のボタンで分けて保存してください。</p>
+<div class="bar"><i id="bar"></i></div>
+<div id="log"></div>
+<div id="sections"></div>
+
+<script>
+const BASE = 'https://static.wixstatic.com/media/';
+/* [保存先パス(拡張子なし), Wix上のファイル名] */
+const J = 'images/gallery/';
+const art = ['6f6b8ed1d9d344eea54d38b200282b0e~mv2.jpg','9090376ec8174dc090611cb73f465fbe~mv2.jpg','0f2bd45c0ea842d5b625b7687cf751b2~mv2.jpg','841cba7e1cd8485fa648fc521a4332a8~mv2.png','3bf4d27a4ef34455aa0677a00e66f696~mv2.jpg','3e4543bd650d484cadc1774ff1f5bca0~mv2.png','5613b7a39a6343078bbec264d352e3f4~mv2.png','7ffe94cdbd4e48dda1011d62ca111dc9~mv2.png','dbde5dc72f0840e4b3c108bf3d8573c9~mv2.png','04ec8b1fd937499ba756b4d50f969f4f~mv2.png','7b9fe2888859471daeea1692190d9cd6~mv2.png','55518a22c55d43efafe6d239efb06e47~mv2.png','fd3db00898f647a089d60095c79a113f~mv2.png','738c752050ae4eae9eae5d03a9789cce~mv2.png','ea338682734d4a41bad5c9c394a6a507~mv2.png','5dde565a66294b699fe598facb70e86c~mv2.png','aedde9d29dd345e5af5cf0d420d4e97b~mv2.png','1424daa6a74e413f8ae2d7d98474688c~mv2.png','b0bbc1dbdc6841b6afe1438a225d4d19~mv2.jpg','aff4a370befa496ba896293350b257b6~mv2.jpg','bfd7343054e94f868fee612278ae1e79~mv2.jpg','601207e89f2749a6b2a50b49e0521529~mv2.jpg','72a6a69bdb2c4c868bca98ca0133ce21~mv2.jpg','89d3812b24cf470cad63a89643d6128f~mv2.png','90118a0879dc45beaa15f1c773d4f915~mv2.png'];
+const craft = ['1c303e5982dc427cbf78266075f7b300~mv2.jpg','8b06c86f4fb943c58b5a71264cf806d2~mv2.jpg','c3971fda18a2456f8eb22a9e7f051db2~mv2.jpg','fa1255f586874574b43d9eeab01382d3~mv2.jpg','88f174ecabf64f55834798a16257763d~mv2.jpg','e6af6a232238492db36a71620ce0805c~mv2.png','6aadf21243e445469f2437e87931456d~mv2.jpg','796a03c67ae846699e6d1761bc4ee1be~mv2.png','12bbb53513f64e2d918ca472c9383912~mv2.png','4ada18207cbf4d0c9b253f0f4939fa12~mv2.png','bdda3bdb85be4e759cfc4d78f5341812~mv2.png','62caa03d2846464f9cb0f621edf81d06~mv2.png','a176fc72adaf4753a37a3f29366b99f5~mv2.png','510622227bf646369ee4fb73d56fd967~mv2.png','4abb62dec4974fd2b99ab3ac9abf4e5b~mv2.png'];
+const n2 = i => String(i + 1).padStart(2, '0');
+const P = f => '87b28a_' + f;
+const SECTIONS = [
+  { id: 'top', title: 'トップ画像', items: [['images/top/top1', P('9090376ec8174dc090611cb73f465fbe~mv2.jpg')], ['images/top/top2', P('6f6b8ed1d9d344eea54d38b200282b0e~mv2.jpg')], ['images/top/top3', P('738c752050ae4eae9eae5d03a9789cce~mv2.png')]] },
+  { id: 'art', title: 'ギャラリー：絵', items: art.map((f, i) => [J + 'art' + n2(i), P(f)]) },
+  { id: 'made', title: 'ギャラリー：制作物', items: [[J + 'made-picrew', P('11fb5f887a3140c68e76ff0e1ac2e6f7~mv2.png')], [J + 'made-vroid', P('56b51f534d70463483d11bad248bad82~mv2_d_1200_1600_s_2.png')], [J + 'made-mmd', P('4b814f7491124facb8f523df276ca81f~mv2.png')], [J + 'made-utau', P('9c5f633adda349f68b22f8eb1b888426~mv2.png')]] },
+  { id: 'craft', title: 'ギャラリー：工作', items: craft.map((f, i) => [J + 'craft' + n2(i), P(f)]) },
+  { id: 'download', title: 'ダウンロードページ', items: [['images/download/dl-mmd', P('4b814f7491124facb8f523df276ca81f~mv2.png')], ['images/download/dl-vroid', P('56b51f534d70463483d11bad248bad82~mv2_d_1200_1600_s_2.png')], ['images/download/dl-mc', P('c4f2857c6a714451bfc94dab4ff134de~mv2.png')], ['images/download/dl-stamp', P('5d58115d80274eb08c1de48f7fd43509~mv2.png')], ['images/download/dl-karaoke', P('bb91662819ea46459ad16086be768446~mv2.png')], ['images/download/dl-utau', P('9c5f633adda349f68b22f8eb1b888426~mv2.png')]] }
+];
+const extOf = f => (/\.(png|jpe?g|webp|gif)$/i.exec(f) || [, 'jpg'])[1].toLowerCase().replace('jpeg', 'jpg');
+const nameOf = ([path, f]) => path + '.' + extOf(f);
+const orig = f => BASE + f;
+const thumb = f => BASE + f + '/v1/fit/w_240,h_240,q_70/t.jpg';
+
+/* ---- 最小のzip書き出し（無圧縮） ---- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files, now) {            // files: [{name, data:Uint8Array}]
+  const enc = new TextEncoder(), parts = [], cd = [];
+  const d = now || new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  let off = 0;
+  for (const f of files) {
+    const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true); lh.setUint32(18, sz, true); lh.setUint32(22, sz, true);
+    lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), nm, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true); ch.setUint32(20, sz, true); ch.setUint32(24, sz, true);
+    ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+    cd.push(new Uint8Array(ch.buffer), nm);
+    off += 30 + nm.length + sz;
+  }
+  const cdSize = cd.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  return [...parts, ...cd, new Uint8Array(end.buffer)];
+}
+
+/* ---- 画面 ---- */
+if (typeof document !== 'undefined') {
+  const $ = s => document.querySelector(s), log = $('#log'), bar = $('#bar');
+  const say = (t, c) => { log.insertAdjacentHTML('beforeend', `<div class="${c || ''}">${t}</div>`); };
+  $('#sections').innerHTML = SECTIONS.map(s => `
+    <h2>${s.title}（${s.items.length}枚）<button data-z="${s.id}">この分だけzipで保存</button></h2>
+    <div class="grid">${s.items.map(it => `<a href="${orig(it[1])}" target="_blank" rel="noopener"><img loading="lazy" src="${thumb(it[1])}" alt="">${nameOf(it)}</a>`).join('')}</div>`).join('');
+
+  async function run(ids, zipName) {
+    const items = SECTIONS.filter(s => ids.includes(s.id)).flatMap(s => s.items);
+    document.querySelectorAll('button').forEach(b => b.disabled = true);
+    log.innerHTML = ''; bar.style.width = '0';
+    const got = [], bad = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      try {
+        const r = await fetch(orig(it[1]));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        got.push({ name: nameOf(it), data: new Uint8Array(await r.arrayBuffer()) });
+      } catch (e) { bad.push(nameOf(it)); }
+      bar.style.width = ((i + 1) / items.length * 100) + '%';
+      if (bad.length === i + 1 && i === 2) break;   // 最初の3枚が全部失敗なら、ブラウザが拒否しているので打ち切る
+    }
+    if (!got.length) {
+      say('画像を取得できませんでした。ブラウザがWixからの取得を許可していない可能性があります。下の一覧の画像をタップして開き、長押しで保存してください。', 'ng');
+    } else {
+      const blob = new Blob(makeZip(got), { type: 'application/zip' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = zipName; document.body.appendChild(a); a.click(); a.remove();
+      say(`${got.length}枚を ${zipName}（${(blob.size / 1048576).toFixed(1)}MB）に保存しました。ファイルアプリで解凍してください。`, 'ok');
+      if (bad.length) say('取得できなかった画像：' + bad.join('、'), 'ng');
+    }
+    document.querySelectorAll('button').forEach(b => b.disabled = false);
+  }
+  $('#all').onclick = () => run(SECTIONS.map(s => s.id), 'wix-images.zip');
+  document.addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (b) run([b.dataset.z], 'wix-images-' + b.dataset.z + '.zip'); });
+}
+if (typeof module !== 'undefined') module.exports = { makeZip, SECTIONS, nameOf };
+</script>
+</body>
+</html>
