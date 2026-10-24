@@ -73,6 +73,15 @@ button.chip{
 }
 button.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 button.chip.sm{font-size:12px;padding:5px 9px}
+.tabs{display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+button.tab{
+  font:inherit;font-size:12.5px;font-weight:700;letter-spacing:.02em;
+  padding:9px 13px;border:1px solid #b4b0a8;border-bottom:none;border-radius:6px 6px 0 0;
+  background:#cbc8c1;color:#3d424a;white-space:nowrap;cursor:pointer;flex:0 0 auto;
+}
+button.tab.on{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.tabrule{height:2px;background:var(--accent2);border-radius:1px;margin:0 0 11px}
 
 /* sliders */
 .ctl{margin:11px 0}
@@ -121,6 +130,7 @@ input[type=range]::-webkit-slider-thumb{
 .tog.on{background:var(--accent)}
 .tog.on::after{transform:translateX(21px)}
 .note{font-size:11.5px;color:#6a6f77;margin-top:6px}
+.foot{font-size:11px;color:#5d6169;line-height:1.8;text-align:center;margin:2px 0 6px;padding:0 4px}
 
 /* export bar */
 .bar{
@@ -142,7 +152,7 @@ input[type=range]::-webkit-slider-thumb{
 .modal img{max-width:100%;max-height:72vh;border-radius:6px;background:#fff}
 .modal p{font-size:12.5px;margin:12px 0 10px;line-height:1.7}
 .modal button{font:inherit;font-size:14px;padding:11px 20px;border-radius:9px;border:none;background:#f2f0ec;color:#20242a;margin:0 4px;cursor:pointer}
-.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(20,22,25,.9);color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast{position:fixed;left:16px;right:16px;bottom:96px;background:rgba(20,22,25,.92);color:#fff;font-size:13px;line-height:1.6;padding:10px 16px;border-radius:14px;z-index:60;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 </style>
 </head>
@@ -168,7 +178,8 @@ input[type=range]::-webkit-slider-thumb{
 
 <section>
   <h2>パターン</h2>
-  <div class="row" id="cats"></div>
+  <div class="tabs" id="cats"></div>
+  <div class="tabrule"></div>
   <div class="chips" id="pats"></div>
   <p class="desc" id="desc"></p>
 </section>
@@ -202,6 +213,8 @@ input[type=range]::-webkit-slider-thumb{
   <div class="chips" style="margin-top:8px">
     <button class="chip sm" id="bSwap">背景と主線を入れ替え</button>
   </div>
+  <div class="switch" style="margin-top:6px"><span>背景を透過して保存</span><button class="tog" id="tTrans"></button></div>
+  <div class="note">PNG・SVGとも背景が抜けます。背景色は塗り分けの色味づくりに使われ続けるので、そのまま調整に使えます。</div>
 </section>
 
 <section>
@@ -223,6 +236,8 @@ input[type=range]::-webkit-slider-thumb{
   <div class="switch"><span>タイル確認表示（2×2）</span><button class="tog" id="tCheck"></button></div>
   <div class="note">「継ぎ目なし優先」は、模様の大きさを出力サイズにわずかに合わせ込み、上下左右がつながるようにします（角度は0°固定）。</div>
 </section>
+
+<p class="foot">バーコード風・QRコード風は読み取りできない装飾用のダミーです。<br>QRコードは株式会社デンソーウェーブの登録商標です。</p>
 
 </main>
 
@@ -266,6 +281,14 @@ function mul(a){a=a>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>
 const SQ3=Math.sqrt(3);
 function hexPts(cx,cy,R){const a=[];for(let i=0;i<6;i++){const t=Math.PI/180*(60*i-90);a.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}return a;}
 function hexD(cx,cy,R){return 'M'+hexPts(cx,cy,R).map(p=>n(p[0])+' '+n(p[1])).join('L')+'Z';}
+function hsl2hex(h,s,l){h=((h%360)+360)%360;s=Math.max(0,Math.min(1,s));l=Math.max(0,Math.min(1,l));
+  const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,i=Math.floor(h/60)%6;
+  const T=[[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][i];
+  const q=v=>Math.round(Math.max(0,Math.min(1,v+m))*255).toString(16).padStart(2,'0');
+  return '#'+q(T[0])+q(T[1])+q(T[2]);}
+function hueOf(h){const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx===mn)return 210;const d=mx-mn;
+  let hh=mx===r?((g-b)/d+(g<b?6:0)):mx===g?((b-r)/d+2):((r-g)/d+4);return hh*60;}
 function mix(a,b,t){
   const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
   const A=p(a),B=p(b);
@@ -277,6 +300,21 @@ function mix(a,b,t){
    f(g) -> {full}     … 全面描画方式 */
 const PATS=[
 /* ===== 基本 ===== */
+{id:'plain',cat:'基本',name:'無地・グラデ',seam:'○',full:1,norot:1,
+ desc:'単色とグラデーション。背景を透過したうえで「濃さ」を0にすると、完全に空の透明PNGが作れます。「透明へ」を入れると片側が透けていくグラデになります。',
+ ps:[{k:'mode',l:'種類',t:'s',o:['単色','直線','放射'],v:1},{k:'ang',l:'角度',min:0,max:360,v:90},
+     {k:'pos',l:'中心・寄せ',min:0,max:100,v:50},{k:'fade',l:'透明へ',t:'b',v:0},{k:'tri',l:'アクセントを挟む',t:'b',v:0}],
+ f:g=>{
+   if(g.p.mode===0)return{full:R2(0,0,g.W,g.H,g.fg)};
+   const st0=g.p.fade?`<stop offset="0" stop-color="${g.fg}" stop-opacity="0"/>`:`<stop offset="0" stop-color="${g.bg}"/>`;
+   const mid=g.p.tri?`<stop offset="${n(Math.min(0.95,Math.max(0.05,g.p.pos/100)))}" stop-color="${g.ac}"/>`:'';
+   const st1=`<stop offset="1" stop-color="${g.fg}"/>`;
+   let defs;
+   if(g.p.mode===2)defs=`<radialGradient id="gr" cx="${n(g.p.pos)}%" cy="50%" r="78%">${st0}${mid}${st1}</radialGradient>`;
+   else{const a=g.p.ang*Math.PI/180;
+     defs=`<linearGradient id="gr" x1="${n(50-Math.cos(a)*50)}%" y1="${n(50-Math.sin(a)*50)}%" x2="${n(50+Math.cos(a)*50)}%" y2="${n(50+Math.sin(a)*50)}%">${st0}${mid}${st1}</linearGradient>`;}
+   return{defs,full:`<rect width="${g.W}" height="${g.H}" fill="url(#gr)"/>`};}},
+
 {id:'stripes',cat:'基本',name:'ストライプ',seam:'○',
  desc:'最も単純な反復。太さの比と角度だけで、上品にも大胆にもなります。',
  ps:[{k:'ratio',l:'太さ比',min:5,max:95,v:50}],
@@ -320,9 +358,8 @@ const PATS=[
  desc:'半分ずつずらした矩形の積み方。ずれ量を変えると芋目地・馬目地など積み方が変わります。',
  ps:[{k:'gap',l:'目地の幅',min:1,max:25,v:6},{k:'off',l:'ずれ',min:0,max:100,v:50}],
  f:g=>{const T=g.T,h=T/2,gp=T*g.p.gap/100,of=T*g.p.off/100;
-   let c=R2(0,0,T,T,g.fg)+R2(0,0,T,gp,g.bg)+R2(0,h,T,gp,g.bg);
-   c+=R2(-gp/2,0,gp,h,g.bg)+R2(T-gp/2,0,gp,h,g.bg);
-   for(const dx of[-T,0,T])c+=R2(of-gp/2+dx,h,gp,h,g.bg);
+   let c=R2(gp/2,gp/2,T-gp,h-gp,g.fg);
+   for(const dx of[-T,0,T])c+=R2(of+gp/2+dx,h+gp/2,T-gp,h-gp,g.fg);
    return{tw:T,th:T,c};}},
 
 {id:'tri',dsize:90,cat:'基本',name:'三角',seam:'○',sw:1,
@@ -392,7 +429,7 @@ const PATS=[
    for(let j=-1;j<=2;j++)for(let i=-1;i<=2;i++)list.push([i*2*R+((j%2+2)%2?R:0),j*R]);
    list.sort((a,b)=>a[1]-b[1]);
    for(const[cx,cy]of list){
-     c+=PT(`M${n(cx-R)} ${n(cy)}A${n(R)} ${n(R)} 0 0 1 ${n(cx+R)} ${n(cy)}Z`,g.bg);
+     if(!g.trans)c+=PT(`M${n(cx-R)} ${n(cy)}A${n(R)} ${n(R)} 0 0 1 ${n(cx+R)} ${n(cy)}Z`,g.bg);
      let d='';for(let k=1;k<=N;k++){const r=R*k/N;
        d+=`M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 0 1 ${n(cx+r)} ${n(cy)}`;}
      c+=PT(d,0,g.fg,g.sw);}
@@ -429,12 +466,14 @@ const PATS=[
 {id:'kagome',dsize:70,cat:'和柄',name:'籠目',seam:'○',sw:1,
  desc:'竹かごの編み目。三方向の帯が重なり、六角の穴と三角が交互に現れます。魔除けの意味でも使われました。',
  ps:[{k:'bw',l:'帯の幅',min:10,max:60,v:30}],
- f:g=>{const d=g.T,tw=d,th=d*SQ3,s=d*SQ3/2,bw=Math.max(1,s*g.p.bw/100),L=(tw+th)*2;
+ f:g=>{const d=g.T,tw=d,th=d*SQ3,s=d*SQ3/2;
+   const bw=Math.max(g.sw*2.2,s*g.p.bw/100),L=(tw+th)*2;
    let a='';
    for(const deg of[0,60,120]){const t=deg*Math.PI/180,nx=-Math.sin(t),ny=Math.cos(t),dx=Math.cos(t),dy=Math.sin(t);
-     for(let k=-6;k<=6;k++){const c0=k*s,px=c0*nx,py=c0*ny;
+     for(let k=-6;k<=6;k++)for(const sg of[-1,1]){
+       const c0=k*s+sg*(bw-g.sw)/2,px=c0*nx,py=c0*ny;
        a+=`M${n(px-dx*L)} ${n(py-dy*L)}L${n(px+dx*L)} ${n(py+dy*L)}`;}}
-   return{tw,th,c:PT(a,0,g.fg,bw)+PT(a,0,g.bg,Math.max(.4,bw-g.sw*2))};}},
+   return{tw,th,c:PT(a,0,g.fg,g.sw)};}},
 
 {id:'uroko',dsize:80,cat:'和柄',name:'鱗',seam:'○',
  desc:'三角形を交互に並べた最古級の文様。蛇や魚の鱗を表し、脱皮＝再生や厄除けの意味を持ちます。',
@@ -453,7 +492,8 @@ const PATS=[
    const feather=(x,y,col)=>PL([[x,y+nh],[x+T/2,y],[x+T,y+nh],[x+T,y+h+nh],[x+T/2,y+h],[x,y+h+nh]],col);
    let c='';
    for(let k=-2;k<=2;k++){const y=k*h,even=(((k%2)+2)%2)===0;
-     c+=feather(0,y,even?g.fg:g.bg)+feather(T,y,even?g.bg:g.fg);}
+     const b2=g.trans?0:g.bg;
+     c+=feather(0,y,even?g.fg:b2)+feather(T,y,even?b2:g.fg);}
    return{tw:2*T,th:2*h,c};}},
 
 {id:'tatewaku',dsize:90,cat:'和柄',name:'立涌',seam:'○',sw:1,
@@ -574,7 +614,7 @@ const PATS=[
    const dia=(cx,cy)=>[[cx,cy-th/2],[cx+T/2,cy],[cx,cy+th/2],[cx-T/2,cy]];
    let c=PL(dia(T/2,th/2),g.fg);
    for(const[x,y]of[[0,0],[T,0],[0,th],[T,th]])c+=PL(dia(x,y),g.ac);
-   if(g.p.line){
+   if(g.p.line&&!g.trans){
      const d=`M${-T/2} ${n(-th/2)}L${n(1.5*T)} ${n(1.5*th)}M${-T/2} ${n(1.5*th)}L${n(1.5*T)} ${n(-th/2)}`
             +`M${n(-T)} ${n(th/2)}L${n(T)} ${n(-th/2+th)}`;
      c+=PT(d,0,g.bg,g.sw,' stroke-dasharray="'+n(T*0.09)+' '+n(T*0.07)+'"');}
@@ -633,8 +673,8 @@ const PATS=[
        c+=PL(pts.map(p=>[p[0]+x+dx,p[1]+y+dy]),col);}}
    return{full:c};}},
 
-{id:'spiro',cat:'生成',name:'スピログラフ',seam:'×',full:1,sw:1,
- desc:'円の内側を転がる小円上の一点が描く軌跡（ハイポトロコイド）。歯数の比が整数比になるほど閉じた花形になります。',
+{id:'spiro',cat:'生成',name:'内トロコイド',seam:'×',full:1,sw:1,
+ desc:'円の内側を転がる小円の上の点が描く軌跡（ハイポトロコイド）。固定円と転がる円の歯数の比が単純なほど、早く閉じた花形になります。',
  ps:[{k:'R',l:'外円の歯数',min:3,max:16,v:9},{k:'r',l:'内円の歯数',min:1,max:15,v:4},{k:'d',l:'ペン位置',min:10,max:150,v:90},{k:'cp',l:'重ねる数',min:1,max:8,v:1}],
  f:g=>{const Rr=Math.max(2,Math.round(g.p.R)),r=Math.max(1,Math.min(Math.round(g.p.r),Rr-1)),d=r*g.p.d/100;
    const gcd=(a,b)=>b?gcd(b,a%b):a,turns=r/gcd(Rr,r);
@@ -648,7 +688,7 @@ const PATS=[
      c+=`<g transform="rotate(${n(i*360/g.p.cp)} ${n(cx)} ${n(cy)})">${PT(path,0,i%2?g.ac:g.fg,g.sw)}</g>`;}
    return{full:c};}},
 
-{id:'noise',dsize:110,cat:'生成',name:'ノイズ',seam:'○',full:1,norot:1,
+{id:'noise',dsize:110,cat:'ノイズ',name:'階調ノイズ',seam:'○',full:1,norot:1,
  desc:'数式で作る乱れ（パーリンノイズ系）。階調を落とすと版画のようなムラ、細かくすると紙の質感になります。',
  ps:[{k:'f',l:'粒の細かさ',min:1,max:120,v:20},{k:'oct',l:'重ね数',min:1,max:6,v:4},{k:'lv',l:'階調',min:2,max:12,v:3},{k:'frac',l:'なめらか',t:'b',v:1}],
  f:g=>{const bf=(g.p.f/10000).toFixed(5);
@@ -659,6 +699,76 @@ const PATS=[
      +`<feComponentTransfer in="m" result="p"><feFuncA type="discrete" tableValues="${tv.join(' ')}"/></feComponentTransfer>`
      +`<feFlood flood-color="${g.fg}" result="fl"/><feComposite in="fl" in2="p" operator="in"/></filter>`;
    return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#nz)"/>`};}},
+
+{id:'clouds',dsize:110,cat:'ノイズ',name:'雲形ノイズ',seam:'○',full:1,norot:1,
+ desc:'乱数をなめらかにつないだパーリン系のノイズを、細かいものから粗いものまで重ねたもの。Photoshopの雲模様と同じ原理で、空やムラの下地になります。',
+ ps:[{k:'f',l:'雲の大きさ',min:1,max:140,v:16},{k:'oct',l:'重ね数',min:1,max:8,v:5},
+     {k:'con',l:'コントラスト',min:20,max:400,v:150},{k:'bri',l:'明るさ',min:-80,max:80,v:0},
+     {k:'soft',l:'なめらか',t:'b',v:1}],
+ f:g=>{const bf=(g.p.f/10000).toFixed(5);
+   const defs=`<filter id="cl" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">`
+     +`<feTurbulence type="${g.p.soft?'fractalNoise':'turbulence'}" baseFrequency="${bf}" numOctaves="${Math.round(g.p.oct)}" seed="${g.seed}" stitchTiles="stitch" result="t"/>`
+     +`<feColorMatrix in="t" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.34 0.34 0.34 0 0" result="m"/>`
+     +`<feComponentTransfer in="m" result="p"><feFuncA type="linear" slope="${n(g.p.con/100)}" intercept="${n(g.p.bri/100)}"/></feComponentTransfer>`
+     +`<feFlood flood-color="${g.fg}" result="fl"/><feComposite in="fl" in2="p" operator="in"/></filter>`;
+   return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#cl)"/>`};}},
+
+{id:'grain',dsize:240,cat:'ノイズ',name:'ホワイトノイズ',seam:'○',
+ desc:'一粒ずつ独立に乱数を振った粒状ノイズ。フィルムの粒子やざらつきの下地に。「模様の大きさ」が繰り返しの間隔、「粒数」がその中の粒の数です。',
+ ps:[{k:'cell',l:'粒数',min:8,max:64,v:48},{k:'lv',l:'階調',min:2,max:16,v:6},{k:'con',l:'コントラスト',min:10,max:100,v:100}],
+ f:g=>{const N=Math.round(g.p.cell),u=g.T/N,L=Math.round(g.p.lv),k=g.p.con/100;
+   const bk=[];for(let i=0;i<L;i++)bk.push('');
+   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+     const v=0.5+(g.R()-0.5)*k;
+     const b=Math.min(L-1,Math.max(0,Math.floor(v*L)));
+     const px=x*u,py=y*u;
+     bk[b]+=`M${n(px)} ${n(py)}H${n(px+u+0.3)}V${n(py+u+0.3)}H${n(px)}Z`;}
+   let c='';
+   for(let i=0;i<L;i++){if(!bk[i])continue;const t=L<2?1:i/(L-1);
+     c+=g.trans?PT(bk[i],g.fg,0,0,` opacity="${n(t)}"`):PT(bk[i],mix(g.bg,g.fg,t));}
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'colornoise',dsize:240,cat:'ノイズ',name:'カラーノイズ',seam:'○',
+ desc:'粒ごとに色相と明るさを振ったカラーの砂嵐。主線の色が色相の中心になります。彩度を下げるとモノクロのざらつきに戻ります。',
+ ps:[{k:'cell',l:'粒数',min:8,max:48,v:36},{k:'hue',l:'色相の幅',min:0,max:360,v:300},
+     {k:'sat',l:'彩度',min:0,max:100,v:65},{k:'lum',l:'明るさの幅',min:0,max:100,v:55}],
+ f:g=>{const N=Math.round(g.p.cell),u=g.T/N,h0=hueOf(g.fg);
+   let c='';
+   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+     const col=hsl2hex(h0+(g.R()-0.5)*g.p.hue,g.p.sat/100,0.5+(g.R()-0.5)*g.p.lum/100);
+     c+=R2(x*u,y*u,u+0.3,u+0.3,col);}
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'alphanoise',dsize:240,cat:'ノイズ',name:'透明ノイズ',seam:'○',
+ desc:'粒をランダムに抜いて穴だらけにしたノイズ。背景を透過して保存すれば、そのまま重ねられるマスクや質感素材になります。',
+ ps:[{k:'cell',l:'粒数',min:8,max:64,v:48},{k:'dens',l:'残す割合',min:1,max:99,v:45},
+     {k:'ac',l:'アクセントを混ぜる',min:0,max:100,v:0},{k:'soft',l:'濃淡をつける',t:'b',v:0}],
+ f:g=>{const N=Math.round(g.p.cell),u=g.T/N,dn=g.p.dens/100,ar=g.p.ac/100;
+   let a='',b='',c='';
+   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+     if(g.R()>=dn)continue;
+     const px=x*u,py=y*u,d=`M${n(px)} ${n(py)}H${n(px+u+0.3)}V${n(py+u+0.3)}H${n(px)}Z`;
+     const useAc=g.R()<ar;
+     if(g.p.soft)c+=PT(d,useAc?g.ac:g.fg,0,0,` opacity="${n(0.25+g.R()*0.75)}"`);
+     else if(useAc)b+=d;else a+=d;}
+   if(a)c+=PT(a,g.fg);
+   if(b)c+=PT(b,g.ac);
+   return{tw:g.T,th:g.T,c};}},
+
+{id:'dither',dsize:60,cat:'ノイズ',name:'ディザ（ベイヤー）',seam:'○',
+ desc:'規則的なしきい値行列で濃さを表す古典的な網掛け。ドット絵やモノクロ印刷の階調表現に使われます。透過すると半分だけ抜けたピクセル素材になります。',
+ ps:[{k:'m',l:'行列',t:'s',o:['2×2','4×4','8×8'],v:2},{k:'dens',l:'濃度',min:0,max:100,v:50}],
+ f:g=>{const sz=[2,4,8][Math.round(g.p.m)]||8;
+   const by=k=>{if(k===1)return[[0]];const p=by(k/2),h=k/2,M=[];
+     for(let y=0;y<k;y++){M.push([]);for(let x=0;x<k;x++){
+       M[y].push(p[y%h][x%h]*4+(y<h?(x<h?0:2):(x<h?3:1)));}}
+     return M;};
+   const M=by(sz),u=g.T/sz,th=g.p.dens/100*(sz*sz);
+   let d='';
+   for(let y=0;y<sz;y++)for(let x=0;x<sz;x++){
+     if(M[y][x]>=th)continue;const px=x*u,py=y*u;
+     d+=`M${n(px)} ${n(py)}H${n(px+u+0.3)}V${n(py+u+0.3)}H${n(px)}Z`;}
+   return{tw:g.T,th:g.T,c:d?PT(d,g.fg):''};}},
 
 /* ===== 糸掛け ===== */
 {id:'stringcircle',dsize:110,cat:'線画',name:'糸掛け（円）',seam:'×',full:1,sw:1,
@@ -945,7 +1055,7 @@ const PATS=[
    return{full:c};}},
 
 {id:'epitro',dsize:110,cat:'曲線',name:'外トロコイド',seam:'×',full:1,sw:1,
- desc:'円の外側を転がる円の上の点が描く軌跡。歯車の歯の形はこの曲線から作られています。スピログラフの外回り版です。',
+ desc:'円の外側を転がる円の上の点が描く軌跡。歯車の歯の形はこの曲線から作られています。内トロコイドの外回り版です。',
  ps:[{k:'R',l:'固定円',min:1,max:16,v:5},{k:'r',l:'転がる円',min:1,max:16,v:3},
      {k:'d',l:'ペン位置',min:10,max:200,v:100},{k:'cp',l:'重ねる数',min:1,max:8,v:1}],
  f:g=>{const Rr=Math.max(1,Math.round(g.p.R)),r=Math.max(1,Math.round(g.p.r)),d=r*g.p.d/100;
@@ -1170,9 +1280,10 @@ const PATS=[
  desc:'2つの波源から出た波が強め合う場所をつなぐと双曲線の族になります。ゾーンプレートは半径が√nに比例する同心円で、レンズのように光を集めます。',
  ps:[{k:'mode',l:'種類',t:'s',o:['2点波源','ゾーンプレート'],v:0},{k:'n',l:'本数',min:3,max:60,v:16},{k:'d',l:'波源の間隔',min:10,max:95,v:50}],
  f:g=>{const cx=g.W/2,cy=g.H/2,R=Math.hypot(g.W,g.H)/2,N=Math.round(g.p.n);
-   if(g.p.mode===1){let c='';
-     for(let i=N;i>=1;i--){const r=Math.min(g.W,g.H)*0.48*Math.sqrt(i/N);
-       c+=CI(cx,cy,r,i%2?g.fg:g.bg);}
+   if(g.p.mode===1){const rr=i=>Math.min(g.W,g.H)*0.48*Math.sqrt(Math.max(0,i)/N);
+     const ring=r=>r<=0?'':`M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 0 ${n(cx+r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 0 ${n(cx-r)} ${n(cy)}Z`;
+     let c='';
+     for(let i=1;i<=N;i+=2)c+=PT(ring(rr(i))+ring(rr(i-1)),g.fg,0,0,' fill-rule="evenodd"');
      return{full:c};}
    const cc=Math.min(g.W,g.H)*g.p.d/200;let d='';
    d+=`M${n(cx)} 0V${n(g.H)}`;
@@ -1188,8 +1299,8 @@ const PATS=[
 
 /* ===== コード ===== */
 {id:'barcode',dsize:150,cat:'コード',name:'バーコード風',seam:'×',full:1,
- desc:'見た目だけのダミーのバーコードです。読み取りはできないので、実在の商品と取り違えられる心配なく小道具に使えます。数字を変えると並びも変わります。',
- ps:[{k:'code',l:'数字',t:'t',v:'4901234567894'},{k:'dens',l:'バーの本数',min:31,max:141,v:95},
+ desc:'見た目だけのダミーのバーコードです。バーは乱数で、下の数字はただの文字なので読み取れません。既定値は2で始まる店内管理用の帯域で、実在の商品番号とは重なりません。数字を変えると並びも変わります。',
+ ps:[{k:'code',l:'数字',t:'t',v:'2001234567893'},{k:'dens',l:'バーの本数',min:31,max:141,v:95},
      {k:'h',l:'高さ',min:15,max:80,v:40},{k:'num',l:'数字を表示',t:'b',v:1},{k:'guard',l:'ガードバー',t:'b',v:1}],
  f:g=>{const cv=g.p.code;const code=(typeof cv==='string')?cv:(typeof cv==='number'&&isFinite(cv))?String(cv):'';
    const R=mul((hash(code)^(g.seed*2654435761))>>>0);
@@ -1240,7 +1351,7 @@ const PATS=[
 
 const WARPS=[{n:'なし'},{n:'うねり',t:'fractalNoise',o:3},{n:'波',t:'turbulence',o:1},{n:'こまかい',t:'fractalNoise',o:5}];
 
-const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','コード','生成'];
+const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','ノイズ','コード','生成'];
 
 const PALS=[
  {n:'モノクロ',bg:'#ffffff',fg:'#141414',ac:'#8c8c8c'},
@@ -1264,7 +1375,7 @@ const SIZES=[
 /* ---------- state ---------- */
 const st={pat:'seigaiha',cat:'和柄',sizeCat:'SNS',W:1080,H:1080,
   bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e',
-  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,warp:0,wamt:40,wsize:60,p:{}};
+  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,trans:false,warp:0,wamt:40,wsize:60,p:{}};
 const byId=id=>PATS.find(p=>p.id===id);
 function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
 PATS.forEach(p=>st.p[p.id]=defP(p));
@@ -1272,7 +1383,7 @@ PATS.forEach(p=>st.p[p.id]=defP(p));
 /* ---------- build ---------- */
 function buildSVG(W,H){
   const P=byId(st.pat);
-  const g={W,H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
+  const g={W,H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,trans:st.trans,p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
   let r;
   try{r=P.f(g);}catch(e){r={full:''};}
   let defs=r.defs||'',body='';
@@ -1298,7 +1409,7 @@ function buildSVG(W,H){
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +(defs?`<defs>${defs}</defs>`:'')
-    +`<rect width="${W}" height="${H}" fill="${st.bg}"/>${body}</svg>`;
+    +(st.trans?'':`<rect width="${W}" height="${H}" fill="${st.bg}"/>`)+body+`</svg>`;
 }
 
 /* ---------- render ---------- */
@@ -1335,7 +1446,7 @@ function buildCats(){
   const el=$('#cats');el.innerHTML='';
   CATS.forEach(c=>{
     const b=document.createElement('button');
-    b.className='chip'+(c===st.cat?' on':'');b.textContent=c;
+    b.className='tab'+(c===st.cat?' on':'');b.textContent=c;
     b.onclick=()=>{st.cat=c;buildCats();buildPats();};
     el.appendChild(b);});
 }
@@ -1385,7 +1496,7 @@ function buildCommon(){
   if(P.sw)el.appendChild(slider('線の太さ',st.sw,0.5,40,0.5,v=>st.sw=v));
   const rotOff=st.seamless||P.norot;
   el.appendChild(slider('角度',st.rot,0,90,1,v=>st.rot=v,rotOff));
-  el.appendChild(slider('濃さ',st.op,5,100,1,v=>st.op=v));
+  el.appendChild(slider('濃さ',st.op,0,100,1,v=>st.op=v));
 }
 function buildExtra(){
   const P=byId(st.pat),el=$('#extra');el.innerHTML='';
@@ -1433,8 +1544,8 @@ function syncSize(){
   const px=st.W*st.H;
   $('#sizeNote').textContent=`${(px/1e6).toFixed(1)}メガピクセル`+(px>1.2e7?'／端末によっては書き出しに失敗することがあります':'');
 }
-function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');
-  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1800);}
+function toast(msg,ms){const t=$('#toast');t.textContent=msg;t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),ms||1800);}
 
 /* ---------- events ---------- */
 ['cBg','cFg','cAc'].forEach((id,i)=>{
@@ -1445,6 +1556,7 @@ $('#iW').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.W
 $('#iH').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.H=v;syncSize();render();}};
 $('#bSwapWH').onclick=()=>{const t=st.W;st.W=st.H;st.H=t;syncSize();buildSizes();render();};
 $('#tSeam').onclick=function(){st.seamless=!st.seamless;this.classList.toggle('on',st.seamless);buildCommon();render();};
+$('#tTrans').onclick=function(){st.trans=!st.trans;this.classList.toggle('on',st.trans);render();};
 $('#tCheck').onclick=function(){st.check=!st.check;this.classList.toggle('on',st.check);render();};
 $('#bSeed').onclick=()=>{st.seed=(st.seed+1)%9999;render();toast('乱数を引き直しました');};
 $('#bRandP').onclick=()=>{
@@ -1480,25 +1592,48 @@ $('#bSvg').onclick=()=>{
   dl(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),`pattern-${st.pat}-${st.W}x${st.H}.svg`);
   toast('SVGを書き出しました');
 };
+function rasterize(svg,W,H,ok,ng){
+  const makers=[
+    ()=>URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'})),
+    ()=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),
+    ()=>URL.createObjectURL(new Blob(['\ufeff'+svg],{type:'image/svg+xml;charset=utf-8'}))
+  ];
+  let i=0;
+  const next=why=>{if(i>=makers.length){ng(why);return;}
+    let url;try{url=makers[i++]();}catch(e){next('url');return;}
+    const img=new Image();let done=false;
+    const clean=()=>{clearTimeout(tm);if(url.slice(0,5)==='blob:')URL.revokeObjectURL(url);};
+    const tm=setTimeout(()=>{if(done)return;done=true;clean();next('timeout');},25000);
+    img.onload=()=>{if(done)return;done=true;clean();
+      let cv,cx;
+      try{cv=document.createElement('canvas');cv.width=W;cv.height=H;cx=cv.getContext('2d');}catch(e){cx=null;}
+      if(!cx||cv.width!==W||cv.height!==H){ng('canvas');return;}
+      try{
+        if(!st.trans){cx.fillStyle=st.bg;cx.fillRect(0,0,W,H);}
+        cx.drawImage(img,0,0,W,H);
+      }catch(e){ng('draw');return;}
+      try{cv.toBlob(b=>{b?ok(b):ng('encode');},'image/png');}
+      catch(e){ng((e&&e.name==='SecurityError')?'secure':'encode');}
+    };
+    img.onerror=()=>{if(done)return;done=true;clean();next('load');};
+    img.src=url;};
+  next('');
+}
 $('#bPng').onclick=()=>{
   const svg=buildSVG(st.W,st.H);
-  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
-  const img=new Image();
-  img.onload=()=>{
-    const cv=document.createElement('canvas');cv.width=st.W;cv.height=st.H;
-    const cx=cv.getContext('2d');
-    cx.fillStyle=st.bg;cx.fillRect(0,0,st.W,st.H);
-    cx.drawImage(img,0,0,st.W,st.H);
-    URL.revokeObjectURL(url);
-    cv.toBlob(b=>{
-      if(!b){toast('書き出しに失敗しました。サイズを下げて再試行してください');return;}
-      dl(b,`pattern-${st.pat}-${st.W}x${st.H}.png`);
-      const u2=URL.createObjectURL(b);
-      $('#mImg').src=u2;$('#modal').classList.add('on');
-    },'image/png');
-  };
-  img.onerror=()=>{URL.revokeObjectURL(url);toast('画像化に失敗しました');};
-  img.src=url;
+  toast('画像を作っています…');
+  rasterize(svg,st.W,st.H,b=>{
+    dl(b,`pattern-${st.pat}-${st.W}x${st.H}.png`);
+    $('#mImg').src=URL.createObjectURL(b);$('#modal').classList.add('on');
+  },why=>{
+    let m='PNGにできませんでした。';
+    if(why==='secure')m+='ファイルを直接開いた状態だと保存できません。https（GitHub Pagesなど）から開いてください。';
+    else if(why==='canvas')m+='この出力サイズは端末の上限を超えています。小さくしてください。';
+    else if(st.warp>0)m+='「ゆがみ」を「なし」にすると通ることがあります。';
+    else if(st.W*st.H>4e6)m+='出力サイズを小さくすると通ることがあります。';
+    else m+='SVGでの書き出しをお試しください。';
+    toast(m,6000);
+  });
 };
 $('#mClose').onclick=()=>{$('#modal').classList.remove('on');};
 $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('on');};
