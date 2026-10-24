@@ -1,53 +1,96 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liminal Dialogue</title>
-
-  <!-- CSS -->
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOOLS — sazyoudnrk</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#1a2f6e; --muted:#5b6a92;
+    --accent:#00a9e0; --line:#dfe5f2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1730; --card:#18224a; --ink:#eef3ff; --muted:#9aa8d0; --accent:#7ee8fa; --line:#26326a; }
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  main{ max-width:720px; margin:0 auto; padding:32px 16px 48px; }
+  h1{ font-size:22px; letter-spacing:.08em; margin:0 0 4px; }
+  .sub{ color:var(--muted); font-size:13px; margin:0 0 24px; }
+  h2{ font-size:13px; letter-spacing:.12em; color:var(--muted); margin:28px 0 10px; font-weight:600; }
+  ul{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  a.card{
+    display:flex; align-items:center; gap:12px;
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; color:inherit; text-decoration:none;
+  }
+  a.card:active{ transform:scale(.99); }
+  .icon{ font-size:22px; width:28px; text-align:center; flex:none; }
+  .t{ font-weight:600; font-size:15px; }
+  .d{ color:var(--muted); font-size:12px; margin-top:2px; }
+  .arrow{ margin-left:auto; color:var(--accent); font-size:18px; }
+  footer{ margin-top:40px; font-size:12px; color:var(--muted); }
+  footer a{ color:var(--accent); }
+</style>
 </head>
-
 <body>
+<main>
+  <h1>TOOLS</h1>
+  <p class="sub">砂上電力の制作用ツール置き場</p>
 
-  <!-- キャラクター選択画面（最初に表示） -->
-  <div id="select-screen">
-    <h1 id="select-title">キャラクターを選んでください</h1>
-    <div id="character-select"></div>
-  </div>
+  <h2>GAME</h2>
+  <ul>
+    <li><a class="card" href="https://sazyoudnrk.github.io/liminal-dialogue/">
+      <span class="icon">💬</span>
+      <span><div class="t">Liminal Dialogue</div><div class="d">キャラクターと会話するゲーム</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="https://sazyoudnrk.github.io/liminal-dialogue/talk-editor.html">
+      <span class="icon">📝</span>
+      <span><div class="t">会話JSONエディタ</div><div class="d">Liminal Dialogue の talk.json を作る</div></span>
+      <span class="arrow">›</span></a></li>
+  </ul>
 
-  <!-- ゲーム画面（キャラクター選択後に表示） -->
-  <div id="game-screen" class="hidden">
+  <h2>IMAGE</h2>
+  <ul>
+    <li><a class="card" href="pattern-lab.html">
+      <span class="icon">🔷</span>
+      <span><div class="t">PATTERN LAB</div><div class="d">背景用の幾何学パターン生成</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="resizer.html">
+      <span class="icon">📐</span>
+      <span><div class="t">画像リサイズ台</div><div class="d">長辺px・ファイルサイズ・印刷サイズ指定</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="shaper.html">
+      <span class="icon">⬛</span>
+      <span><div class="t">SHAPER</div><div class="d">角R編集 & PNG輪郭抽出</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="image-to-eps.html">
+      <span class="icon">🧵</span>
+      <span><div class="t">PP1 パンチ</div><div class="d">画像を刺しゅうデータ用に変換</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="color-pallet-draw.html">
+      <span class="icon">🎨</span>
+      <span><div class="t">おえかき</div><div class="d">パレット付きお絵かき</div></span>
+      <span class="arrow">›</span></a></li>
+  </ul>
 
-    <button id="back-button">← キャラ選択に戻る</button>
+  <h2>UTILITY</h2>
+  <ul>
+    <li><a class="card" href="wix-image-saver.html">
+      <span class="icon">💾</span>
+      <span><div class="t">Wix画像まとめ保存</div><div class="d">Wixサイトの画像を一括保存</div></span>
+      <span class="arrow">›</span></a></li>
+    <li><a class="card" href="github-pages-link-generator.html">
+      <span class="icon">🔗</span>
+      <span><div class="t">GitHub Pages 公開リンク作成</div><div class="d">リポジトリから公開URLを作る</div></span>
+      <span class="arrow">›</span></a></li>
+  </ul>
 
-    <!-- ウィンドウ枠 -->
-    <div id="window">
-
-      <!-- ゲーム本体 -->
-      <div id="game">
-
-        <!-- 立ち絵 -->
-        <img id="character" src="" alt="">
-
-        <!-- テキストボックス -->
-        <div id="message-box">
-          <div id="name"></div>
-          <div id="text"></div>
-        </div>
-
-      </div>
-    </div>
-
-    <div id="choices"></div>
-
-    <button id="reset-button">リセット</button>
-
-  </div>
-
-  <!-- JS -->
-  <script src="script.js"></script>
-
+  <footer><a href="https://sazyoudnrk.github.io/profile/">PROFILE</a></footer>
+</main>
 </body>
 </html>
