@@ -303,6 +303,30 @@ function mul(a){a=a>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>
 const SQ3=Math.sqrt(3);
 function hexPts(cx,cy,R){const a=[];for(let i=0;i<6;i++){const t=Math.PI/180*(60*i-90);a.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}return a;}
 function hexD(cx,cy,R){return 'M'+hexPts(cx,cy,R).map(p=>n(p[0])+' '+n(p[1])).join('L')+'Z';}
+const NZC=[];
+function gaussR(R){let u=0,v=0;
+  while(u<=0)u=R();while(v<=0)v=R();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function rgbOf(h){return[parseInt(h.slice(1,3),16)||0,parseInt(h.slice(3,5),16)||0,parseInt(h.slice(5,7),16)||0];}
+function noisePNG(key,N,fill){
+  const hit=NZC.find(e=>e.k===key);if(hit)return hit.v;
+  if(typeof document==='undefined')return '';
+  let cv,cx;
+  try{cv=document.createElement('canvas');cv.width=N;cv.height=N;cx=cv.getContext('2d');}catch(e){return '';}
+  if(!cx)return '';
+  let v='';
+  try{const id=cx.createImageData(N,N);fill(id.data,N);cx.putImageData(id,0,0);v=cv.toDataURL('image/png');}
+  catch(e){return '';}
+  NZC.unshift({k:key,v});if(NZC.length>6)NZC.pop();
+  return v;
+}
+function nzImg(url,S){
+  return url?`<image href="${url}" xlink:href="${url}" x="0" y="0" width="${n(S)}" height="${n(S)}"`
+    +` preserveAspectRatio="none" style="image-rendering:pixelated;image-rendering:crisp-edges"/>`:'';
+}
+const NZN=['64','128','192','256'];
+function nzDev(g){return Math.round(g.p.dist)===1?(g.R()-0.5)*1.386:gaussR(g.R);}
+
 const XE=s=>String(s==null?'':s)
   .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,'')
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -773,14 +797,18 @@ const PATS=[
    return{full:c};}},
 
 {id:'noise',dsize:110,cat:'ノイズ',name:'階調ノイズ',seam:'○',full:1,norot:1,
- desc:'数式で作る乱れ（パーリンノイズ系）。階調を落とすと版画のようなムラ、細かくすると紙の質感になります。',
- ps:[{k:'f',l:'粒の細かさ',min:1,max:120,v:20},{k:'oct',l:'重ね数',min:1,max:6,v:4},{k:'lv',l:'階調',min:2,max:12,v:3},{k:'frac',l:'なめらか',t:'b',v:1}],
+ desc:'数式で作るなめらかな乱れを、少ない階調に落としたもの。等高線のようなムラが出て、版画やシルクスクリーンのような風合いになります。コントラストで階調の出方が変わります。',
+ ps:[{k:'f',l:'粒の細かさ',min:1,max:300,v:45},{k:'oct',l:'重ね数',min:1,max:6,v:3},
+     {k:'lv',l:'階調',min:2,max:12,v:4},{k:'con',l:'コントラスト',min:50,max:900,v:320},
+     {k:'frac',l:'なめらか',t:'b',v:1}],
  f:g=>{const bf=(g.p.f/10000).toFixed(5);
-   const L=g.p.lv,tv=[];for(let i=0;i<L;i++)tv.push((i/(L-1)).toFixed(3));
-   const defs=`<filter id="nz" x="0" y="0" width="100%" height="100%">`
-     +`<feTurbulence type="${g.p.frac?'fractalNoise':'turbulence'}" baseFrequency="${bf}" numOctaves="${g.p.oct}" seed="${g.seed}" stitchTiles="stitch" result="t"/>`
+   const L=Math.round(g.p.lv),tv=[];for(let i=0;i<L;i++)tv.push((i/(L-1)).toFixed(3));
+   const sl=g.p.con/100,ic=(1-sl)/2;
+   const defs=`<filter id="nz" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">`
+     +`<feTurbulence type="${g.p.frac?'fractalNoise':'turbulence'}" baseFrequency="${bf}" numOctaves="${Math.round(g.p.oct)}" seed="${g.seed}" stitchTiles="stitch" result="t"/>`
      +`<feColorMatrix in="t" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.34 0.34 0.34 0 0" result="m"/>`
-     +`<feComponentTransfer in="m" result="p"><feFuncA type="discrete" tableValues="${tv.join(' ')}"/></feComponentTransfer>`
+     +`<feComponentTransfer in="m" result="q"><feFuncA type="linear" slope="${n(sl)}" intercept="${n(ic)}"/></feComponentTransfer>`
+     +`<feComponentTransfer in="q" result="p"><feFuncA type="discrete" tableValues="${tv.join(' ')}"/></feComponentTransfer>`
      +`<feFlood flood-color="${g.fg}" result="fl"/><feComposite in="fl" in2="p" operator="in"/></filter>`;
    return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#nz)"/>`};}},
 
@@ -797,47 +825,55 @@ const PATS=[
      +`<feFlood flood-color="${g.fg}" result="fl"/><feComposite in="fl" in2="p" operator="in"/></filter>`;
    return{defs,full:`<rect width="${g.W}" height="${g.H}" filter="url(#cl)"/>`};}},
 
-{id:'grain',dsize:240,cat:'ノイズ',name:'ホワイトノイズ',seam:'○',
- desc:'一粒ずつ独立に乱数を振った粒状ノイズ。フィルムの粒子やざらつきの下地に。「模様の大きさ」が繰り返しの間隔、「粒数」がその中の粒の数です。',
- ps:[{k:'cell',l:'粒数',min:8,max:64,v:48},{k:'lv',l:'階調',min:2,max:16,v:6},{k:'con',l:'コントラスト',min:10,max:100,v:100}],
- f:g=>{const N=Math.round(g.p.cell),u=g.T/N,L=Math.round(g.p.lv),k=g.p.con/100;
-   const bk=[];for(let i=0;i<L;i++)bk.push('');
-   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-     const v=0.5+(g.R()-0.5)*k;
-     const b=Math.min(L-1,Math.max(0,Math.floor(v*L)));
-     const px=x*u,py=y*u;
-     bk[b]+=`M${n(px)} ${n(py)}H${n(px+u+0.3)}V${n(py+u+0.3)}H${n(px)}Z`;}
-   let c='';
-   for(let i=0;i<L;i++){if(!bk[i])continue;const t=L<2?1:i/(L-1);
-     c+=g.trans?PT(bk[i],g.fg,0,0,` opacity="${n(t)}"`):PT(bk[i],mix(g.bg,g.fg,t));}
-   return{tw:g.T,th:g.T,c};}},
+{id:'grain',nosize:1,norot:1,cat:'ノイズ',name:'フィルムグレイン',seam:'○',
+ desc:'1画素ごとに独立した乱数を振った粒状ノイズ。分布をガウスにすると、写真フィルムの粒子やPhotoshopの「ノイズを加える」と同じ見え方になります。背景色と主線色のあいだで濃淡が振れます。',
+ ps:[{k:'px',l:'粒の大きさ',min:1,max:8,v:1},{k:'amt',l:'強さ',min:2,max:100,v:37},
+     {k:'bri',l:'明るさ',min:-45,max:45,v:0},{k:'dist',l:'分布',t:'s',o:['ガウス','一様'],v:0},
+     {k:'N',l:'繰り返しの細かさ',t:'s',o:NZN,v:1}],
+ f:g=>{const N=+NZN[Math.round(g.p.N)],px=Math.round(g.p.px);
+   const A=rgbOf(g.bg),B=rgbOf(g.fg),c0=0.5+g.p.bri/100,k=0.4*g.p.amt/100;
+   const key=['gr',N,g.p.amt,g.p.bri,g.p.dist,g.bg,g.fg,g.seed].join(',');
+   const url=noisePNG(key,N,(d)=>{
+     for(let i=0;i<N*N;i++){
+       let t=c0+nzDev(g)*k;t=t<0?0:t>1?1:t;
+       const o=i*4;
+       d[o]=A[0]+(B[0]-A[0])*t;d[o+1]=A[1]+(B[1]-A[1])*t;d[o+2]=A[2]+(B[2]-A[2])*t;d[o+3]=255;}
+   });
+   const S=N*px;return{tw:S,th:S,c:nzImg(url,S)};}},
 
-{id:'colornoise',dsize:240,cat:'ノイズ',name:'カラーノイズ',seam:'○',
- desc:'粒ごとに色相と明るさを振ったカラーの砂嵐。主線の色が色相の中心になります。彩度を下げるとモノクロのざらつきに戻ります。',
- ps:[{k:'cell',l:'粒数',min:8,max:48,v:36},{k:'hue',l:'色相の幅',min:0,max:360,v:300},
-     {k:'sat',l:'彩度',min:0,max:100,v:65},{k:'lum',l:'明るさの幅',min:0,max:100,v:55}],
- f:g=>{const N=Math.round(g.p.cell),u=g.T/N,h0=hueOf(g.fg);
-   let c='';
-   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-     const col=hsl2hex(h0+(g.R()-0.5)*g.p.hue,g.p.sat/100,0.5+(g.R()-0.5)*g.p.lum/100);
-     c+=R2(x*u,y*u,u+0.3,u+0.3,col);}
-   return{tw:g.T,th:g.T,c};}},
+{id:'colornoise',nosize:1,norot:1,cat:'ノイズ',name:'カラーノイズ',seam:'○',
+ desc:'赤・緑・青それぞれに別の乱数を振った砂嵐。テレビの砂嵐やセンサーのカラーノイズと同じで、彩度を0にするとモノクロのざらつきに戻ります。',
+ ps:[{k:'px',l:'粒の大きさ',min:1,max:8,v:1},{k:'amt',l:'強さ',min:2,max:100,v:45},
+     {k:'sat',l:'彩度',min:0,max:100,v:75},{k:'bri',l:'明るさ',min:-45,max:45,v:0},
+     {k:'dist',l:'分布',t:'s',o:['ガウス','一様'],v:0},{k:'N',l:'繰り返しの細かさ',t:'s',o:NZN,v:1}],
+ f:g=>{const N=+NZN[Math.round(g.p.N)],px=Math.round(g.p.px);
+   const A=rgbOf(g.bg),B=rgbOf(g.fg),c0=0.5+g.p.bri/100,k=0.4*g.p.amt/100,sa=g.p.sat/100;
+   const key=['cn',N,g.p.amt,g.p.sat,g.p.bri,g.p.dist,g.bg,g.fg,g.seed].join(',');
+   const url=noisePNG(key,N,(d)=>{
+     for(let i=0;i<N*N;i++){
+       const m=nzDev(g),o=i*4;
+       for(let ch=0;ch<3;ch++){
+         let t=c0+(m*(1-sa)+nzDev(g)*sa)*k;t=t<0?0:t>1?1:t;
+         d[o+ch]=A[ch]+(B[ch]-A[ch])*t;}
+       d[o+3]=255;}
+   });
+   const S=N*px;return{tw:S,th:S,c:nzImg(url,S)};}},
 
-{id:'alphanoise',dsize:240,cat:'ノイズ',name:'透明ノイズ',seam:'○',
- desc:'粒をランダムに抜いて穴だらけにしたノイズ。背景を透過して保存すれば、そのまま重ねられるマスクや質感素材になります。',
- ps:[{k:'cell',l:'粒数',min:8,max:64,v:48},{k:'dens',l:'残す割合',min:1,max:99,v:45},
-     {k:'ac',l:'アクセントを混ぜる',min:0,max:100,v:0},{k:'soft',l:'濃淡をつける',t:'b',v:0}],
- f:g=>{const N=Math.round(g.p.cell),u=g.T/N,dn=g.p.dens/100,ar=g.p.ac/100;
-   let a='',b='',c='';
-   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-     if(g.R()>=dn)continue;
-     const px=x*u,py=y*u,d=`M${n(px)} ${n(py)}H${n(px+u+0.3)}V${n(py+u+0.3)}H${n(px)}Z`;
-     const useAc=g.R()<ar;
-     if(g.p.soft)c+=PT(d,useAc?g.ac:g.fg,0,0,` opacity="${n(0.25+g.R()*0.75)}"`);
-     else if(useAc)b+=d;else a+=d;}
-   if(a)c+=PT(a,g.fg);
-   if(b)c+=PT(b,g.ac);
-   return{tw:g.T,th:g.T,c};}},
+{id:'alphanoise',nosize:1,norot:1,cat:'ノイズ',name:'透明グレイン',seam:'○',
+ desc:'1画素ごとに透明度を振ったノイズ。背景を透過して保存すれば、そのまま重ねられるマスクや質感素材になります。濃淡をなくすと穴あきのドット素材になります。',
+ ps:[{k:'px',l:'粒の大きさ',min:1,max:8,v:1},{k:'dens',l:'残す割合',min:1,max:100,v:55},
+     {k:'soft',l:'濃淡をつける',t:'b',v:1},{k:'ac',l:'アクセントを混ぜる',min:0,max:100,v:0},
+     {k:'N',l:'繰り返しの細かさ',t:'s',o:NZN,v:1}],
+ f:g=>{const N=+NZN[Math.round(g.p.N)],px=Math.round(g.p.px);
+   const B=rgbOf(g.fg),C=rgbOf(g.ac),dn=g.p.dens/100,ar=g.p.ac/100;
+   const key=['an',N,g.p.dens,g.p.soft,g.p.ac,g.fg,g.ac,g.seed].join(',');
+   const url=noisePNG(key,N,(d)=>{
+     for(let i=0;i<N*N;i++){
+       const o=i*4,keep=g.R()<dn,useAc=g.R()<ar,P=useAc?C:B;
+       d[o]=P[0];d[o+1]=P[1];d[o+2]=P[2];
+       d[o+3]=keep?(g.p.soft?Math.round(64+g.R()*191):255):0;}
+   });
+   const S=N*px;return{tw:S,th:S,c:nzImg(url,S)};}},
 
 {id:'dither',dsize:60,cat:'ノイズ',name:'ディザ（ベイヤー）',seam:'○',
  desc:'規則的なしきい値行列で濃さを表す古典的な網掛け。ドット絵やモノクロ印刷の階調表現に使われます。透過すると半分だけ抜けたピクセル素材になります。',
@@ -1682,7 +1718,7 @@ function select(label,val,opts,onC){
 }
 function buildCommon(){
   const P=byId(st.pat),el=$('#common');el.innerHTML='';
-  el.appendChild(slider('模様の大きさ',st.size,8,400,1,v=>st.size=v));
+  if(!P.nosize)el.appendChild(slider('模様の大きさ',st.size,8,400,1,v=>st.size=v));
   if(P.sw)el.appendChild(slider('線の太さ',st.sw,0.5,40,0.5,v=>st.sw=v));
   const rotOff=st.seamless||P.norot;
   el.appendChild(slider('角度',st.rot,0,90,1,v=>st.rot=v,rotOff));
