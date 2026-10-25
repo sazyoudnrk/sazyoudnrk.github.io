@@ -66,13 +66,14 @@ h2{font-size:12px;margin:0 0 9px;font-weight:700;letter-spacing:.08em;color:#3d4
 .row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .row::-webkit-scrollbar{display:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-button.chip{
+button.chip,label.chip{
   font:inherit;font-size:13px;padding:7px 11px;border-radius:999px;
   border:1px solid var(--line);background:var(--panel2);color:var(--ink);
   white-space:nowrap;cursor:pointer;
 }
-button.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
-button.chip.sm{font-size:12px;padding:5px 9px}
+button.chip.on,label.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button.chip.sm,label.chip.sm{font-size:12px;padding:5px 9px}
+.chip em{line-height:1.35}
 .tabs{display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 button.tab{
@@ -107,11 +108,6 @@ input[type=range]::-webkit-slider-thumb{
 }
 .cc input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
 .cc input[type=color]::-webkit-color-swatch{border:none;border-radius:6px}
-.pal{display:flex;gap:5px;overflow-x:auto;margin-top:9px;padding-bottom:3px;scrollbar-width:none}
-.pal::-webkit-scrollbar{display:none}
-.pal button{border:1px solid var(--line);border-radius:8px;padding:0;width:52px;height:26px;flex:0 0 auto;display:flex;overflow:hidden;cursor:pointer;background:none}
-.pal button i{flex:1}
-.pal button i:first-child{flex:2}
 
 /* size */
 .sizerow{display:flex;gap:8px;align-items:center;margin-top:9px}
@@ -119,9 +115,10 @@ input[type=range]::-webkit-slider-thumb{
   font:inherit;font-size:15px;width:100%;padding:9px 8px;border:1px solid var(--line);
   border-radius:8px;background:#fff;color:var(--ink);text-align:center
 }
-.sizerow span{color:var(--ink2);font-size:13px}
+.sizerow span{color:var(--ink2);font-size:13px;white-space:nowrap;flex:0 0 auto}
 .tbox{font:inherit;font-size:15px;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
-.sizerow button{font:inherit;font-size:13px;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+.sizerow button{font:inherit;font-size:13px;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.sizerow input[type=number]{min-width:0}
 
 .switch{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:13.5px;border-top:1px solid rgba(0,0,0,.06)}
 .switch:first-of-type{border-top:none}
@@ -130,6 +127,10 @@ input[type=range]::-webkit-slider-thumb{
 .tog.on{background:var(--accent)}
 .tog.on::after{transform:translateX(21px)}
 .note{font-size:11.5px;color:#6a6f77;margin-top:6px}
+.sublab{font-size:11px;color:#5d6169;font-weight:700;letter-spacing:.04em;margin:12px 0 5px}
+.sublab:first-of-type{margin-top:4px}
+.chip em{display:block;font-style:normal;font-size:10.5px;font-weight:400;opacity:.62;margin-top:1px}
+.dim{opacity:.38;pointer-events:none}
 .foot{font-size:11px;color:#5d6169;line-height:1.8;text-align:center;margin:2px 0 6px;padding:0 4px}
 
 /* export bar */
@@ -195,6 +196,17 @@ input[type=range]::-webkit-slider-thumb{
   </div>
 </section>
 
+<section id="fontSec" style="display:none">
+  <h2>フォント</h2>
+  <div class="chips" id="fonts"></div>
+  <div class="chips" style="margin-top:8px">
+    <label class="chip sm" style="cursor:pointer">自分のフォントを読み込む
+      <input type="file" id="fFile" accept=".ttf,.otf,.woff,.woff2,font/*" style="display:none"></label>
+    <button class="chip sm" id="fClear">読み込みを解除</button>
+  </div>
+  <div class="note" id="fontNote"></div>
+</section>
+
 <section>
   <h2>ゆがみ</h2>
   <div class="chips" id="warps"></div>
@@ -209,7 +221,6 @@ input[type=range]::-webkit-slider-thumb{
     <div class="cc"><input type="color" id="cFg"><div>主線</div></div>
     <div class="cc"><input type="color" id="cAc"><div>アクセント</div></div>
   </div>
-  <div class="pal" id="pal"></div>
   <div class="chips" style="margin-top:8px">
     <button class="chip sm" id="bSwap">背景と主線を入れ替え</button>
   </div>
@@ -217,23 +228,34 @@ input[type=range]::-webkit-slider-thumb{
   <div class="note">PNG・SVGとも背景が抜けます。背景色は塗り分けの色味づくりに使われ続けるので、そのまま調整に使えます。</div>
 </section>
 
-<section>
+<section id="sizeSec">
   <h2>出力サイズ</h2>
-  <div class="row" id="sizeCats"></div>
-  <div class="chips" id="sizes"></div>
+  <div class="sublab">比率</div>
+  <div class="chips" id="ratios"></div>
+  <div class="sizerow">
+    <span>長辺</span>
+    <input type="number" id="iLong" min="16" max="4096" step="1">
+    <span>px</span>
+    <button id="bOrient">横長</button>
+  </div>
+  <div class="sublab">幅 × 高さ（自由入力）</div>
   <div class="sizerow">
     <input type="number" id="iW" min="16" max="4096" step="1">
     <span>×</span>
     <input type="number" id="iH" min="16" max="4096" step="1">
-    <button id="bSwapWH">縦横</button>
+    <button id="bSwapWH">入替</button>
   </div>
   <div class="note" id="sizeNote"></div>
+  <div class="sublab">よく使うサイズ</div>
+  <div class="chips" id="sizes"></div>
 </section>
 
 <section>
   <h2>タイル</h2>
   <div class="switch"><span>継ぎ目なし優先</span><button class="tog on" id="tSeam"></button></div>
   <div class="switch"><span>タイル確認表示（2×2）</span><button class="tog" id="tCheck"></button></div>
+  <div class="switch"><span>タイル1枚で保存</span><button class="tog" id="tTileOut"></button></div>
+  <div class="note" id="tileNote"></div>
   <div class="note">「継ぎ目なし優先」は、模様の大きさを出力サイズにわずかに合わせ込み、上下左右がつながるようにします（角度は0°固定）。</div>
 </section>
 
@@ -281,6 +303,68 @@ function mul(a){a=a>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>
 const SQ3=Math.sqrt(3);
 function hexPts(cx,cy,R){const a=[];for(let i=0;i<6;i++){const t=Math.PI/180*(60*i-90);a.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}return a;}
 function hexD(cx,cy,R){return 'M'+hexPts(cx,cy,R).map(p=>n(p[0])+' '+n(p[1])).join('L')+'Z';}
+const XE=s=>String(s==null?'':s)
+  .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,'')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function mojibake(s,kind){
+  try{const b=new TextEncoder().encode(s);
+    if(kind===1){let t='';b.forEach(v=>{t+=String.fromCharCode(v);});return t;}
+    return new TextDecoder(kind===2?'euc-jp':'shift_jis',{fatal:false}).decode(b);
+  }catch(e){return s;}
+}
+function zalgo(s,amt,R){
+  let t='';
+  for(const ch of s){t+=ch;
+    const k=Math.round(amt/100*6*R());
+    for(let i=0;i<k;i++)t+=String.fromCharCode(0x300+Math.floor(R()*0x70));}
+  return t;
+}
+function glitch(s,amt,R){
+  const B='▚▞▓▒░█▌▐';
+  let t='';
+  for(const ch of s){
+    if(R()*100>=amt){t+=ch;continue;}
+    const c=ch.codePointAt(0);
+    if(c>=0x21&&c<=0x7e)t+=String.fromCharCode(c+0xfee0);
+    else if(c>=0xff01&&c<=0xff5e)t+=String.fromCharCode(c-0xfee0);
+    else if(c>=0x3041&&c<=0x3096)t+=String.fromCharCode(c+0x60);
+    else if(c>=0x30a1&&c<=0x30f6)t+=String.fromCharCode(c-0x60);
+    else t+=B[Math.floor(R()*B.length)];}
+  return t;
+}
+const FX=['なし','文字化け(SJIS)','文字化け(Ã系)','文字化け(EUC)','鏡文字','上下反転','180°回転','Zalgo','グリッチ'];
+function txProc(raw,g){
+  const m=Math.round(g.p.fx||0),R=g.R;
+  let s=String(raw==null?'':raw);
+  if(m===1)s=mojibake(s,0); else if(m===2)s=mojibake(s,1); else if(m===3)s=mojibake(s,2);
+  else if(m===7)s=zalgo(s,g.p.fxv,R); else if(m===8)s=glitch(s,g.p.fxv,R);
+  return s;
+}
+function txFlip(g){const m=Math.round(g.p.fx||0);
+  return m===4?[-1,1]:m===5?[1,-1]:m===6?[-1,-1]:null;}
+function advEm(s){let w=0,k=0;
+  for(const ch of s){const c=ch.codePointAt(0);
+    if(c>=0x300&&c<=0x36f)continue;
+    w+=c<0x2e80?0.54:1.0;k++;}
+  return k?w/k:1;}
+function repeatTo(s,sep,need){
+  if(!s)return '';
+  const unit=s+sep;let t='';
+  while([...t].length<need&&t.length<6000)t+=unit;
+  return t;
+}
+function txStyle(g){
+  const fam=g.fontCSS?"PL":(g.fontFam||'sans-serif');
+  return{fam,css:g.fontCSS||''};
+}
+function txGroup(inner,g){
+  const f=txFlip(g);
+  if(!f)return inner;
+  return `<g transform="translate(${n(g.W/2)} ${n(g.H/2)}) scale(${f[0]} ${f[1]}) translate(${n(-g.W/2)} ${n(-g.H/2)})">${inner}</g>`;
+}
+function polyLen(pts){let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;}
+function polyD(pts){return 'M'+pts.map(q=>n(q[0])+' '+n(q[1])).join('L');}
+
 function hsl2hex(h,s,l){h=((h%360)+360)%360;s=Math.max(0,Math.min(1,s));l=Math.max(0,Math.min(1,l));
   const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,i=Math.floor(h/60)%6;
   const T=[[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][i];
@@ -397,7 +481,7 @@ const PATS=[
      else d+=`M0 ${n(y+A)}L${n(T/2)} ${n(y)}L${n(T)} ${n(y+A)}`;}
    return{tw:T,th:T,c:g.p.fill?PT(d,g.fg):PT(d,0,g.fg,g.sw)};}},
 
-{id:'concentric',dsize:40,cat:'波',name:'同心円・放射',seam:'×',full:1,sw:1,
+{id:'concentric',dsize:40,cat:'基本',name:'同心円・放射',seam:'×',full:1,sw:1,
  desc:'一点から広がる円と線。視線を中心に集める効果が強く、集中線や波紋の下地になります。',
  ps:[{k:'mode',l:'種類',t:'s',o:['円','放射','両方'],v:0},{k:'rays',l:'放射の本数',min:6,max:120,v:36}],
  f:g=>{const cx=g.W/2,cy=g.H/2,R=Math.hypot(g.W,g.H)/2+g.T;let c='';
@@ -673,7 +757,7 @@ const PATS=[
        c+=PL(pts.map(p=>[p[0]+x+dx,p[1]+y+dy]),col);}}
    return{full:c};}},
 
-{id:'spiro',cat:'生成',name:'内トロコイド',seam:'×',full:1,sw:1,
+{id:'spiro',dsize:110,cat:'曲線',name:'内トロコイド',seam:'×',full:1,sw:1,
  desc:'円の内側を転がる小円の上の点が描く軌跡（ハイポトロコイド）。固定円と転がる円の歯数の比が単純なほど、早く閉じた花形になります。',
  ps:[{k:'R',l:'外円の歯数',min:3,max:16,v:9},{k:'r',l:'内円の歯数',min:1,max:15,v:4},{k:'d',l:'ペン位置',min:10,max:150,v:90},{k:'cp',l:'重ねる数',min:1,max:8,v:1}],
  f:g=>{const Rr=Math.max(2,Math.round(g.p.R)),r=Math.max(1,Math.min(Math.round(g.p.r),Rr-1)),d=r*g.p.d/100;
@@ -807,7 +891,7 @@ const PATS=[
      V=V.map((p,i)=>{const q=V[(i+1)%m];return [p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];});}
    return{full:c};}},
 
-{id:'harmono',dsize:110,cat:'線画',name:'ハーモノグラフ',seam:'×',full:1,sw:1,
+{id:'harmono',dsize:110,cat:'曲線',name:'ハーモノグラフ',seam:'×',full:1,sw:1,
  desc:'2つの振り子の揺れを合成して描く曲線。19世紀の実験装置で、周波数の比がわずかにずれると帯のようなうねりが生まれます。',
  ps:[{k:'f1',l:'横の周波数',min:1,max:9,v:2},{k:'f2',l:'縦の周波数',min:1,max:9,v:3},
      {k:'de',l:'ずれ',min:0,max:60,v:12},{k:'dec',l:'減衰',min:0,max:100,v:30},{k:'ph',l:'位相',min:0,max:100,v:25}],
@@ -855,7 +939,7 @@ const PATS=[
        d+=(j?'L':'M')+n(cx+r*Math.cos(t+ph))+' '+n(cy+r*Math.sin(t+ph));}}
    return{full:PT(d,0,g.fg,g.sw)};}},
 
-{id:'gravity',dsize:110,cat:'線画',name:'重力場',seam:'×',full:1,sw:1,
+{id:'gravity',dsize:110,cat:'立体',name:'重力場',seam:'×',full:1,sw:1,
  desc:'重い天体が空間を沈ませる、あの図。中心ほど深く落ち込む面をワイヤーフレームで描いています。「格子」は平面をレンズのように引き込んだもの。',
  ps:[{k:'mode',l:'種類',t:'s',o:['漏斗','格子','波紋'],v:0},{k:'depth',l:'強さ',min:5,max:100,v:45},
      {k:'ring',l:'輪・横線の数',min:3,max:30,v:12},{k:'ray',l:'すじ・縦線の数',min:4,max:48,v:20},
@@ -1297,6 +1381,87 @@ const PATS=[
    const dots=CI(cx-cc,cy,Math.max(1.5,g.sw*1.6),g.ac)+CI(cx+cc,cy,Math.max(1.5,g.sw*1.6),g.ac);
    return{full:PT(d,0,g.fg,g.sw)+dots};}},
 
+/* ===== 文字 ===== */
+{id:'textspiral',dsize:110,cat:'文字',name:'渦巻き文字',seam:'×',full:1,
+ desc:'蚊取り線香のように、渦を巻きながら文字が続きます。巻きの間隔から文字サイズを決めているので、巻き数を増やしても重なりません。文字は自動で繰り返して渦を埋めます。',
+ ps:[{k:'text',l:'文字',t:'t',v:'ぐるぐる'},{k:'sep',l:'区切り',t:'s',o:['なし','・','　','―'],v:1},
+     {k:'turns',l:'巻き数',min:2,max:30,v:9},{k:'fs',l:'文字サイズ',min:25,max:110,v:66},
+     {k:'ls',l:'字間',min:-20,max:60,v:4},{k:'inner',l:'中心から外へ',t:'b',v:1},
+     {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.47,g.T/240),cx=g.W/2,cy=g.H/2;
+   const T=Math.round(g.p.turns),r0=R*0.06,gap=(R-r0)/T;
+   const fs=Math.max(1,gap*g.p.fs/100),ls=fs*g.p.ls/100;
+   const steps=Math.max(240,T*60),pts=[];
+   for(let i=0;i<=steps;i++){const t=i/steps*T*2*Math.PI,r=r0+(R-r0)*(i/steps);
+     pts.push([cx+r*Math.cos(t),cy+r*Math.sin(t)]);}
+   if(!g.p.inner)pts.reverse();
+   const raw=txProc(g.p.text,g),adv=fs*advEm(raw)+ls;
+   const body=XE(repeatTo(raw,['','・','　','―'][Math.round(g.p.sep)],Math.ceil(polyLen(pts)/Math.max(1,adv))+4));
+   const sty=txStyle(g);
+   const inner=`<defs><path id="tpz" d="${polyD(pts)}"/></defs>`
+     +`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${g.fg}" xml:space="preserve">`
+     +`<textPath href="#tpz" xlink:href="#tpz">${body}</textPath></text>`;
+   return{defs:sty.css?`<style>${sty.css}</style>`:'',full:txGroup(inner,g)};}},
+
+{id:'textring',dsize:110,cat:'文字',name:'円周文字',seam:'×',full:1,
+ desc:'同心円に沿って文字を並べます。リングごとに向きを変えられ、外周だけの輪っかから、面を埋める多重リングまで作れます。',
+ ps:[{k:'text',l:'文字',t:'t',v:'ぐるりと一周'},{k:'sep',l:'区切り',t:'s',o:['なし','・','　','―'],v:1},
+     {k:'rings',l:'リング数',min:1,max:14,v:5},{k:'fs',l:'文字サイズ',min:25,max:110,v:70},
+     {k:'ls',l:'字間',min:-20,max:60,v:6},{k:'alt',l:'1本おきに逆向き',t:'b',v:1},
+     {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
+ f:g=>{const R=Math.min(g.W,g.H)*Math.min(0.47,g.T/240),cx=g.W/2,cy=g.H/2;
+   const N=Math.round(g.p.rings),gap=R/N;
+   const fs=Math.max(1,gap*g.p.fs/100),ls=fs*g.p.ls/100;
+   const raw=txProc(g.p.text,g),sep=['','・','　','―'][Math.round(g.p.sep)];
+   const adv=fs*advEm(raw)+ls,sty=txStyle(g);
+   let defs='',body='';
+   for(let i=0;i<N;i++){const r=R-gap*i-gap*0.45;if(r<fs*0.6)continue;
+     const rev=g.p.alt&&i%2===1,sw=rev?0:1;
+     defs+=`<path id="tr${i}" d="M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 ${sw} ${n(cx+r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 ${sw} ${n(cx-r)} ${n(cy)}"/>`;
+     const t=XE(repeatTo(raw,sep,Math.ceil(2*Math.PI*r/Math.max(1,adv))+2));
+     body+=`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${i%2?g.ac:g.fg}" xml:space="preserve">`
+       +`<textPath href="#tr${i}" xlink:href="#tr${i}">${t}</textPath></text>`;}
+   return{defs:(sty.css?`<style>${sty.css}</style>`:'')+defs,full:txGroup(body,g)};}},
+
+{id:'textwave',dsize:110,cat:'文字',name:'波文字',seam:'×',full:1,
+ desc:'波打つ線に沿って文字が流れます。振幅を0にすればただの行組みになり、上げるほどうねります。',
+ ps:[{k:'text',l:'文字',t:'t',v:'ゆらゆら'},{k:'sep',l:'区切り',t:'s',o:['なし','・','　','―'],v:2},
+     {k:'rows',l:'行数',min:1,max:20,v:7},{k:'amp',l:'うねり',min:0,max:100,v:60},
+     {k:'wl',l:'波長',min:20,max:200,v:80},{k:'ls',l:'字間',min:-20,max:60,v:4},
+     {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
+ f:g=>{const N=Math.round(g.p.rows),rh=g.H/N;
+   const fs=Math.max(1,rh*Math.min(0.78,g.T/160)),ls=fs*g.p.ls/100;
+   const L=Math.max(1,g.W*g.p.wl/100);
+   const A=Math.min(rh*0.5*g.p.amp/100,L*0.19);
+   const raw=txProc(g.p.text,g),sep=['','・','　','―'][Math.round(g.p.sep)];
+   const adv=fs*advEm(raw)+ls,sty=txStyle(g);
+   let defs='',body='';
+   for(let i=0;i<N;i++){const y=rh*(i+0.62),pts=[];
+     for(let x=0;x<=120;x++){const px=-g.W*0.05+x/120*g.W*1.1;
+       pts.push([px,y+A*Math.sin(px/Math.max(1,L)*2*Math.PI+i*1.1)]);}
+     defs+=`<path id="tw${i}" d="${polyD(pts)}"/>`;
+     const t=XE(repeatTo(raw,sep,Math.ceil(polyLen(pts)/Math.max(1,adv))+2));
+     body+=`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${g.fg}" xml:space="preserve">`
+       +`<textPath href="#tw${i}" xlink:href="#tw${i}">${t}</textPath></text>`;}
+   return{defs:(sty.css?`<style>${sty.css}</style>`:'')+defs,full:txGroup(body,g)};}},
+
+{id:'texttile',dsize:200,cat:'文字',name:'文字タイル',seam:'○',
+ desc:'文字をタイルとして敷き詰めます。幅をタイルにぴったり合わせているので上下左右がつながり、繰り返しの背景になります。行を半分ずらすとレンガ積みになります。',
+ ps:[{k:'text',l:'文字',t:'t',v:'PATTERN LAB'},{k:'rows',l:'1タイルの行数',min:1,max:8,v:3},
+     {k:'fs',l:'文字サイズ',min:20,max:95,v:58},{k:'off',l:'行のずれ',min:0,max:100,v:50},
+     {k:'alt',l:'1行おきに色を変える',t:'b',v:0},
+     {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
+ f:g=>{const W=g.T,N=Math.round(g.p.rows),rh=W/N;
+   const fs=Math.max(1,rh*g.p.fs/100),off=W*g.p.off/100;
+   const raw=XE(txProc(g.p.text,g))||'　',sty=txStyle(g);
+   let c='';
+   for(let i=-1;i<=N;i++){const y=rh*(i+0.74),col=(g.p.alt&&((i%2)+2)%2)?g.ac:g.fg;
+     const dx=((i%2)+2)%2?off:0;
+     for(const k of[-1,0,1])
+       c+=`<text x="${n(dx+k*W)}" y="${n(y)}" textLength="${n(W)}" lengthAdjust="spacing"`
+         +` font-family="${sty.fam}" font-size="${n(fs)}" fill="${col}" xml:space="preserve">${raw}</text>`;}
+   return{defs:sty.css?`<style>${sty.css}</style>`:'',tw:W,th:W,c};}},
+
 /* ===== コード ===== */
 {id:'barcode',dsize:150,cat:'コード',name:'バーコード風',seam:'×',full:1,
  desc:'見た目だけのダミーのバーコードです。バーは乱数で、下の数字はただの文字なので読み取れません。既定値は2で始まる店内管理用の帯域で、実在の商品番号とは重なりません。数字を変えると並びも変わります。',
@@ -1351,30 +1516,31 @@ const PATS=[
 
 const WARPS=[{n:'なし'},{n:'うねり',t:'fractalNoise',o:3},{n:'波',t:'turbulence',o:1},{n:'こまかい',t:'fractalNoise',o:5}];
 
-const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','ノイズ','コード','生成'];
+const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','ノイズ','文字','コード','生成'];
 
-const PALS=[
- {n:'モノクロ',bg:'#ffffff',fg:'#141414',ac:'#8c8c8c'},
- {n:'藍',bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e'},
- {n:'墨',bg:'#f6f4ef',fg:'#2b2926',ac:'#a8352c'},
- {n:'霞',bg:'#e9eef0',fg:'#5b7d8c',ac:'#d8c9a3'},
- {n:'夜',bg:'#141821',fg:'#e7e4dd',ac:'#4f9d8b'},
- {n:'蛍光',bg:'#101014',fg:'#00e0d0',ac:'#ff2f8e'},
- {n:'土',bg:'#e6ddcd',fg:'#6b4b2a',ac:'#9d6a3f'},
- {n:'苔',bg:'#eef0e6',fg:'#3f5738',ac:'#b6893f'},
- {n:'桃',bg:'#fdf2ee',fg:'#e79aa0',ac:'#7f95c6'},
- {n:'赤黒',bg:'#f0ece6',fg:'#111111',ac:'#d0342c'}
+const FONTS=[
+ {n:'ゴシック',f:'Noto Sans JP'},{n:'明朝',f:'Noto Serif JP'},
+ {n:'丸ゴシック',f:'Zen Maru Gothic'},{n:'丸ポップ',f:'M PLUS Rounded 1c'},
+ {n:'ドット',f:'DotGothic16'},{n:'手書き',f:'Yusei Magic'},
+ {n:'ゆるポップ',f:'Hachi Maru Pop'},{n:'極太',f:'Reggae One'},
+ {n:'筆',f:'Kaisei Decol'},{n:'細長',f:'Stick'}
+];
+
+const RATIOS=[
+ {n:'1:1',a:1,b:1},{n:'4:5',a:4,b:5},{n:'3:4',a:3,b:4},{n:'2:3',a:2,b:3},
+ {n:'9:16',a:9,b:16},{n:'1:2',a:1,b:2},{n:'1:3',a:1,b:3},{n:'√2',a:1,b:Math.SQRT2}
 ];
 
 const SIZES=[
- {g:'SNS',items:[['X ヘッダー',1500,500],['X 投稿',1600,900],['正方形 1080',1080,1080],['ストーリー',1080,1920],['サムネ 16:9',1280,720],['アイコン',800,800]]},
- {g:'印刷 350dpi',items:[['A4 縦',2894,4093],['A4 横',4093,2894],['B5 縦',2150,3035],['ポストカード',1378,2039],['名刺',1254,758],['正方形10cm',1378,1378]]},
- {g:'壁紙',items:[['iPhone',1179,2556],['デスクトップ',1920,1080],['タブレット',2048,2732]]}
+ ['X ヘッダー',1500,500],['X 投稿',1600,900],['正方形 1080',1080,1080],
+ ['ストーリー',1080,1920],['サムネ',1280,720],['アイコン',800,800],
+ ['A4 350dpi',2894,4093],['B5 350dpi',2150,3035],['ポストカード',1378,2039],
+ ['名刺',1254,758],['iPhone',1179,2556],['デスクトップ',1920,1080]
 ];
 
 /* ---------- state ---------- */
-const st={pat:'seigaiha',cat:'和柄',sizeCat:'SNS',W:1080,H:1080,
-  bg:'#f2efe6',fg:'#1b3a5c',ac:'#c08a2e',
+const st={pat:'seigaiha',cat:'和柄',tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
+  bg:'#ffffff',fg:'#141414',ac:'#8c8c8c',
   size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,trans:false,warp:0,wamt:40,wsize:60,p:{}};
 const byId=id=>PATS.find(p=>p.id===id);
 function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
@@ -1383,7 +1549,9 @@ PATS.forEach(p=>st.p[p.id]=defP(p));
 /* ---------- build ---------- */
 function buildSVG(W,H){
   const P=byId(st.pat);
-  const g={W,H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,trans:st.trans,p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
+  const g={W,H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,trans:st.trans,
+    fontCSS:st.fontCSS,fontFam:st.fontLocal?'PL':`'${(FONTS[st.font]||FONTS[0]).f}',sans-serif`,
+    p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
   let r;
   try{r=P.f(g);}catch(e){r={full:''};}
   let defs=r.defs||'',body='';
@@ -1407,9 +1575,31 @@ function buildSVG(W,H){
   }else{
     body=`<g${fx}><g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +(defs?`<defs>${defs}</defs>`:'')
     +(st.trans?'':`<rect width="${W}" height="${H}" fill="${st.bg}"/>`)+body+`</svg>`;
+}
+
+function tileSVG(){
+  const P=byId(st.pat);
+  const g={W:st.W,H:st.H,T:st.size,sw:st.sw,fg:st.fg,bg:st.bg,ac:st.ac,trans:st.trans,
+    p:st.p[st.pat],R:mul(st.seed*2654435761),seed:st.seed};
+  let r;try{r=P.f(g);}catch(e){return null;}
+  if(r.c===undefined)return null;
+  const tw=Math.max(0.01,r.tw),th=Math.max(0.01,r.th);
+  const W=Math.max(1,Math.round(tw)),H=Math.max(1,Math.round(th));
+  if(W>4096||H>4096)return null;
+  const defs=(r.defs||'')
+    +`<pattern id="pt" patternUnits="userSpaceOnUse" width="${n(tw)}" height="${n(th)}"`
+    +` patternTransform="scale(${n6(W/tw)},${n6(H/th)})">${r.c}</pattern>`;
+  return {W,H,svg:`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
+    +`<defs>${defs}</defs>`
+    +(st.trans?'':`<rect width="${W}" height="${H}" fill="${st.bg}"/>`)
+    +`<rect width="${W}" height="${H}" fill="url(#pt)" opacity="${st.op/100}"/></svg>`};
+}
+function outSpec(){
+  if(st.tileOut){const t=tileSVG();if(t)return{W:t.W,H:t.H,svg:t.svg,tile:true};}
+  return {W:st.W,H:st.H,svg:buildSVG(st.W,st.H),tile:false};
 }
 
 /* ---------- render ---------- */
@@ -1455,7 +1645,7 @@ function buildPats(){
   PATS.filter(p=>p.cat===st.cat).forEach(p=>{
     const b=document.createElement('button');
     b.className='chip'+(p.id===st.pat?' on':'');b.textContent=p.name;
-    b.onclick=()=>{st.pat=p.id;st.size=p.dsize||110;buildPats();buildCommon();buildExtra();render();};
+    b.onclick=()=>{st.pat=p.id;st.size=p.dsize||110;buildPats();buildCommon();buildExtra();buildFonts();syncTile();render();};
     el.appendChild(b);});
   $('#desc').textContent=byId(st.pat).desc;
 }
@@ -1487,7 +1677,7 @@ function select(label,val,opts,onC){
   const w=document.createElement('div');w.className='chips';
   opts.forEach((o,i)=>{const b=document.createElement('button');
     b.className='chip sm'+(i===val?' on':'');b.textContent=o;
-    b.onclick=()=>{onC(i);buildExtra();render();};w.appendChild(b);});
+    b.onclick=()=>{onC(i);buildExtra();if(byId(st.pat).cat==='文字')queueFont();render();};w.appendChild(b);});
   d.appendChild(w);return d;
 }
 function buildCommon(){
@@ -1502,11 +1692,59 @@ function buildExtra(){
   const P=byId(st.pat),el=$('#extra');el.innerHTML='';
   (P.ps||[]).forEach(q=>{
     const cur=st.p[P.id][q.k];
-    if(q.t==='t')el.appendChild(textbox(q.l,cur,v=>st.p[P.id][q.k]=v));
+    if(q.t==='t')el.appendChild(textbox(q.l,cur,v=>{st.p[P.id][q.k]=v;if(P.cat==='文字')queueFont();}));
     else if(q.t==='b')el.appendChild(toggle(q.l,cur,v=>st.p[P.id][q.k]=v));
     else if(q.t==='s')el.appendChild(select(q.l,cur,q.o,v=>st.p[P.id][q.k]=v));
     else el.appendChild(slider(q.l,cur,q.min,q.max,q.step||1,v=>st.p[P.id][q.k]=v));
   });
+}
+function textChars(){
+  const P=byId(st.pat);if(P.cat!=='文字')return '';
+  const g={W:1000,H:1000,T:st.size,p:st.p[st.pat],R:mul(st.seed*2654435761)};
+  let t='';try{t=txProc(st.p[st.pat].text,g);}catch(e){t=String(st.p[st.pat].text||'');}
+  return [...new Set((t+'・　― ').split(''))].join('');
+}
+function b64(buf){const u=new Uint8Array(buf);let s='';
+  for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
+  return btoa(s);}
+let fontTimer=0;
+function queueFont(){clearTimeout(fontTimer);fontTimer=setTimeout(loadFont,450);}
+async function loadFont(){
+  if(st.fontLocal)return;
+  const P=byId(st.pat);if(P.cat!=='文字')return;
+  const f=FONTS[st.font]||FONTS[0],chars=textChars();
+  const key=f.f+'|'+chars;
+  if(key===st.fontKey)return;
+  const note=$('#fontNote');
+  try{
+    note.textContent='フォントを取り込んでいます…';
+    const cssUrl=`https://fonts.googleapis.com/css2?family=${encodeURIComponent(f.f)}&text=${encodeURIComponent(chars)}`;
+    const css=await (await fetch(cssUrl)).text();
+    const m=css.match(/url\((https:[^)]+)\)/);
+    if(!m)throw 0;
+    const buf=await (await fetch(m[1])).arrayBuffer();
+    const fmt=/woff2/.test(m[1])?'woff2':/woff/.test(m[1])?'woff':'truetype';
+    st.fontCSS=`@font-face{font-family:'PL';src:url(data:font/${fmt};base64,${b64(buf)}) format('${fmt}')}`;
+    st.fontKey=key;
+    note.textContent=`${f.n}（${f.f}）を埋め込みました。SVGでもPNGでも同じに出ます。`;
+  }catch(e){
+    st.fontCSS='';st.fontKey='';
+    note.textContent='フォントを取得できませんでした。端末にある書体で表示します（他の環境では別の字形になることがあります）。';
+  }
+  render();
+}
+function buildFonts(){
+  const P=byId(st.pat),on=P.cat==='文字';
+  $('#fontSec').style.display=on?'':'none';
+  if(!on)return;
+  const el=$('#fonts');el.innerHTML='';
+  FONTS.forEach((f,i)=>{const b=document.createElement('button');
+    b.className='chip sm'+(i===st.font&&!st.fontLocal?' on':'');
+    b.innerHTML=`${f.n}<em>${f.f}</em>`;
+    b.onclick=()=>{st.font=i;st.fontLocal=null;st.fontCSS='';st.fontKey='';buildFonts();render();loadFont();};
+    el.appendChild(b);});
+  if(st.fontLocal)$('#fontNote').textContent=`読み込んだ書体「${st.fontLocal}」を使っています。`;
+  else if(!st.fontCSS)queueFont();
 }
 function buildWarps(){
   const el=$('#warps');el.innerHTML='';
@@ -1520,29 +1758,49 @@ function buildWarpCtl(){
   el.appendChild(slider('強さ',st.wamt,2,200,1,v=>st.wamt=v));
   el.appendChild(slider('うねりの大きさ',st.wsize,4,300,1,v=>st.wsize=v));
 }
-function buildPal(){
-  const el=$('#pal');el.innerHTML='';
-  PALS.forEach(p=>{const b=document.createElement('button');b.title=p.n;
-    b.innerHTML=`<i style="background:${p.bg}"></i><i style="background:${p.fg}"></i><i style="background:${p.ac}"></i>`;
-    b.onclick=()=>{st.bg=p.bg;st.fg=p.fg;st.ac=p.ac;syncColors();render();};
-    el.appendChild(b);});
-}
 function syncColors(){$('#cBg').value=st.bg;$('#cFg').value=st.fg;$('#cAc').value=st.ac;}
+function curRatio(){
+  const lo=Math.min(st.W,st.H),hi=Math.max(st.W,st.H),k=lo/hi;
+  for(let i=0;i<RATIOS.length;i++){const r=RATIOS[i];
+    if(Math.abs(k-r.a/r.b)<0.006)return i;}
+  return -1;
+}
+function applyRatio(i){
+  const r=RATIOS[i],hi=Math.max(st.W,st.H);
+  const lo=Math.max(16,Math.min(4096,Math.round(hi*r.a/r.b)));
+  if(st.H>=st.W){st.W=lo;st.H=hi;}else{st.W=hi;st.H=lo;}
+  syncSize();buildSizes();render();
+}
 function buildSizes(){
-  const cs=$('#sizeCats');cs.innerHTML='';
-  SIZES.forEach(s=>{const b=document.createElement('button');
-    b.className='chip'+(s.g===st.sizeCat?' on':'');b.textContent=s.g;
-    b.onclick=()=>{st.sizeCat=s.g;buildSizes();};cs.appendChild(b);});
+  const rs=$('#ratios');rs.innerHTML='';
+  const cur=curRatio();
+  RATIOS.forEach((r,i)=>{const b=document.createElement('button');
+    b.className='chip sm'+(i===cur?' on':'');b.textContent=r.n;
+    b.onclick=()=>applyRatio(i);rs.appendChild(b);});
   const el=$('#sizes');el.innerHTML='';
-  const grp=SIZES.find(s=>s.g===st.sizeCat);
-  grp.items.forEach(([nm,w,h])=>{const b=document.createElement('button');
-    b.className='chip sm'+(w===st.W&&h===st.H?' on':'');b.textContent=`${nm}`;
+  SIZES.forEach(([nm,w,h])=>{const b=document.createElement('button');
+    b.className='chip sm'+(w===st.W&&h===st.H?' on':'');
+    b.innerHTML=`${nm}<em>${w}×${h}</em>`;
     b.onclick=()=>{st.W=w;st.H=h;syncSize();buildSizes();render();};el.appendChild(b);});
 }
 function syncSize(){
   $('#iW').value=st.W;$('#iH').value=st.H;
+  $('#iLong').value=Math.max(st.W,st.H);
+  $('#bOrient').textContent=st.H>st.W?'縦長':(st.W>st.H?'横長':'正方形');
   const px=st.W*st.H;
-  $('#sizeNote').textContent=`${(px/1e6).toFixed(1)}メガピクセル`+(px>1.2e7?'／端末によっては書き出しに失敗することがあります':'');
+  $('#sizeNote').textContent=`${st.W} × ${st.H} px ・ ${(px/1e6).toFixed(1)}メガピクセル`
+    +(px>1.2e7?' ／ 端末によっては書き出しに失敗することがあります':'');
+  syncTile();
+}
+function syncTile(){
+  const t=st.tileOut?tileSVG():null;
+  const ok=byId(st.pat).seam==='○'&&!byId(st.pat).full;
+  $('#sizeSec').classList.toggle('dim',!!(st.tileOut&&t));
+  const el=$('#tileNote');
+  if(!st.tileOut){el.textContent=ok?'繰り返し1枚分だけを書き出します。CSSやクリスタのパターン登録向けで、ファイルも軽くなります。'
+    :'このパターンはタイルにならないため、通常の出力サイズで保存されます。';return;}
+  el.textContent=t?`タイル1枚 ${t.W} × ${t.H} px を書き出します。出力サイズの指定は使いません。`
+    :'このパターンはタイルにならないため、通常の出力サイズで保存されます。';
 }
 function toast(msg,ms){const t=$('#toast');t.textContent=msg;t.classList.add('on');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),ms||1800);}
@@ -1552,9 +1810,36 @@ function toast(msg,ms){const t=$('#toast');t.textContent=msg;t.classList.add('on
   $('#'+id).addEventListener('input',e=>{st[['bg','fg','ac'][i]]=e.target.value;render();});
 });
 $('#bSwap').onclick=()=>{const t=st.bg;st.bg=st.fg;st.fg=t;syncColors();render();};
-$('#iW').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.W=v;syncSize();render();}};
-$('#iH').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.H=v;syncSize();render();}};
+$('#iW').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.W=v;syncSize();buildSizes();render();}};
+$('#iH').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.H=v;syncSize();buildSizes();render();}};
 $('#bSwapWH').onclick=()=>{const t=st.W;st.W=st.H;st.H=t;syncSize();buildSizes();render();};
+$('#bOrient').onclick=()=>{if(st.W===st.H)return;const t=st.W;st.W=st.H;st.H=t;syncSize();buildSizes();render();};
+$('#iLong').oninput=e=>{const v=parseInt(e.target.value||0);if(!(v>=16&&v<=4096))return;
+  const hi=Math.max(st.W,st.H),k=v/hi;
+  const lo=Math.max(16,Math.min(4096,Math.round(Math.min(st.W,st.H)*k)));
+  if(st.H>=st.W){st.W=lo;st.H=v;}else{st.W=v;st.H=lo;}
+  $('#iW').value=st.W;$('#iH').value=st.H;
+  $('#bOrient').textContent=st.H>st.W?'縦長':(st.W>st.H?'横長':'正方形');
+  const px=st.W*st.H;
+  $('#sizeNote').textContent=`${st.W} × ${st.H} px ・ ${(px/1e6).toFixed(1)}メガピクセル`
+    +(px>1.2e7?' ／ 端末によっては書き出しに失敗することがあります':'');
+  buildSizes();syncTile();render();};
+$('#fFile').onchange=e=>{
+  const fl=e.target.files&&e.target.files[0];if(!fl)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const ext=(fl.name.split('.').pop()||'').toLowerCase();
+    const fmt=ext==='woff2'?'woff2':ext==='woff'?'woff':ext==='otf'?'opentype':'truetype';
+    st.fontCSS=`@font-face{font-family:'PL';src:url(data:font/${fmt};base64,${b64(rd.result)}) format('${fmt}')}`;
+    st.fontLocal=fl.name;st.fontKey='local:'+fl.name;
+    buildFonts();render();
+  };
+  rd.onerror=()=>{$('#fontNote').textContent='このファイルを読み込めませんでした。';};
+  rd.readAsArrayBuffer(fl);
+  e.target.value='';
+};
+$('#fClear').onclick=()=>{st.fontLocal=null;st.fontCSS='';st.fontKey='';buildFonts();render();loadFont();};
+$('#tTileOut').onclick=function(){st.tileOut=!st.tileOut;this.classList.toggle('on',st.tileOut);syncTile();};
 $('#tSeam').onclick=function(){st.seamless=!st.seamless;this.classList.toggle('on',st.seamless);buildCommon();render();};
 $('#tTrans').onclick=function(){st.trans=!st.trans;this.classList.toggle('on',st.trans);render();};
 $('#tCheck').onclick=function(){st.check=!st.check;this.classList.toggle('on',st.check);render();};
@@ -1574,10 +1859,8 @@ $('#bRandP').onclick=()=>{
 $('#bRandAll').onclick=()=>{
   const p=PATS[Math.floor(Math.random()*PATS.length)];
   st.pat=p.id;st.cat=p.cat;
-  const pal=PALS[Math.floor(Math.random()*PALS.length)];
-  st.bg=pal.bg;st.fg=pal.fg;st.ac=pal.ac;
   st.sw=Math.round((1+Math.random()*10)*2)/2;
-  buildCats();buildPats();syncColors();
+  buildCats();buildPats();
   $('#bRandP').click();
 };
 
@@ -1588,9 +1871,10 @@ function dl(blob,name){
   setTimeout(()=>{URL.revokeObjectURL(u);a.remove();},2000);
 }
 $('#bSvg').onclick=()=>{
-  const svg=buildSVG(st.W,st.H);
-  dl(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),`pattern-${st.pat}-${st.W}x${st.H}.svg`);
-  toast('SVGを書き出しました');
+  const o=outSpec();
+  dl(new Blob([o.svg],{type:'image/svg+xml;charset=utf-8'}),
+     `pattern-${st.pat}${o.tile?'-tile':''}-${o.W}x${o.H}.svg`);
+  toast(o.tile?`タイル1枚 ${o.W}×${o.H} のSVGを書き出しました`:'SVGを書き出しました');
 };
 function rasterize(svg,W,H,ok,ng){
   const makers=[
@@ -1620,10 +1904,10 @@ function rasterize(svg,W,H,ok,ng){
   next('');
 }
 $('#bPng').onclick=()=>{
-  const svg=buildSVG(st.W,st.H);
+  const o=outSpec();
   toast('画像を作っています…');
-  rasterize(svg,st.W,st.H,b=>{
-    dl(b,`pattern-${st.pat}-${st.W}x${st.H}.png`);
+  rasterize(o.svg,o.W,o.H,b=>{
+    dl(b,`pattern-${st.pat}${o.tile?'-tile':''}-${o.W}x${o.H}.png`);
     $('#mImg').src=URL.createObjectURL(b);$('#modal').classList.add('on');
   },why=>{
     let m='PNGにできませんでした。';
@@ -1640,7 +1924,7 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('o
 window.addEventListener('resize',()=>render());
 
 /* ---------- init ---------- */
-st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildWarps();buildWarpCtl();buildPal();syncColors();buildSizes();syncSize();render();
+st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildFonts();buildWarps();buildWarpCtl();syncColors();buildSizes();syncSize();render();
 </script>
 </body>
 </html>
