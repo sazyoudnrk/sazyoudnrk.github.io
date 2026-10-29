@@ -577,22 +577,6 @@ const PATS=[
    let c=R2(0,0,T,w,g.fg)+R2(0,T-w,T,w,g.fg)+R2(0,0,w,T,g.fg)+R2(T-w,0,w,T,g.fg);
    return{tw:T+gp,th:T,c};}},
 
-{id:'brick',dsize:110,cat:'基本',name:'レンガ',seam:'○',
- desc:'半分ずつずらした矩形の積み方。ずれ量を変えると芋目地・馬目地など積み方が変わります。',
- ps:[{k:'gap',l:'目地の幅',min:1,max:25,v:6},{k:'off',l:'ずれ',min:0,max:100,v:50}],
- f:g=>{const T=g.T,h=T/2,gp=T*g.p.gap/100,of=T*g.p.off/100;
-   let c=R2(gp/2,gp/2,T-gp,h-gp,g.fg);
-   for(const dx of[-T,0,T])c+=R2(of+gp/2+dx,h+gp/2,T-gp,h-gp,g.fg);
-   return{tw:T,th:T,c};}},
-
-{id:'tri',dsize:90,cat:'基本',name:'三角',seam:'○',sw:1,
- desc:'正三角形の敷き詰め。平面を隙間なく埋められる3つの正多角形（三角・四角・六角）のひとつです。',
- ps:[{k:'line',l:'線で描く',t:'b',v:0}],
- f:g=>{const T=g.T,h=T*0.866;
-   if(g.p.line){const d=`M0 ${n(h)}H${n(T)}M0 ${n(h)}L${n(T/2)} 0M${n(T)} ${n(h)}L${n(T/2)} 0M0 0L${n(T/2)} ${n(h)}M${n(T)} 0L${n(T/2)} ${n(h)}M0 0H${n(T)}`;
-     return{tw:T,th:h,c:PT(d,0,g.fg,g.sw)};}
-   return{tw:T,th:h,c:R2(-1,-1,T+2,h+2,g.fg)+PL([[T/2,0],[0,h],[T,h]],g.ac)};}},
-
 {id:'hex',dsize:80,cat:'基本',name:'六角（ハニカム）',seam:'○',sw:1,
  desc:'蜂の巣の形。同じ面積を最も短い境界線で囲める構造で、自然界にも多く現れます。',
  ps:[{k:'fill',l:'塗りにする',t:'b',v:0}],
@@ -799,6 +783,22 @@ const PATS=[
      else{
        fl+=flip?PL([[x,y],[x+cw,y],[x,y+ch]],g.fg):PL([[x+cw,y],[x+cw,y+ch],[x,y+ch]],g.fg);}}
    return{full:fl+(d?PT(d,0,g.fg,g.sw):'')};}},
+
+{id:'brick',dsize:110,cat:'幾何',name:'レンガ',seam:'○',
+ desc:'半分ずつずらした矩形の積み方。ずれ量を変えると芋目地・馬目地など積み方が変わります。',
+ ps:[{k:'gap',l:'目地の幅',min:1,max:25,v:6},{k:'off',l:'ずれ',min:0,max:100,v:50}],
+ f:g=>{const T=g.T,h=T/2,gp=T*g.p.gap/100,of=T*g.p.off/100;
+   let c=R2(gp/2,gp/2,T-gp,h-gp,g.fg);
+   for(const dx of[-T,0,T])c+=R2(of+gp/2+dx,h+gp/2,T-gp,h-gp,g.fg);
+   return{tw:T,th:T,c};}},
+
+{id:'tri',dsize:90,cat:'幾何',name:'三角',seam:'○',sw:1,
+ desc:'正三角形の敷き詰め。平面を隙間なく埋められる3つの正多角形（三角・四角・六角）のひとつです。',
+ ps:[{k:'line',l:'線で描く',t:'b',v:0}],
+ f:g=>{const T=g.T,h=T*0.866;
+   if(g.p.line){const d=`M0 ${n(h)}H${n(T)}M0 ${n(h)}L${n(T/2)} 0M${n(T)} ${n(h)}L${n(T/2)} 0M0 0L${n(T/2)} ${n(h)}M${n(T)} 0L${n(T/2)} ${n(h)}M0 0H${n(T)}`;
+     return{tw:T,th:h,c:PT(d,0,g.fg,g.sw)};}
+   return{tw:T,th:h,c:R2(-1,-1,T+2,h+2,g.fg)+PL([[T/2,0],[0,h],[T,h]],g.ac)};}},
 
 /* ===== 織物 ===== */
 {id:'herring',dsize:90,cat:'織物',name:'ヘリンボーン',seam:'○',
@@ -1983,7 +1983,7 @@ const PATS=[
 
 const WARPS=[{n:'なし'},{n:'うねり',t:'fractalNoise',o:3},{n:'波',t:'turbulence',o:1},{n:'こまかい',t:'fractalNoise',o:5}];
 
-const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','自然','ノイズ','文字','コード','生成'];
+const CATS=['基本','波','和柄','織物','幾何','線画','フラクタル','曲線','数論','立体','自然','ノイズ','文字','コード','生成'];
 
 const FONTS=[
  {n:'ゴシック',f:'Noto Sans JP'},{n:'明朝',f:'Noto Serif JP'},
@@ -2006,7 +2006,7 @@ const SIZES=[
 ];
 
 /* ---------- state ---------- */
-const st={pat:'seigaiha',cat:'和柄',tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
+const st={pat:'checker',cat:'基本',tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
   bg:'#ffffff',fg:'#141414',ac:'#8c8c8c',
   size:110,sw:5,rot:0,seed:1,seamless:true,check:false,trans:false,
   warp:0,wamt:40,wsize:60,kal:0,kzoom:110,koff:0,ht:0,htd:12,hta:3,htb:0,p:{}};
