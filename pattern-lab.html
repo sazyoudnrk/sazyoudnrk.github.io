@@ -439,6 +439,33 @@ function txGroup(inner,g){
   if(!f)return inner;
   return `<g transform="translate(${n(g.W/2)} ${n(g.H/2)}) scale(${f[0]} ${f[1]}) translate(${n(-g.W/2)} ${n(-g.H/2)})">${inner}</g>`;
 }
+function chainSegs(sg){
+  const K=(x,y)=>Math.round(x*4)+','+Math.round(y*4);
+  const ends=new Map();
+  for(let i=0;i<sg.length;i++){
+    for(const e of[[sg[i][0],sg[i][1]],[sg[i][2],sg[i][3]]]){
+      const k=K(e[0],e[1]);let a=ends.get(k);
+      if(!a){a=[];ends.set(k,a);}a.push(i);}}
+  const used=new Uint8Array(sg.length);let d='';
+  for(let i=0;i<sg.length;i++){
+    if(used[i])continue;used[i]=1;
+    const pts=[[sg[i][0],sg[i][1]],[sg[i][2],sg[i][3]]];
+    for(let dir=0;dir<2;dir++){
+      for(let guard=0;guard<20000;guard++){
+        const e=dir?pts[0]:pts[pts.length-1],lst=ends.get(K(e[0],e[1]));
+        if(!lst)break;
+        let nx=null;
+        for(const j of lst){
+          if(used[j])continue;const t=sg[j];
+          if(K(t[0],t[1])===K(e[0],e[1]))nx=[t[2],t[3]];
+          else if(K(t[2],t[3])===K(e[0],e[1]))nx=[t[0],t[1]];
+          else continue;
+          used[j]=1;break;}
+        if(!nx)break;
+        if(dir)pts.unshift(nx);else pts.push(nx);}}
+    d+='M'+pts.map(q=>n(q[0])+' '+n(q[1])).join('L');}
+  return d;
+}
 function polyLen(pts){let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;}
 function polyD(pts){return 'M'+pts.map(q=>n(q[0])+' '+n(q[1])).join('L');}
 
@@ -1626,6 +1653,198 @@ const PATS=[
    const dots=CI(cx-cc,cy,Math.max(1.5,g.sw*1.6),g.ac)+CI(cx+cc,cy,Math.max(1.5,g.sw*1.6),g.ac);
    return{full:PT(d,0,g.fg,g.sw)+dots};}},
 
+/* ===== 自然 ===== */
+{id:'wood',dsize:110,cat:'自然',name:'木目',seam:'×',full:1,norot:1,sw:1,
+ desc:'丸太を縦に挽いたときに現れる年輪。中心を画面の外へ置くと、板目特有の山形（杢）になります。うねりは年輪そのものの乱れです。',
+ ps:[{k:'rings',l:'年輪の数',min:4,max:70,v:24},{k:'warp',l:'年輪のうねり',min:0,max:100,v:45},
+     {k:'stretch',l:'縦の伸び',min:100,max:900,v:380},{k:'cx',l:'中心の横位置',min:-150,max:150,v:-70},
+     {k:'fill',l:'塗り分ける',t:'b',v:1},{k:'grain',l:'細かい木肌',min:0,max:100,v:40}],
+ f:g=>{const nz=vnz(g.R),W=g.W,H=g.H;
+   const cx=W/2+W*g.p.cx/100,cy=H/2;
+   const K=Math.round(g.p.rings),sy=g.p.stretch/100;
+   const Rmax=Math.hypot(Math.max(Math.abs(cx),Math.abs(W-cx)),H/sy)*1.05;
+   const A=(Rmax/Math.max(1,K))*g.p.warp/55,f0=5.5/Math.max(W,H),fy=f0/Math.sqrt(sy);
+   const ring=r=>{const M=Math.max(64,Math.round(r*0.6));const pt=[];
+     for(let i=0;i<=M;i++){const t=i/M*2*Math.PI;
+       const bx=cx+r*Math.cos(t),by=cy+r*sy*Math.sin(t);
+       const dd=A*(nz(bx*f0,by*fy)-0.5+(nz(bx*f0*2.3,by*fy*2.3)-0.5)*0.45)*2;
+       const rr=Math.max(0.5,r+dd);
+       pt.push([cx+rr*Math.cos(t),cy+rr*sy*Math.sin(t)]);}
+     return pt;};
+   let c='';
+   if(g.p.fill){
+     for(let k=K;k>=1;k--){const r=Rmax*k/K;
+       c+=PL(ring(r),mix(g.bg,g.fg,k%2?0.22:0.5));}
+   }else{
+     for(let k=1;k<=K;k++)c+=PL(ring(Rmax*k/K),0,g.fg,g.sw);
+   }
+   if(g.p.grain>0){const NL=Math.round(g.p.grain*1.6);let d='';
+     for(let i=0;i<NL;i++){const r=Rmax*(0.08+g.R()*0.92),t0=g.R()*2*Math.PI,sp=0.25+g.R()*0.9;
+       const M=24;
+       for(let j=0;j<=M;j++){const t=t0+sp*j/M;
+         const dd=A*(nz((cx+r*Math.cos(t))*f0,(cy+r*sy*Math.sin(t))*fy)-0.5)*2;
+         const rr=r+dd;
+         const X=cx+rr*Math.cos(t),Y=cy+rr*sy*Math.sin(t);
+         d+=(j?'L':'M')+n(X)+' '+n(Y);}}
+     c+=PT(d,0,g.fg,Math.max(0.3,g.sw*0.35),' opacity="0.5"');}
+   return{full:c};}},
+
+{id:'marble',dsize:110,cat:'自然',name:'大理石',seam:'×',full:1,norot:1,sw:1,
+ desc:'石の中を走る脈（方解石の再結晶）。太い脈から細い脈が枝分かれして広がる構造をまねています。',
+ ps:[{k:'veins',l:'太い脈の数',min:1,max:14,v:3},{k:'branch',l:'枝分かれ',min:0,max:100,v:55},
+     {k:'wander',l:'うねり',min:5,max:100,v:40},{k:'w',l:'脈の太さ',min:1,max:100,v:30},
+     {k:'fine',l:'細かい脈',min:0,max:250,v:70}],
+ f:g=>{const W=g.W,H=g.H,D=Math.hypot(W,H);
+   const wobble=g.p.wander/100;
+   const walk=(x,y,ang,len,steps)=>{const pt=[[x,y]];let a=ang;
+     for(let i=0;i<steps;i++){a+=(g.R()-0.5)*wobble*1.1;
+       x+=Math.cos(a)*len;y+=Math.sin(a)*len;pt.push([x,y]);}
+     return pt;};
+   const ribbon=(pt,w0,w1)=>{const L=[],Rr=[];
+     for(let i=0;i<pt.length;i++){
+       const p0=pt[Math.max(0,i-1)],p1=pt[Math.min(pt.length-1,i+1)];
+       let dx=p1[0]-p0[0],dy=p1[1]-p0[1];const m2=Math.hypot(dx,dy)||1;dx/=m2;dy/=m2;
+       const u=i/(pt.length-1||1),w=(w0+(w1-w0)*u)/2;
+       L.push([pt[i][0]-dy*w,pt[i][1]+dx*w]);
+       Rr.push([pt[i][0]+dy*w,pt[i][1]-dx*w]);}
+     return PL(L.concat(Rr.reverse()),g.fg);};
+   let c='';const mains=[];
+   const NV=Math.round(g.p.veins),step=D/44,W0=D*g.p.w/2600;
+   for(let i=0;i<NV;i++){
+     const edge=Math.floor(g.R()*4);
+     let x,y,a;
+     if(edge===0){x=g.R()*W;y=-D*0.05;a=Math.PI/2;}
+     else if(edge===1){x=g.R()*W;y=H+D*0.05;a=-Math.PI/2;}
+     else if(edge===2){x=-D*0.05;y=g.R()*H;a=0;}
+     else{x=W+D*0.05;y=g.R()*H;a=Math.PI;}
+     a+=(g.R()-0.5)*1.1;
+     const pt=walk(x,y,a,step,52);
+     mains.push(pt);
+     c+=ribbon(pt,W0*(0.7+g.R()*0.6),W0*0.25);}
+   const NB=Math.round(g.p.branch/100*NV*6);
+   for(let i=0;i<NB;i++){
+     if(!mains.length)break;
+     const m2=mains[Math.floor(g.R()*mains.length)];
+     const j=Math.floor(g.R()*(m2.length-2))+1;
+     const p0=m2[j-1],p1=m2[j];
+     const base=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
+     const pt=walk(p1[0],p1[1],base+(g.R()<0.5?1:-1)*(0.5+g.R()*0.7),step*0.7,10+Math.floor(g.R()*16));
+     c+=ribbon(pt,W0*0.45,W0*0.06);}
+   const NF=Math.round(g.p.fine);
+   if(NF>0){let d='';
+     for(let i=0;i<NF;i++){
+       const pt=walk(g.R()*W,g.R()*H,g.R()*2*Math.PI,step*0.5,4+Math.floor(g.R()*8));
+       d+='M'+pt.map(q=>n(q[0])+' '+n(q[1])).join('L');}
+     c+=PT(d,0,g.ac,Math.max(0.3,g.sw*0.4),' opacity="0.55"');}
+   return{full:c};}},
+
+{id:'contour',dsize:110,cat:'自然',name:'等高線',seam:'×',full:1,norot:1,sw:1,
+ desc:'数式で作った起伏を一定の高さで水平に切った線。地形図と同じ原理で、マーチングスクエア法で輪郭を取り出しています。',
+ ps:[{k:'scale',l:'地形の大きさ',min:4,max:80,v:22},{k:'oct',l:'細かさの重ね',min:1,max:6,v:4},
+     {k:'lines',l:'等高線の本数',min:3,max:40,v:14},{k:'major',l:'太線の間隔',min:0,max:10,v:5},
+     {k:'fill',l:'高さで塗り分ける',t:'b',v:0}],
+ f:g=>{const nz=vnz(g.R),W=g.W,H=g.H;
+   const GN=Math.max(40,Math.min(130,Math.round(90*Math.min(1.5,Math.max(W,H)/900))));
+   const GX=GN,GY=Math.max(8,Math.round(GN*H/W));
+   const cw=W/GX,ch=H/GY,OCT=Math.round(g.p.oct),fs=g.p.scale/100*0.9;
+   const F=new Float32Array((GX+1)*(GY+1));
+   let lo=1e9,hi=-1e9;
+   for(let j=0;j<=GY;j++)for(let i=0;i<=GX;i++){
+     let v=0,a=0.5,f=fs;
+     for(let o=0;o<OCT;o++){v+=a*nz(i*cw*f*0.06,j*ch*f*0.06);f*=2;a*=0.5;}
+     F[j*(GX+1)+i]=v;if(v<lo)lo=v;if(v>hi)hi=v;}
+   const span=(hi-lo)||1,NL=Math.round(g.p.lines),MJ=Math.round(g.p.major);
+   let c='';
+   if(g.p.fill){
+     for(let j=0;j<GY;j++){let run=-1,x0=0;
+       for(let i=0;i<=GX;i++){
+         const lvl=i<GX?Math.min(NL-1,Math.floor((F[j*(GX+1)+i]-lo)/span*NL)):-2;
+         if(lvl!==run){
+           if(run>=0)c+=R2(x0,j*ch,i*cw-x0+0.4,ch+0.4,mix(g.bg,g.fg,0.12+0.7*run/Math.max(1,NL-1)));
+           run=lvl;x0=i*cw;}}}
+   }
+   const thin=[],thick=[];
+   for(let k=1;k<NL;k++){
+     const L=lo+span*k/NL;const bucket=(MJ>1&&k%MJ===0)?thick:thin;
+     const SG=[];
+     for(let j=0;j<GY;j++)for(let i=0;i<GX;i++){
+       const a=F[j*(GX+1)+i],b=F[j*(GX+1)+i+1],cc=F[(j+1)*(GX+1)+i+1],e=F[(j+1)*(GX+1)+i];
+       const id=(a>L?8:0)|(b>L?4:0)|(cc>L?2:0)|(e>L?1:0);
+       if(id===0||id===15)continue;
+       const X=i*cw,Y=j*ch;
+       const TP=[X+cw*(L-a)/((b-a)||1e-9),Y];
+       const RT=[X+cw,Y+ch*(L-b)/((cc-b)||1e-9)];
+       const BT=[X+cw*(L-e)/((cc-e)||1e-9),Y+ch];
+       const LF=[X,Y+ch*(L-a)/((e-a)||1e-9)];
+       const sg=(p1,p2)=>{SG.push([p1[0],p1[1],p2[0],p2[1]]);};
+       if(id===1||id===14)sg(LF,BT);
+       else if(id===2||id===13)sg(BT,RT);
+       else if(id===3||id===12)sg(LF,RT);
+       else if(id===4||id===11)sg(TP,RT);
+       else if(id===6||id===9)sg(TP,BT);
+       else if(id===7||id===8)sg(LF,TP);
+       else if(id===5){sg(LF,TP);sg(BT,RT);}
+       else if(id===10){sg(LF,BT);sg(TP,RT);}}
+     if(SG.length)bucket.push(chainSegs(SG));}
+   if(thin.length)c+=PT(thin.join(''),0,g.fg,g.sw);
+   if(thick.length)c+=PT(thick.join(''),0,g.ac,g.sw*2.2);
+   return{full:c};}},
+
+{id:'stars',dsize:110,cat:'自然',name:'星空',seam:'○',full:1,norot:1,
+ desc:'明るさと大きさをばらつかせた星。天の川を上げると帯に沿って密度が増します。背景を暗い色、主線を明るい色にすると夜空になります。',
+ ps:[{k:'num',l:'星の数',min:50,max:2500,v:700},{k:'size',l:'星の大きさ',min:1,max:40,v:9},
+     {k:'vary',l:'明るさのばらつき',min:0,max:100,v:70},{k:'band',l:'天の川',min:0,max:100,v:60},
+     {k:'ang',l:'天の川の向き',min:0,max:180,v:35},{k:'flare',l:'光条の数',min:0,max:40,v:6}],
+ f:g=>{const W=g.W,H=g.H,N=Math.round(g.p.num);
+   const r0=Math.min(W,H)*g.p.size/2200,vy=g.p.vary/100;
+   const th=g.p.ang*Math.PI/180,nx=-Math.sin(th),ny=Math.cos(th);
+   const bw=Math.min(W,H)*0.38,bs=g.p.band/100;
+   let c='',fl='';const FL=Math.round(g.p.flare);
+   for(let i=0;i<N;i++){
+     const x=g.R()*W,y=g.R()*H;
+     if(bs>0){const dd=Math.abs((x-W/2)*nx+(y-H/2)*ny);
+       const pr=1-bs*0.92*Math.min(1,dd/bw);
+       if(g.R()>pr)continue;}
+     const b=Math.pow(g.R(),1+vy*2.6);
+     const rr=Math.max(0.25,r0*(0.35+b*1.9));
+     const op=0.25+b*0.75;
+     for(const dx of[-W,0,W])for(const dy of[-H,0,H]){
+       if(x+dx<-rr||x+dx>W+rr||y+dy<-rr||y+dy>H+rr)continue;
+       c+=CI(x+dx,y+dy,rr,g.fg,0,0).replace('/>',` opacity="${n(op)}"/>`);}
+     if(FL>0&&i%Math.max(1,Math.round(N/FL))===0){
+       const L=rr*7;
+       fl+=`M${n(x-L)} ${n(y)}H${n(x+L)}M${n(x)} ${n(y-L)}V${n(y+L)}`;}}
+   if(fl)c+=PT(fl,0,g.fg,Math.max(0.3,r0*0.5),' opacity="0.65"');
+   return{full:c};}},
+
+{id:'weather',dsize:110,cat:'自然',name:'雨・雪',seam:'○',full:1,norot:1,sw:1,
+ desc:'降りそそぐ雨や雪。角度と量で勢いが変わります。吹雪は雪を横に流して尾を引かせたものです。',
+ ps:[{k:'kind',l:'種類',t:'s',o:['雨','雪','吹雪'],v:0},{k:'num',l:'量',min:20,max:1200,v:260},
+     {k:'ang',l:'角度',min:-60,max:60,v:14},{k:'len',l:'長さ・大きさ',min:2,max:70,v:20},
+     {k:'vary',l:'ばらつき',min:0,max:100,v:55}],
+ f:g=>{const W=g.W,H=g.H,N=Math.round(g.p.num),K=Math.round(g.p.kind);
+   const th=(g.p.ang+90)*Math.PI/180,dx=Math.cos(th),dy=Math.sin(th);
+   const base=Math.min(W,H)*g.p.len/900,vy=g.p.vary/100;
+   const put=(fn)=>{for(let i=0;i<N;i++){
+     const x=g.R()*W,y=g.R()*H,s2=1-vy*0.85*g.R();
+     for(const ox of[-W,0,W])for(const oy of[-H,0,H])fn(x+ox,y+oy,s2,g.R());}};
+   if(K===1){let c='';
+     put((x,y,s2,q)=>{const r=base*0.42*s2;
+       if(x<-r||x>W+r||y<-r||y>H+r)return;
+       c+=CI(x,y,r,g.fg,0,0).replace('/>',` opacity="${n(0.3+q*0.7)}"/>`);});
+     return{full:c};}
+   let d='',c='';
+   if(K===2){
+     put((x,y,s2,q)=>{const L=base*2.2*s2,r=base*0.3*s2;
+       if(x<-L||x>W+L||y<-L||y>H+L)return;
+       d+=`M${n(x)} ${n(y)}L${n(x+dx*L)} ${n(y+dy*L)}`;
+       c+=CI(x,y,r,g.fg,0,0).replace('/>',` opacity="${n(0.35+q*0.65)}"/>`);});
+     return{full:PT(d,0,g.fg,Math.max(0.3,g.sw*0.5),' opacity="0.45"')+c};}
+   put((x,y,s2,q)=>{const L=base*3*s2;
+     if(x<-L||x>W+L||y<-L||y>H+L)return;
+     d+=`M${n(x)} ${n(y)}L${n(x+dx*L)} ${n(y+dy*L)}`;});
+   return{full:PT(d,0,g.fg,Math.max(0.3,g.sw*0.6),' opacity="0.72"')};}},
+
 /* ===== 文字 ===== */
 {id:'textspiral',dsize:110,cat:'文字',name:'渦巻き文字',seam:'×',full:1,
  desc:'蚊取り線香のように、渦を巻きながら文字が続きます。巻きの間隔から文字サイズを決めているので、巻き数を増やしても重なりません。文字は自動で繰り返して渦を埋めます。',
@@ -1761,7 +1980,7 @@ const PATS=[
 
 const WARPS=[{n:'なし'},{n:'うねり',t:'fractalNoise',o:3},{n:'波',t:'turbulence',o:1},{n:'こまかい',t:'fractalNoise',o:5}];
 
-const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','ノイズ','文字','コード','生成'];
+const CATS=['基本','波','和柄','幾何','織物','線画','フラクタル','曲線','数論','立体','自然','ノイズ','文字','コード','生成'];
 
 const FONTS=[
  {n:'ゴシック',f:'Noto Sans JP'},{n:'明朝',f:'Noto Serif JP'},
