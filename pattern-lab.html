@@ -512,10 +512,13 @@ const PATS=[
      defs=`<linearGradient id="gr" x1="${n(50-Math.cos(a)*50)}%" y1="${n(50-Math.sin(a)*50)}%" x2="${n(50+Math.cos(a)*50)}%" y2="${n(50+Math.sin(a)*50)}%">${st0}${mid}${st1}</linearGradient>`;}
    return{defs,full:`<rect width="${g.W}" height="${g.H}" fill="url(#gr)"/>`};}},
 
-{id:'stripes',cat:'基本',name:'ストライプ',seam:'○',
- desc:'最も単純な反復。太さの比と角度だけで、上品にも大胆にもなります。',
- ps:[{k:'ratio',l:'太さ比',min:5,max:95,v:50}],
- f:g=>({tw:g.T,th:g.T,c:R2(0,0,g.T*g.p.ratio/100,g.T,g.fg)})},
+{id:'stripes',cat:'基本',name:'ストライプ',seam:'○',sw:()=>Math.round(st.p.stripes.mode)===1,
+ desc:'最も単純な反復。「比率」は模様の大きさに対する割合なので拡大しても見た目が変わらず、「線の太さ」は実寸で決まるので、間隔だけ広げて細い罫にできます。',
+ ps:[{k:'mode',l:'太さの決め方',t:'s',o:['比率','線の太さ'],v:0},
+     {k:'ratio',l:'太さ比',min:0.5,max:99,v:50,step:0.5}],
+ f:g=>{const T=g.T;
+   const w=Math.round(g.p.mode)===1?Math.max(0.1,Math.min(T,g.sw)):T*g.p.ratio/100;
+   return{tw:T,th:T,c:R2(0,0,w,T,g.fg)};}},
 
 {id:'checker',cat:'基本',name:'市松',seam:'○',
  desc:'四角を交互に並べた文様。日本では江戸時代に「市松模様」と呼ばれ、途切れず続くことから繁栄の意味を持ちます。',
@@ -2005,7 +2008,7 @@ const SIZES=[
 /* ---------- state ---------- */
 const st={pat:'seigaiha',cat:'和柄',tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
   bg:'#ffffff',fg:'#141414',ac:'#8c8c8c',
-  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,trans:false,
+  size:110,sw:5,rot:0,seed:1,seamless:true,check:false,trans:false,
   warp:0,wamt:40,wsize:60,kal:0,kzoom:110,koff:0,ht:0,htd:12,hta:3,htb:0,p:{}};
 const byId=id=>PATS.find(p=>p.id===id);
 function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
@@ -2076,9 +2079,9 @@ function buildSVG(W,H){
       if(Math.abs(sx-1)>1e-9||Math.abs(sy-1)>1e-9)tr.push(`scale(${n6(sx)},${n6(sy)})`);
     }else if(rot)tr.push(`rotate(${rot})`);
     defs+=`<pattern id="pt" patternUnits="userSpaceOnUse" width="${n(tw)}" height="${n(th)}"${tr.length?` patternTransform="${tr.join(' ')}"`:''}>${r.c}</pattern>`;
-    body=post(`<g${fx}><rect x="${n(-m)}" y="${n(-m)}" width="${n(W+2*m)}" height="${n(H+2*m)}" fill="url(#pt)" opacity="${st.op/100}"/></g>`);
+    body=post(`<g${fx}><rect x="${n(-m)}" y="${n(-m)}" width="${n(W+2*m)}" height="${n(H+2*m)}" fill="url(#pt)"/></g>`);
   }else{
-    body=post(`<g${fx}><g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`);
+    body=post(`<g${fx}><g${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`);
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +(defs?`<defs>${defs}</defs>`:'')
@@ -2100,7 +2103,7 @@ function tileSVG(){
   return {W,H,svg:`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +`<defs>${defs}</defs>`
     +(st.trans?'':`<rect width="${W}" height="${H}" fill="${st.bg}"/>`)
-    +`<rect width="${W}" height="${H}" fill="url(#pt)" opacity="${st.op/100}"/></svg>`};
+    +`<rect width="${W}" height="${H}" fill="url(#pt)"/></svg>`};
 }
 function outSpec(){
   if(st.tileOut){const t=tileSVG();if(t)return{W:t.W,H:t.H,svg:t.svg,tile:true};}
@@ -2183,16 +2186,16 @@ function select(label,val,opts,onC,plain){
   const w=document.createElement('div');w.className='chips';
   opts.forEach((o,i)=>{const b=document.createElement('button');
     b.className='chip sm'+(i===val?' on':'');b.textContent=o;
-    b.onclick=()=>{onC(i);if(!plain){buildExtra();if(byId(st.pat).cat==='文字')queueFont();}render();};w.appendChild(b);});
+    b.onclick=()=>{onC(i);if(!plain){buildExtra();buildCommon();if(byId(st.pat).cat==='文字')queueFont();}render();};w.appendChild(b);});
   d.appendChild(w);return d;
 }
 function buildCommon(){
   const P=byId(st.pat),el=$('#common');el.innerHTML='';
   if(!P.nosize)el.appendChild(slider('模様の大きさ',st.size,8,400,1,v=>st.size=v));
-  if(P.sw)el.appendChild(slider('線の太さ',st.sw,0.5,40,0.5,v=>st.sw=v));
+  const showSw=(typeof P.sw==='function')?P.sw():P.sw;
+  if(showSw)el.appendChild(slider('線の太さ',st.sw,0.5,40,0.5,v=>st.sw=v));
   const rotOff=st.seamless||P.norot;
   el.appendChild(slider('角度',st.rot,0,90,1,v=>st.rot=v,rotOff));
-  el.appendChild(slider('濃さ',st.op,0,100,1,v=>st.op=v));
 }
 function buildExtra(){
   const P=byId(st.pat),el=$('#extra');el.innerHTML='';
