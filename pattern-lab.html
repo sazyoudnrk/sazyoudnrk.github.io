@@ -208,10 +208,17 @@ input[type=range]::-webkit-slider-thumb{
 </section>
 
 <section>
-  <h2>ゆがみ</h2>
+  <h2>効果</h2>
+  <div class="sublab">ゆがみ</div>
   <div class="chips" id="warps"></div>
   <div id="warpCtl"></div>
-  <div class="note">どのパターンにも後がけできます。SVGで書き出しても効果は保たれます。ゆがみを使うと継ぎ目はつながりません。</div>
+  <div class="sublab">万華鏡</div>
+  <div class="chips" id="kals"></div>
+  <div id="kalCtl"></div>
+  <div class="sublab">ハーフトーン（網点）</div>
+  <div class="chips" id="hts"></div>
+  <div id="htCtl"></div>
+  <div class="note">どのパターンにも後がけできます。SVGで書き出しても効果は保たれます。効果を使うと継ぎ目はつながりません。</div>
 </section>
 
 <section>
@@ -320,6 +327,52 @@ function noisePNG(key,N,fill){
   NZC.unshift({k:key,v});if(NZC.length>6)NZC.pop();
   return v;
 }
+const HTA=[[1,0,'0°'],[3,1,'18°'],[2,1,'27°'],[1,1,'45°'],[1,2,'63°'],[1,3,'72°']];
+const HTS=['なし','丸','四角','菱','線'];
+function htCell(d,shape,ai){
+  const A=HTA[ai]||HTA[3],p=A[0],q=A[1],PQ=p*p+q*q;
+  let L=Math.round(d*Math.sqrt(PQ));
+  L=Math.max(PQ,Math.min(256,L));
+  const sc=L/PQ,sp=sc*Math.sqrt(PQ);
+  const pts=[],seen=new Set();
+  for(let k=0;k<=PQ;k++)for(let m=0;m<=PQ;m++){
+    let X=((k*p-m*q)*sc)%L,Y=((k*q+m*p)*sc)%L;
+    X=((X%L)+L)%L;Y=((Y%L)+L)%L;
+    const key=Math.round(X*8)+','+Math.round(Y*8);
+    if(seen.has(key))continue;seen.add(key);pts.push([X,Y]);}
+  const ux=(p*sc)/sp,uy=(q*sc)/sp;
+  const K=Math.max(1,Math.min(4,Math.round(110/L))),M=L*K;
+  const ptsK=pts.map(z=>[z[0]*K,z[1]*K]),spK=sp*K;
+  const key2=['ht',L,K,shape,ai,Math.round(d*10)].join(',');
+  return{L,url:noisePNG(key2,M,(dat,N)=>{
+    const raw=new Float32Array(N*N);
+    let lo=Infinity,hi=-Infinity;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      let dd;
+      if(shape===4){const t=x*ux+y*uy;const mm=((t%spK)+spK)%spK;dd=Math.min(mm,spK-mm);}
+      else{let best=1e9;
+        for(let i=0;i<ptsK.length;i++)for(let wx=-1;wx<=1;wx++)for(let wy=-1;wy<=1;wy++){
+          const dx=x-(ptsK[i][0]+wx*N),dy=y-(ptsK[i][1]+wy*N);
+          let e;
+          if(shape===1)e=Math.max(Math.abs(dx),Math.abs(dy));
+          else if(shape===2)e=Math.abs(dx)+Math.abs(dy);
+          else e=Math.sqrt(dx*dx+dy*dy);
+          if(e<best)best=e;}
+        dd=best;}
+      raw[y*N+x]=dd;if(dd<lo)lo=dd;if(dd>hi)hi=dd;}
+    const NB=4096,hist=new Uint32Array(NB),span=(hi-lo)||1;
+    const bin=v=>Math.min(NB-1,Math.max(0,Math.floor((v-lo)/span*NB)));
+    for(let i=0;i<raw.length;i++)hist[bin(raw[i])]++;
+    const cum=new Float32Array(NB);let acc=0;
+    for(let b=0;b<NB;b++){cum[b]=acc+hist[b]*0.5;acc+=hist[b];}
+    const tot=raw.length||1;
+    for(let i=0;i<raw.length;i++){
+      let v=1-cum[bin(raw[i])]/tot;
+      v=v<0?0:v>1?1:v;
+      const o=i*4,g8=Math.round(v*255);
+      dat[o]=dat[o+1]=dat[o+2]=g8;dat[o+3]=255;}
+  })};
+}
 function nzImg(url,S){
   return url?`<image href="${url}" xlink:href="${url}" x="0" y="0" width="${n(S)}" height="${n(S)}"`
     +` preserveAspectRatio="none" style="image-rendering:pixelated;image-rendering:crisp-edges"/>`:'';
@@ -394,6 +447,15 @@ function hsl2hex(h,s,l){h=((h%360)+360)%360;s=Math.max(0,Math.min(1,s));l=Math.m
   const T=[[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][i];
   const q=v=>Math.round(Math.max(0,Math.min(1,v+m))*255).toString(16).padStart(2,'0');
   return '#'+q(T[0])+q(T[1])+q(T[2]);}
+function settParse(str){
+  const out=[];const re=/([a-eA-E])\s*(\d+(?:\.\d+)?)?/g;let m;
+  while((m=re.exec(String(str==null?'':str)))!==null){
+    const ci='abcde'.indexOf(m[1].toLowerCase()),w=parseFloat(m[2]||'6');
+    if(ci>=0&&w>0&&isFinite(w))out.push([ci,w]);
+    if(out.length>80)break;}
+  return out.length?out:[[0,10],[1,10]];
+}
+const SETTS=['a10 b10','a24 b4 a4 b4 a24 c10','a40 c2','a16 b16','a12 b6 c4 a8 d6 b4 c8 a10'];
 function hueOf(h){const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;
   const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx===mn)return 210;const d=mx-mn;
   let hh=mx===r?((g-b)/d+(g<b?6:0)):mx===g?((b-r)/d+2):((r-g)/d+4);return hh*60;}
@@ -461,6 +523,29 @@ const PATS=[
      d+=`M${-T} ${n(-T+c0)}L${n(2*T)} ${n(2*T+c0)}`;
      if(g.p.both)d+=`M${-T} ${n(2*T-c0)}L${n(2*T)} ${n(-T-c0)}`;}
    return{tw:T,th:T,c:PT(d,0,g.fg,g.sw)};}},
+
+{id:'paper',dsize:110,cat:'基本',name:'罫線・方眼',seam:'○',sw:1,
+ desc:'方眼紙や原稿用紙などの罫線。下書きの当たりや、メモ風の背景に使えます。太線の間隔を0にすると全部同じ太さになります。',
+ ps:[{k:'kind',l:'種類',t:'s',o:['方眼','ドット方眼','横罫','五線譜','原稿用紙'],v:0},
+     {k:'major',l:'太線の間隔',min:0,max:12,v:5},
+     {k:'r',l:'ドット・すき間',min:4,max:45,v:14}],
+ f:g=>{const T=g.T,M=Math.max(1,Math.round(g.p.major)),K=Math.round(g.p.kind);
+   if(K===0){const S=T*M;let c='';
+     for(let i=0;i<M;i++){const w=(M>1&&i===0)?g.sw*2.2:g.sw;
+       c+=R2(i*T,0,w,S,g.fg)+R2(0,i*T,S,w,g.fg);}
+     return{tw:S,th:S,c};}
+   if(K===1){const S=T*M,r=T*g.p.r/200;let c='';
+     for(let j=0;j<=M;j++)for(let i=0;i<=M;i++){
+       const big=(M>1&&i%M===0&&j%M===0);
+       c+=CI(i*T,j*T,big?r*1.9:r,g.fg);}
+     return{tw:S,th:S,c};}
+   if(K===2)return{tw:T,th:T,c:R2(0,0,T,g.sw,g.fg)};
+   if(K===3){const gap=T*3,S=4*T+gap;let c='';
+     for(let i=0;i<5;i++)c+=R2(0,i*T,T,g.sw,g.fg);
+     return{tw:T,th:S,c};}
+   const gp=T*g.p.r/200,w=g.sw;
+   let c=R2(0,0,T,w,g.fg)+R2(0,T-w,T,w,g.fg)+R2(0,0,w,T,g.fg)+R2(T-w,0,w,T,g.fg);
+   return{tw:T+gp,th:T,c};}},
 
 {id:'brick',dsize:110,cat:'基本',name:'レンガ',seam:'○',
  desc:'半分ずつずらした矩形の積み方。ずれ量を変えると芋目地・馬目地など積み方が変わります。',
@@ -704,6 +789,45 @@ const PATS=[
    const hb=(x,y,col)=>R2(x+gp,y+gp,u-2*gp,bw-2*gp,col)+R2(x+gp,y+bw+gp,u-2*gp,bw-2*gp,col);
    const vb=(x,y,col)=>R2(x+gp,y+gp,bw-2*gp,u-2*gp,col)+R2(x+bw+gp,y+gp,bw-2*gp,u-2*gp,col);
    return{tw:2*u,th:2*u,c:hb(0,0,g.fg)+vb(u,0,g.ac)+vb(0,u,g.ac)+hb(u,u,g.fg)};}},
+
+{id:'tartan',dsize:200,cat:'織物',name:'チェック（タータン）',seam:'○',
+ desc:'縦糸と横糸に同じ色帯の並び（セット）を使い、交差点で色が混ざる織物。帯の並びを変えるだけでギンガムからタータンまで作れます。a=背景色 b=主線色 c=アクセント d,e=中間色で、文字のあとの数字が帯の幅です。',
+ ps:[{k:'kind',l:'種類',t:'s',o:['ギンガム','タータン','ウィンドウペーン','バッファロー','マドラス'],v:1},
+     {k:'sett',l:'帯の並び',t:'t',v:'a24 b4 a4 b4 a24 c10'},
+     {k:'sym',l:'左右対称にする',t:'b',v:1},
+     {k:'mix',l:'交差の混ざり',min:0,max:100,v:50},
+     {k:'twill',l:'綾織りの筋',min:0,max:100,v:30}],
+ f:g=>{const COL=[g.bg,g.fg,g.ac,mix(g.fg,g.ac,0.5),mix(g.bg,g.fg,0.4)];
+   let tk=settParse(g.p.sett);
+   if(g.p.sym&&tk.length>2)tk=tk.concat(tk.slice(1,-1).reverse());
+   const tot=tk.reduce((a,b)=>a+b[1],0)||1,S=g.T,k=S/tot;
+   const pos=[];let acc=0;
+   for(const[ci,w]of tk){pos.push([acc*k,w*k,ci]);acc+=w;}
+   const mx=g.p.mix/100;let c='';
+   for(const[Y,h,cj]of pos)for(const[X,w,ci]of pos)
+     c+=R2(X,Y,w+0.35,h+0.35,mix(COL[ci],COL[cj],mx));
+   if(g.p.twill>0){const pp=S/60;let d='';
+     for(let i=0;i<=120;i++){const o=i*pp;d+=`M${n(o-S)} ${n(S)}L${n(o)} 0`;}
+     c+=PT(d,0,g.fg,Math.max(0.4,pp*0.34),` opacity="${n(g.p.twill/100*0.22)}"`);}
+   return{tw:S,th:S,c};}},
+
+{id:'glen',dsize:220,cat:'織物',name:'グレンチェック',seam:'○',
+ desc:'千鳥格子と細縞を 四つの区画に組み合わせ、上から一本の線で大きな格子を掛けた柄。英国の「プリンス・オブ・ウェールズ・チェック」として知られます。',
+ ps:[{k:'ht',l:'千鳥の細かさ',min:1,max:8,v:3},{k:'fine',l:'細縞の本数',min:2,max:12,v:6},
+     {k:'over',l:'上掛け線の太さ',min:0,max:40,v:12}],
+ f:g=>{const S=g.T,h=S/2,k=Math.round(g.p.ht),u=h/(k*8);
+   let c=R2(0,0,S,S,g.bg);
+   for(let Y=0;Y<k*8;Y++)for(let X=0;X<k*8;X++){
+     const i=X%8,j=Y%8,warp=((((i-j)%4)+4)%4)<2;
+     if(warp?i<4:j<4)c+=R2(X*u,Y*u,u+0.3,u+0.3,g.fg);}
+   const nf=Math.max(1,Math.round(g.p.fine)),fw=h/(nf*2);
+   for(let i=0;i<nf;i++){c+=R2(h+i*2*fw,0,fw,h,g.fg);c+=R2(0,h+i*2*fw,h,fw,g.fg);}
+   for(let Y=0;Y<k*4;Y++)for(let X=0;X<k*4;X++){
+     if((X+Y)%2)continue;
+     c+=R2(h+X*2*u,h+Y*2*u,u+0.3,u+0.3,mix(g.bg,g.fg,0.35));}
+   if(g.p.over>0){const w=Math.max(0.6,S*g.p.over/700);
+     c+=R2(0,0,S,w,g.ac)+R2(0,0,w,S,g.ac);}
+   return{tw:S,th:S,c};}},
 
 {id:'hound',dsize:150,cat:'織物',name:'千鳥格子',seam:'○',
  desc:'2色の糸を4本ずつ、2/2の綾織で組んだときに現れる犬の牙のような形。英語では hound\u2019s tooth（猟犬の歯）と呼ばれます。',
@@ -1340,6 +1464,91 @@ const PATS=[
    return{full:PT(d,0,g.fg,g.sw)+dots};}},
 
 /* ===== 生成（追加） ===== */
+{id:'maze',dsize:40,cat:'生成',name:'迷路',seam:'×',full:1,norot:1,sw:1,
+ desc:'深さ優先の穴掘り法で作った、どの2点も必ず一本道でつながる完全迷路。行き止まりを減らすと輪ができて、迷路というより通路網の模様になります。',
+ ps:[{k:'cells',l:'マスの数',min:5,max:70,v:24},{k:'braid',l:'行き止まりを減らす',min:0,max:100,v:0},
+     {k:'sol',l:'入口から出口の道を描く',t:'b',v:0}],
+ f:g=>{const cw=Math.min(g.W,g.H)/Math.max(3,Math.round(g.p.cells));
+   const NX=Math.max(2,Math.floor(g.W/cw)),NY=Math.max(2,Math.floor(g.H/cw));
+   const ox=(g.W-NX*cw)/2,oy=(g.H-NY*cw)/2;
+   const R=new Uint8Array(NX*NY).fill(1),B=new Uint8Array(NX*NY).fill(1),sn=new Uint8Array(NX*NY);
+   const ix=(x,y)=>y*NX+x;
+   const stk=[[0,0]];sn[0]=1;
+   while(stk.length){const[x,y]=stk[stk.length-1],nb=[];
+     if(x>0&&!sn[ix(x-1,y)])nb.push([x-1,y,0]);
+     if(x<NX-1&&!sn[ix(x+1,y)])nb.push([x+1,y,1]);
+     if(y>0&&!sn[ix(x,y-1)])nb.push([x,y-1,2]);
+     if(y<NY-1&&!sn[ix(x,y+1)])nb.push([x,y+1,3]);
+     if(!nb.length){stk.pop();continue;}
+     const[nx2,ny2,dd]=nb[Math.floor(g.R()*nb.length)];
+     if(dd===0)R[ix(x-1,y)]=0;else if(dd===1)R[ix(x,y)]=0;
+     else if(dd===2)B[ix(x,y-1)]=0;else B[ix(x,y)]=0;
+     sn[ix(nx2,ny2)]=1;stk.push([nx2,ny2]);}
+   if(g.p.braid>0){const pr=g.p.braid/100;
+     for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){
+       let open=0;
+       if(x>0&&!R[ix(x-1,y)])open++;if(x<NX-1&&!R[ix(x,y)])open++;
+       if(y>0&&!B[ix(x,y-1)])open++;if(y<NY-1&&!B[ix(x,y)])open++;
+       if(open>1||g.R()>=pr)continue;
+       const cand=[];
+       if(x<NX-1&&R[ix(x,y)])cand.push(0);if(y<NY-1&&B[ix(x,y)])cand.push(1);
+       if(x>0&&R[ix(x-1,y)])cand.push(2);if(y>0&&B[ix(x,y-1)])cand.push(3);
+       if(!cand.length)continue;
+       const q=cand[Math.floor(g.R()*cand.length)];
+       if(q===0)R[ix(x,y)]=0;else if(q===1)B[ix(x,y)]=0;
+       else if(q===2)R[ix(x-1,y)]=0;else B[ix(x,y-1)]=0;}}
+   let d='';
+   for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){
+     const X=ox+x*cw,Y=oy+y*cw;
+     if(x<NX-1&&R[ix(x,y)])d+=`M${n(X+cw)} ${n(Y)}V${n(Y+cw)}`;
+     if(y<NY-1&&B[ix(x,y)])d+=`M${n(X)} ${n(Y+cw)}H${n(X+cw)}`;}
+   d+=`M${n(ox)} ${n(oy)}H${n(ox+NX*cw)}V${n(oy+NY*cw)}H${n(ox)}Z`;
+   let sol='';
+   if(g.p.sol){const prev=new Int32Array(NX*NY).fill(-1),q=[0];prev[0]=0;
+     const seen2=new Uint8Array(NX*NY);seen2[0]=1;
+     for(let h=0;h<q.length;h++){const cur=q[h],x=cur%NX,y=(cur-x)/NX;
+       const mv=[];
+       if(x<NX-1&&!R[ix(x,y)])mv.push(ix(x+1,y));
+       if(x>0&&!R[ix(x-1,y)])mv.push(ix(x-1,y));
+       if(y<NY-1&&!B[ix(x,y)])mv.push(ix(x,y+1));
+       if(y>0&&!B[ix(x,y-1)])mv.push(ix(x,y-1));
+       for(const m2 of mv){if(seen2[m2])continue;seen2[m2]=1;prev[m2]=cur;q.push(m2);}}
+     const goal=ix(NX-1,NY-1);
+     if(seen2[goal]){const pth=[];let cur=goal;
+       for(let gcount=0;gcount<NX*NY+5;gcount++){pth.push(cur);if(cur===0)break;cur=prev[cur];}
+       sol=PT('M'+pth.map(v=>{const x=v%NX,y=(v-x)/NX;
+         return n(ox+x*cw+cw/2)+' '+n(oy+y*cw+cw/2);}).join('L'),0,g.ac,g.sw*2.5);}}
+   return{full:sol+PT(d,0,g.fg,g.sw)};}},
+
+{id:'pcb',dsize:60,cat:'生成',name:'回路基板風',seam:'×',full:1,norot:1,sw:1,
+ desc:'0度・45度・90度だけで折れ曲がる配線とランド（丸い接点）。基板の配線規則をまねているので、SF的な背景やメカの質感に向きます。',
+ ps:[{k:'num',l:'配線の数',min:5,max:250,v:70},{k:'len',l:'配線の長さ',min:3,max:40,v:14},
+     {k:'grid',l:'格子の細かさ',min:10,max:90,v:36},{k:'pad',l:'ランドの大きさ',min:0,max:50,v:20},
+     {k:'via',l:'ビアを散らす',min:0,max:100,v:30}],
+ f:g=>{const G=Math.max(4,Math.round(g.p.grid)),u=Math.min(g.W,g.H)/G;
+   const GX=Math.ceil(g.W/u),GY=Math.ceil(g.H/u);
+   const D=[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+   const NUM=Math.round(g.p.num),LEN=Math.round(g.p.len);
+   let d='',pads='';
+   for(let i=0;i<NUM;i++){
+     let x=Math.floor(g.R()*GX),y=Math.floor(g.R()*GY),dir=Math.floor(g.R()*8);
+     const pts=[[x,y]];
+     for(let s2=0;s2<LEN;s2++){
+       if(g.R()<0.34)dir=(dir+(g.R()<0.5?1:7)+8)%8;
+       const st2=1+Math.floor(g.R()*3);
+       x+=D[dir][0]*st2;y+=D[dir][1]*st2;
+       if(x<-2||y<-2||x>GX+2||y>GY+2)break;
+       pts.push([x,y]);}
+     if(pts.length<2)continue;
+     d+='M'+pts.map(q=>n(q[0]*u)+' '+n(q[1]*u)).join('L');
+     if(g.p.pad>0){const r=u*g.p.pad/60;
+       for(const q of[pts[0],pts[pts.length-1]])
+         pads+=CI(q[0]*u,q[1]*u,r,0,g.fg,Math.max(0.5,g.sw*1.6));}}
+   if(g.p.via>0){const nv=Math.round(GX*GY*g.p.via/2600);
+     for(let i=0;i<nv;i++)
+       pads+=CI(Math.floor(g.R()*GX)*u,Math.floor(g.R()*GY)*u,u*0.17,0,g.ac,Math.max(0.5,g.sw));}
+   return{full:PT(d,0,g.fg,g.sw)+pads};}},
+
 {id:'flow',dsize:110,cat:'生成',name:'流線場',seam:'×',full:1,norot:1,sw:1,
  desc:'見えない流れの向きに沿って粒を流した軌跡。風や水流の可視化と同じ考え方で、線の束だけで空気感が出ます。',
  ps:[{k:'n',l:'線の本数',min:30,max:800,v:320},{k:'len',l:'線の長さ',min:5,max:120,v:50},
@@ -1577,7 +1786,8 @@ const SIZES=[
 /* ---------- state ---------- */
 const st={pat:'seigaiha',cat:'和柄',tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
   bg:'#ffffff',fg:'#141414',ac:'#8c8c8c',
-  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,trans:false,warp:0,wamt:40,wsize:60,p:{}};
+  size:110,sw:5,rot:0,op:100,seed:1,seamless:true,check:false,trans:false,
+  warp:0,wamt:40,wsize:60,kal:0,kzoom:110,koff:0,ht:0,htd:12,hta:3,htb:0,p:{}};
 const byId=id=>PATS.find(p=>p.id===id);
 function defP(p){const o={};(p.ps||[]).forEach(q=>o[q.k]=q.v);return o;}
 PATS.forEach(p=>st.p[p.id]=defP(p));
@@ -1600,6 +1810,46 @@ function buildSVG(W,H){
       +`<feDisplacementMap in="SourceGraphic" in2="wv" scale="${n(st.wamt)}" xChannelSelector="R" yChannelSelector="G"/></filter>`;
     fx=' filter="url(#wp)"';}
   const m=st.warp>0?st.wamt*1.2:0;
+  const post=src=>{
+    let out=src;
+    if(st.kal>=4){
+      const N=Math.round(st.kal)&~1,ang=360/N,hf=ang/2*Math.PI/180;
+      const cx=W/2,cy=H/2,Rr=Math.hypot(W,H);
+      defs+=`<clipPath id="kcl" clipPathUnits="userSpaceOnUse"><path d="M${n(cx)} ${n(cy)}`
+        +`L${n(cx+Rr*Math.cos(-hf))} ${n(cy+Rr*Math.sin(-hf))}`
+        +`A${n(Rr)} ${n(Rr)} 0 0 1 ${n(cx+Rr*Math.cos(hf))} ${n(cy+Rr*Math.sin(hf))}Z"/></clipPath>`;
+      const z=Math.max(0.05,st.kzoom/100),ofs=st.koff/100*W*0.5;
+      defs+=`<g id="ksrc" transform="translate(${n(cx)} ${n(cy)}) scale(${n6(z)})`
+        +` translate(${n(-cx+ofs)} ${n(-cy)})">${out}</g>`;
+      let o2='';
+      for(let i=0;i<N;i++){
+        const fl=i%2?' scale(1,-1)':'';
+        o2+=`<g transform="translate(${n(cx)} ${n(cy)}) rotate(${n(i*ang)})${fl}`
+          +` translate(${n(-cx)} ${n(-cy)})"><g clip-path="url(#kcl)">`
+          +`<use href="#ksrc" xlink:href="#ksrc"/></g></g>`;}
+      out=o2;
+    }
+    if(st.ht>0){
+      const hc=htCell(Math.max(2,st.htd),Math.round(st.ht),Math.round(st.hta));
+      if(hc.url){
+        defs+=`<filter id="htf" x="0" y="0" width="${W}" height="${H}" filterUnits="userSpaceOnUse"`
+          +` primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">`
+          +`<feImage href="${hc.url}" xlink:href="${hc.url}" x="0" y="0" width="${n(hc.L)}" height="${n(hc.L)}"`
+          +` preserveAspectRatio="none" result="cell"/>`
+          +`<feTile in="cell" x="0" y="0" width="${W}" height="${H}" result="scr"/>`
+          +`<feFlood flood-color="${st.bg}" result="bgf"/>`
+          +`<feComposite in="SourceGraphic" in2="bgf" operator="over" result="src"/>`
+          +`<feColorMatrix in="src" type="luminanceToAlpha" result="lum"/>`
+          +`<feColorMatrix in="scr" type="luminanceToAlpha" result="sa"/>`
+          +`<feComposite in="sa" in2="lum" operator="arithmetic" k1="0" k2="1" k3="-1" k4="${n6(0.494+st.htb/100)}" result="df"/>`
+          +`<feComponentTransfer in="df" result="th"><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer>`
+          +`<feFlood flood-color="${st.fg}" result="fl"/>`
+          +`<feComposite in="fl" in2="th" operator="in"/></filter>`;
+        out=`<g filter="url(#htf)">${out}</g>`;
+      }
+    }
+    return out;
+  };
   if(r.c!==undefined){
     let tw=Math.max(1,r.tw),th=Math.max(1,r.th),tr=[];
     if(st.seamless){
@@ -1607,9 +1857,9 @@ function buildSVG(W,H){
       if(Math.abs(sx-1)>1e-9||Math.abs(sy-1)>1e-9)tr.push(`scale(${n6(sx)},${n6(sy)})`);
     }else if(rot)tr.push(`rotate(${rot})`);
     defs+=`<pattern id="pt" patternUnits="userSpaceOnUse" width="${n(tw)}" height="${n(th)}"${tr.length?` patternTransform="${tr.join(' ')}"`:''}>${r.c}</pattern>`;
-    body=`<g${fx}><rect x="${n(-m)}" y="${n(-m)}" width="${n(W+2*m)}" height="${n(H+2*m)}" fill="url(#pt)" opacity="${st.op/100}"/></g>`;
+    body=post(`<g${fx}><rect x="${n(-m)}" y="${n(-m)}" width="${n(W+2*m)}" height="${n(H+2*m)}" fill="url(#pt)" opacity="${st.op/100}"/></g>`);
   }else{
-    body=`<g${fx}><g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`;
+    body=post(`<g${fx}><g opacity="${st.op/100}"${rot?` transform="rotate(${rot} ${n(W/2)} ${n(H/2)})"`:''}>${r.full||''}</g></g>`);
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
     +(defs?`<defs>${defs}</defs>`:'')
@@ -1663,7 +1913,8 @@ function draw(){
   }
   const P=byId(st.pat);
   $('#mLeft').textContent=`${P.name} ／ ${st.W}×${st.H}px`;
-  const seam=st.warp>0?'ゆがみ中':(P.seam==='○'?(st.seamless?'継ぎ目なし':'継ぎ目なし可'):'継ぎ目あり');
+  const eff=st.warp>0||st.kal>=4||st.ht>0;
+  const seam=eff?'効果あり':(P.seam==='○'?(st.seamless?'継ぎ目なし':'継ぎ目なし可'):'継ぎ目あり');
   $('#mSeam').textContent=seam;
 }
 
@@ -1707,13 +1958,13 @@ function textbox(label,val,onC){
   i.addEventListener('input',()=>{onC(i.value);render();});
   d.appendChild(i);return d;
 }
-function select(label,val,opts,onC){
+function select(label,val,opts,onC,plain){
   const d=document.createElement('div');d.className='ctl';
   d.innerHTML=`<label><span>${label}</span></label>`;
   const w=document.createElement('div');w.className='chips';
   opts.forEach((o,i)=>{const b=document.createElement('button');
     b.className='chip sm'+(i===val?' on':'');b.textContent=o;
-    b.onclick=()=>{onC(i);buildExtra();if(byId(st.pat).cat==='文字')queueFont();render();};w.appendChild(b);});
+    b.onclick=()=>{onC(i);if(!plain){buildExtra();if(byId(st.pat).cat==='文字')queueFont();}render();};w.appendChild(b);});
   d.appendChild(w);return d;
 }
 function buildCommon(){
@@ -1793,6 +2044,32 @@ function buildWarpCtl(){
   if(!st.warp)return;
   el.appendChild(slider('強さ',st.wamt,2,200,1,v=>st.wamt=v));
   el.appendChild(slider('うねりの大きさ',st.wsize,4,300,1,v=>st.wsize=v));
+}
+const KALS=[0,4,6,8,10,12,16,24];
+function buildKals(){
+  const el=$('#kals');el.innerHTML='';
+  KALS.forEach(v=>{const b=document.createElement('button');
+    b.className='chip sm'+(v===st.kal?' on':'');b.textContent=v?v+'分割':'なし';
+    b.onclick=()=>{st.kal=v;buildKals();buildKalCtl();render();};el.appendChild(b);});
+}
+function buildKalCtl(){
+  const el=$('#kalCtl');el.innerHTML='';
+  if(st.kal<4)return;
+  el.appendChild(slider('ズーム',st.kzoom,20,400,1,v=>st.kzoom=v));
+  el.appendChild(slider('ずらし',st.koff,-100,100,1,v=>st.koff=v));
+}
+function buildHts(){
+  const el=$('#hts');el.innerHTML='';
+  HTS.forEach((nm,i)=>{const b=document.createElement('button');
+    b.className='chip sm'+(i===st.ht?' on':'');b.textContent=nm;
+    b.onclick=()=>{st.ht=i;buildHts();buildHtCtl();render();};el.appendChild(b);});
+}
+function buildHtCtl(){
+  const el=$('#htCtl');el.innerHTML='';
+  if(!st.ht)return;
+  el.appendChild(slider('点の間隔',st.htd,3,60,1,v=>st.htd=v));
+  el.appendChild(slider('濃度',st.htb,-50,50,1,v=>st.htb=v));
+  el.appendChild(select('角度',st.hta,HTA.map(a=>a[2]),v=>{st.hta=v;buildHtCtl();},true));
 }
 function syncColors(){$('#cBg').value=st.bg;$('#cFg').value=st.fg;$('#cAc').value=st.ac;}
 function curRatio(){
@@ -1960,7 +2237,7 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('o
 window.addEventListener('resize',()=>render());
 
 /* ---------- init ---------- */
-st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildFonts();buildWarps();buildWarpCtl();syncColors();buildSizes();syncSize();render();
+st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildFonts();buildWarps();buildWarpCtl();buildKals();buildKalCtl();buildHts();buildHtCtl();syncColors();buildSizes();syncSize();render();
 </script>
 </body>
 </html>
