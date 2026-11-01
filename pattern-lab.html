@@ -221,7 +221,6 @@ input[type=range]::-webkit-slider-thumb{
   <div class="chips" style="margin-top:12px">
     <button class="chip sm" id="bRandP">パラメータをランダム</button>
     <button class="chip sm" id="bSeed">乱数を引き直す</button>
-    <button class="chip sm" id="bRandAll">全部おまかせ</button>
   </div>
 </section>
 
@@ -448,15 +447,55 @@ function txProc(raw,g){
 }
 function txFlip(g){const m=Math.round(g.p.fx||0);
   return m===4?[-1,1]:m===5?[1,-1]:m===6?[-1,-1]:null;}
-function advEm(s){let w=0,k=0;
+function isMark(c){
+  return (c>=0x300&&c<=0x36f)||(c>=0x20d0&&c<=0x20ff)||(c>=0xfe20&&c<=0xfe2f)
+    ||(c>=0x1ab0&&c<=0x1aff)||(c>=0x1dc0&&c<=0x1dff)||c===0x200b||c===0xfeff;
+}
+function emOf(c){
+  if(c>=0xff61&&c<=0xffdc)return 0.5;
+  if(c>=0xffe8&&c<=0xffee)return 0.5;
+  if(c>=0x1100&&c<=0x115f)return 1;
+  if(c>=0x2500&&c<=0x259f)return 1;
+  if(c>=0x2e80&&c<=0x303e)return 1;
+  if(c>=0x3041&&c<=0x33ff)return 1;
+  if(c>=0x3400&&c<=0x4dbf)return 1;
+  if(c>=0x4e00&&c<=0x9fff)return 1;
+  if(c>=0xa000&&c<=0xa4cf)return 1;
+  if(c>=0xac00&&c<=0xd7a3)return 1;
+  if(c>=0xf900&&c<=0xfaff)return 1;
+  if(c>=0xfe10&&c<=0xfe6f)return 1;
+  if(c>=0xff01&&c<=0xff60)return 1;
+  if(c>=0xffe0&&c<=0xffe6)return 1;
+  if(c>=0x20000&&c<=0x3fffd)return 1;
+  return 0.52;
+}
+function emWidth(s){
+  let w=0,k=0;
   for(const ch of s){const c=ch.codePointAt(0);
-    if(c>=0x300&&c<=0x36f)continue;
-    w+=c<0x2e80?0.54:1.0;k++;}
-  return k?w/k:1;}
-function repeatTo(s,sep,need){
-  if(!s)return '';
-  const unit=s+sep;let t='';
-  while([...t].length<need&&t.length<6000)t+=unit;
+    if(isMark(c))continue;
+    w+=emOf(c);k++;}
+  return [w,k];
+}
+let MCX=null;
+function measEm(str,fam){                 // 1em を単位とした実幅。測れなければ推定へ
+  if(!str)return 0;
+  try{
+    if(typeof document==='undefined')throw 0;
+    if(!MCX)MCX=document.createElement('canvas').getContext('2d');
+    if(!MCX)throw 0;
+    MCX.font='200px '+(fam||'sans-serif');
+    const w=MCX.measureText(str).width/200;
+    if(w>0&&isFinite(w))return w;
+  }catch(e){}
+  return emWidth(str)[0];
+}
+function fillLen(raw,sep,px,fs,ls,fam){
+  if(!raw)return '';
+  const unit=raw+sep;
+  const up=measEm(unit,fam)*fs+emWidth(unit)[1]*ls;
+  if(!(up>0.01))return raw;
+  const reps=Math.min(400,Math.max(1,Math.ceil(px/up)+1));
+  let t='';for(let i=0;i<reps&&t.length<8000;i++)t+=unit;
   return t;
 }
 function txStyle(g){
@@ -1891,9 +1930,8 @@ const PATS=[
    for(let i=0;i<=steps;i++){const t=i/steps*T*2*Math.PI,r=r0+(R-r0)*(i/steps);
      pts.push([cx+r*Math.cos(t),cy+r*Math.sin(t)]);}
    if(!g.p.inner)pts.reverse();
-   const raw=txProc(g.p.text,g),adv=fs*advEm(raw)+ls;
-   const body=XE(repeatTo(raw,['','・','　','―'][Math.round(g.p.sep)],Math.ceil(polyLen(pts)/Math.max(1,adv))+4));
-   const sty=txStyle(g);
+   const raw=txProc(g.p.text,g),sty=txStyle(g);
+   const body=XE(fillLen(raw,['','・','　','―'][Math.round(g.p.sep)],polyLen(pts),fs,ls,sty.fam));
    const inner=`<defs><path id="tpz" d="${polyD(pts)}"/></defs>`
      +`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${g.fg}" xml:space="preserve">`
      +`<textPath href="#tpz" xlink:href="#tpz">${body}</textPath></text>`;
@@ -1909,12 +1947,12 @@ const PATS=[
    const N=Math.round(g.p.rings),gap=R/N;
    const fs=Math.max(1,gap*g.p.fs/100),ls=fs*g.p.ls/100;
    const raw=txProc(g.p.text,g),sep=['','・','　','―'][Math.round(g.p.sep)];
-   const adv=fs*advEm(raw)+ls,sty=txStyle(g);
+   const sty=txStyle(g);
    let defs='',body='';
    for(let i=0;i<N;i++){const r=R-gap*i-gap*0.45;if(r<fs*0.6)continue;
      const rev=g.p.alt&&i%2===1,sw=rev?0:1;
      defs+=`<path id="tr${i}" d="M${n(cx-r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 ${sw} ${n(cx+r)} ${n(cy)}A${n(r)} ${n(r)} 0 1 ${sw} ${n(cx-r)} ${n(cy)}"/>`;
-     const t=XE(repeatTo(raw,sep,Math.ceil(2*Math.PI*r/Math.max(1,adv))+2));
+     const t=XE(fillLen(raw,sep,2*Math.PI*r,fs,ls,sty.fam));
      body+=`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${i%2?g.ac:g.fg}" xml:space="preserve">`
        +`<textPath href="#tr${i}" xlink:href="#tr${i}">${t}</textPath></text>`;}
    return{defs:(sty.css?`<style>${sty.css}</style>`:'')+defs,full:txGroup(body,g)};}},
@@ -1930,13 +1968,13 @@ const PATS=[
    const L=Math.max(1,g.W*g.p.wl/100);
    const A=Math.min(rh*0.5*g.p.amp/100,L*0.19);
    const raw=txProc(g.p.text,g),sep=['','・','　','―'][Math.round(g.p.sep)];
-   const adv=fs*advEm(raw)+ls,sty=txStyle(g);
+   const sty=txStyle(g);
    let defs='',body='';
    for(let i=0;i<N;i++){const y=rh*(i+0.62),pts=[];
      for(let x=0;x<=120;x++){const px=-g.W*0.05+x/120*g.W*1.1;
        pts.push([px,y+A*Math.sin(px/Math.max(1,L)*2*Math.PI+i*1.1)]);}
      defs+=`<path id="tw${i}" d="${polyD(pts)}"/>`;
-     const t=XE(repeatTo(raw,sep,Math.ceil(polyLen(pts)/Math.max(1,adv))+2));
+     const t=XE(fillLen(raw,sep,polyLen(pts),fs,ls,sty.fam));
      body+=`<text font-family="${sty.fam}" font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${g.fg}" xml:space="preserve">`
        +`<textPath href="#tw${i}" xlink:href="#tw${i}">${t}</textPath></text>`;}
    return{defs:(sty.css?`<style>${sty.css}</style>`:'')+defs,full:txGroup(body,g)};}},
@@ -1949,13 +1987,21 @@ const PATS=[
      {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
  f:g=>{const W=g.T,N=Math.round(g.p.rows),rh=W/N;
    const fs=Math.max(1,rh*g.p.fs/100),off=W*g.p.off/100;
-   const raw=XE(txProc(g.p.text,g))||'　',sty=txStyle(g);
+   const src=txProc(g.p.text,g)||'　',sty=txStyle(g);
+   const em=measEm(src,sty.fam)||1;
+   let fs2=fs;
+   const nat=em*fs;
+   if(nat>W)fs2=fs*(W/nat);                      // 1周分で既にはみ出すなら字を縮める
+   const up=Math.max(0.5,em*fs2);
+   const reps=Math.min(80,Math.max(1,Math.round(W/up)));
+   let line='';for(let i=0;i<reps;i++)line+=src;
+   const raw=XE(line);
    let c='';
    for(let i=-1;i<=N;i++){const y=rh*(i+0.74),col=(g.p.alt&&((i%2)+2)%2)?g.ac:g.fg;
      const dx=((i%2)+2)%2?off:0;
      for(const k of[-1,0,1])
        c+=`<text x="${n(dx+k*W)}" y="${n(y)}" textLength="${n(W)}" lengthAdjust="spacing"`
-         +` font-family="${sty.fam}" font-size="${n(fs)}" fill="${col}" xml:space="preserve">${raw}</text>`;}
+         +` font-family="${sty.fam}" font-size="${n(fs2)}" fill="${col}" xml:space="preserve">${raw}</text>`;}
    return{defs:sty.css?`<style>${sty.css}</style>`:'',tw:W,th:W,c};}},
 
 /* ===== コード ===== */
@@ -2324,13 +2370,21 @@ async function loadFont(){
     const buf=await (await fetch(m[1])).arrayBuffer();
     const fmt=/woff2/.test(m[1])?'woff2':/woff/.test(m[1])?'woff':'truetype';
     st.fontCSS=`@font-face{font-family:'PL';src:url(data:font/${fmt};base64,${b64(buf)}) format('${fmt}')}`;
-    st.fontKey=key;
+    st.fontKey=key;applyFontCSS(st.fontCSS);
+    try{await document.fonts.load('200px PL');}catch(e){}
     note.textContent=`${f.n}（${f.f}）を埋め込みました。SVGでもPNGでも同じに出ます。`;
   }catch(e){
-    st.fontCSS='';st.fontKey='';
+    st.fontCSS='';st.fontKey='';applyFontCSS('');
     note.textContent='フォントを取得できませんでした。端末にある書体で表示します（他の環境では別の字形になることがあります）。';
   }
   render();
+}
+let FSTY=null;
+function applyFontCSS(css){
+  try{
+    if(!FSTY){FSTY=document.createElement('style');document.head.appendChild(FSTY);}
+    FSTY.textContent=css||'';
+  }catch(e){}
 }
 function buildFonts(){
   const P=byId(st.pat),on=P.cat==='文字';
@@ -2460,14 +2514,15 @@ $('#fFile').onchange=e=>{
     const ext=(fl.name.split('.').pop()||'').toLowerCase();
     const fmt=ext==='woff2'?'woff2':ext==='woff'?'woff':ext==='otf'?'opentype':'truetype';
     st.fontCSS=`@font-face{font-family:'PL';src:url(data:font/${fmt};base64,${b64(rd.result)}) format('${fmt}')}`;
-    st.fontLocal=fl.name;st.fontKey='local:'+fl.name;
+    st.fontLocal=fl.name;st.fontKey='local:'+fl.name;applyFontCSS(st.fontCSS);
+    if(document.fonts&&document.fonts.load)document.fonts.load('200px PL').then(()=>render());
     buildFonts();render();
   };
   rd.onerror=()=>{$('#fontNote').textContent='このファイルを読み込めませんでした。';};
   rd.readAsArrayBuffer(fl);
   e.target.value='';
 };
-$('#fClear').onclick=()=>{st.fontLocal=null;st.fontCSS='';st.fontKey='';buildFonts();render();loadFont();};
+$('#fClear').onclick=()=>{st.fontLocal=null;st.fontCSS='';st.fontKey='';applyFontCSS('');buildFonts();render();loadFont();};
 $('#tTileOut').onclick=function(){st.tileOut=!st.tileOut;this.classList.toggle('on',st.tileOut);syncTile();};
 $('#tSeam').onclick=function(){st.seamless=!st.seamless;this.classList.toggle('on',st.seamless);buildCommon();render();};
 $('#tTrans').onclick=function(){st.trans=!st.trans;this.classList.toggle('on',st.trans);render();};
@@ -2485,13 +2540,7 @@ $('#bRandP').onclick=()=>{
   st.seed=Math.floor(Math.random()*9999);
   buildExtra();buildCommon();render();
 };
-$('#bRandAll').onclick=()=>{
-  const p=PATS[Math.floor(Math.random()*PATS.length)];
-  st.pat=p.id;st.grp=grpOf(p.cat);
-  st.sw=Math.round((1+Math.random()*10)*2)/2;
-  buildCats();buildPats();
-  $('#bRandP').click();
-};
+
 
 /* ---------- export ---------- */
 function dl(blob,name){
