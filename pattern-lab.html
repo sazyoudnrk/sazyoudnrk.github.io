@@ -383,8 +383,8 @@ function htCell(d,shape,ai){
         for(let i=0;i<ptsK.length;i++)for(let wx=-1;wx<=1;wx++)for(let wy=-1;wy<=1;wy++){
           const dx=x-(ptsK[i][0]+wx*N),dy=y-(ptsK[i][1]+wy*N);
           let e;
-          if(shape===1)e=Math.max(Math.abs(dx),Math.abs(dy));
-          else if(shape===2)e=Math.abs(dx)+Math.abs(dy);
+          if(shape===2)e=Math.max(Math.abs(dx),Math.abs(dy));
+          else if(shape===3)e=Math.abs(dx)+Math.abs(dy);
           else e=Math.sqrt(dx*dx+dy*dy);
           if(e<best)best=e;}
         dd=best;}
