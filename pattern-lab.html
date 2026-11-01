@@ -60,6 +60,15 @@ header span{font-size:11.5px;color:#5d6169}
 main{padding:14px 16px 0;max-width:720px;margin:0 auto}
 section{background:var(--panel);border-radius:var(--radius);padding:12px 13px;margin-bottom:12px;border:1px solid rgba(0,0,0,.07)}
 h2{font-size:12px;margin:0 0 9px;font-weight:700;letter-spacing:.08em;color:#3d424a}
+h2.fold{display:flex;align-items:center;gap:7px;cursor:pointer;margin:-4px -4px 9px;padding:4px;
+  border-radius:8px;user-select:none;-webkit-user-select:none}
+h2.fold:active{background:rgba(0,0,0,.05)}
+h2.fold .hthumb{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);
+  object-fit:cover;flex:0 0 auto;margin-left:auto;background:#fff}
+h2.fold .cur{font-size:11.5px;font-weight:600;letter-spacing:0;color:#5d6169;
+  max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+h2.fold .caret{font-size:11px;color:#5d6169;flex:0 0 auto;transition:transform .16s}
+h2.fold.closed .caret{transform:rotate(-90deg)}
 .desc{font-size:12.5px;color:#4b5058;margin:8px 2px 0;line-height:1.7}
 
 /* chips */
@@ -191,11 +200,18 @@ input[type=range]::-webkit-slider-thumb{
 <main>
 
 <section>
-  <h2>パターン</h2>
-  <div class="tabs" id="grps"></div>
-  <div class="tabrule"></div>
-  <div id="grid"></div>
-  <p class="desc" id="desc"></p>
+  <h2 class="fold" id="patHead" role="button" tabindex="0" aria-expanded="true" aria-controls="patBody">
+    <span>パターン</span>
+    <img class="hthumb" id="patThumb" alt="">
+    <span class="cur" id="patCur"></span>
+    <span class="caret">▾</span>
+  </h2>
+  <div id="patBody">
+    <div class="tabs" id="grps"></div>
+    <div class="tabrule"></div>
+    <div id="grid"></div>
+    <p class="desc" id="desc"></p>
+  </div>
 </section>
 
 <section>
@@ -2026,7 +2042,7 @@ const SIZES=[
 ];
 
 /* ---------- state ---------- */
-const st={pat:'checker',grp:0,tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
+const st={pat:'checker',grp:0,patOpen:true,tileOut:false,font:0,fontCSS:'',fontKey:'',fontLocal:null,W:1080,H:1080,
   bg:'#ffffff',fg:'#141414',ac:'#8c8c8c',
   size:110,sw:5,rot:0,seed:1,seamless:true,check:false,trans:false,
   warp:0,wamt:40,wsize:60,kal:0,kzoom:110,koff:0,ht:0,htd:12,hta:3,htb:0,p:{}};
@@ -2194,7 +2210,17 @@ function pickPat(id){
 function markSel(){
   document.querySelectorAll('#grid .tcard').forEach(b=>
     b.classList.toggle('on',b.dataset.id===st.pat));
-  $('#desc').textContent=byId(st.pat).desc;
+  const P=byId(st.pat);
+  $('#desc').textContent=P.desc;
+  $('#patCur').textContent=P.name;
+  $('#patThumb').src=thumbSVG(P);
+}
+function setPatOpen(v){
+  st.patOpen=!!v;
+  $('#patBody').style.display=st.patOpen?'':'none';
+  const h=$('#patHead');
+  h.classList.toggle('closed',!st.patOpen);
+  h.setAttribute('aria-expanded',st.patOpen?'true':'false');
 }
 function buildCats(){
   const el=$('#grps');el.innerHTML='';
@@ -2412,6 +2438,8 @@ function refreshThumbs(){clearTimeout(thTimer);thTimer=setTimeout(()=>{if(THC.si
 ['cBg','cFg','cAc'].forEach((id,i)=>{
   $('#'+id).addEventListener('input',e=>{st[['bg','fg','ac'][i]]=e.target.value;render();refreshThumbs();});
 });
+$('#patHead').onclick=()=>setPatOpen(!st.patOpen);
+$('#patHead').onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();setPatOpen(!st.patOpen);}};
 $('#bSwap').onclick=()=>{const t=st.bg;st.bg=st.fg;st.fg=t;syncColors();render();refreshThumbs();};
 $('#iW').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.W=v;syncSize();buildSizes();render();}};
 $('#iH').oninput=e=>{const v=parseInt(e.target.value||0);if(v>=16&&v<=4096){st.H=v;syncSize();buildSizes();render();}};
@@ -2527,7 +2555,7 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('o
 window.addEventListener('resize',()=>render());
 
 /* ---------- init ---------- */
-st.size=(byId(st.pat).dsize||110);buildCats();buildPats();buildCommon();buildExtra();buildFonts();buildWarps();buildWarpCtl();buildKals();buildKalCtl();buildHts();buildHtCtl();syncColors();buildSizes();syncSize();render();
+st.size=(byId(st.pat).dsize||110);buildCats();buildPats();setPatOpen(true);buildCommon();buildExtra();buildFonts();buildWarps();buildWarpCtl();buildKals();buildKalCtl();buildHts();buildHtCtl();syncColors();buildSizes();syncSize();render();
 </script>
 </body>
 </html>
