@@ -33,6 +33,13 @@ header{
 }
 header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.16em}
 header span{font-size:11.5px;color:#5d6169}
+header .help{
+  margin-left:auto;align-self:center;flex:0 0 auto;
+  width:27px;height:27px;border-radius:50%;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  font:inherit;font-size:13px;font-weight:700;line-height:1;padding:0;
+}
+header .help:active{background:var(--panel)}
 
 /* stage */
 .stage{
@@ -176,6 +183,19 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
 .modal img{max-width:100%;max-height:72vh;border-radius:6px;background:#fff}
 .modal p{font-size:12.5px;margin:12px 0 10px;line-height:1.7}
 .modal button{font:inherit;font-size:14px;padding:11px 20px;border-radius:9px;border:none;background:#f2f0ec;color:#20242a;margin:0 4px;cursor:pointer}
+.modal .doc{
+  text-align:left;background:var(--panel);color:var(--ink);
+  border-radius:12px;padding:18px 17px 16px;width:520px;max-width:100%;
+  max-height:84vh;overflow:auto;-webkit-overflow-scrolling:touch;
+}
+.modal .doc h2{font-size:14px;margin:0 0 4px;letter-spacing:.1em}
+.modal .doc h3{font-size:12.5px;margin:17px 0 6px;color:var(--ink);font-weight:700}
+.modal .doc p{font-size:12.5px;line-height:1.95;margin:0 0 7px;color:var(--ink2);text-align:left}
+.modal .doc ul{margin:0;padding-left:1.1em}
+.modal .doc li{font-size:12.5px;line-height:1.9;color:var(--ink2);margin-bottom:5px}
+.modal .doc a{color:var(--accent)}
+.modal .doc .sig{font-size:12.5px;line-height:1.9;color:var(--ink);margin:0}
+.modal .doc button{display:block;width:100%;margin:18px 0 0;background:var(--ink);color:#f2f0ec}
 .toast{position:fixed;left:16px;right:16px;bottom:96px;background:rgba(20,22,25,.92);color:#fff;font-size:13px;line-height:1.6;padding:10px 16px;border-radius:14px;z-index:60;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 </style>
@@ -185,6 +205,7 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
 <header>
   <h1>PATTERN LAB</h1>
   <span>背景パターン生成</span>
+  <button class="help" id="helpBtn" aria-label="このアプリについて">?</button>
 </header>
 
 <div class="stage">
@@ -295,7 +316,8 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
   <div class="note">「継ぎ目なし優先」は、模様の大きさを出力サイズにわずかに合わせ込み、上下左右がつながるようにします（角度は0°固定）。</div>
 </section>
 
-<p class="foot">バーコード風・QRコード風は読み取りできない装飾用のダミーです。<br>QRコードは株式会社デンソーウェーブの登録商標です。</p>
+<p class="foot">作った画像はクレジット不要で自由に使えます（<a href="#" id="footHelp">くわしく</a>）。<br>
+バーコード風・QRコード風は読み取りできない装飾用のダミーです。<br>QRコードは株式会社デンソーウェーブの登録商標です。</p>
 
 </main>
 
@@ -309,6 +331,35 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
     <img id="mImg" alt="生成した画像">
     <p>保存されない場合は画像を長押しして「写真に追加」を選んでください。</p>
     <button id="mClose">閉じる</button>
+  </div>
+</div>
+<div class="modal" id="help">
+  <div class="in doc">
+    <h2>PATTERN LAB について</h2>
+    <p>背景に使える模様をその場で作って書き出すための道具です。すべて端末の中だけで動いていて、作った画像がどこかへ送られることはありません。</p>
+
+    <h3>作った画像の使い方</h3>
+    <p><b>自由に使ってください。利用元の記載（クレジット）は要りません。</b></p>
+    <ul>
+      <li>個人でも仕事でも、印刷でも配信でも構いません。</li>
+      <li>加工・切り貼り・色の変更、どれも自由です。</li>
+      <li>素材として配り直したり、グッズや同人誌に使っても構いません。</li>
+      <li>「PATTERN LABで作りました」と書く必要はありません。書いてくれても嬉しいです。</li>
+    </ul>
+    <p>許可を取る必要もないので、連絡なしでそのまま使ってください。ただ、書き出した画像をそのまま商標登録して他の人が使えないようにする、といった使い方だけはご遠慮ください。</p>
+
+    <h3>気をつけてほしいこと</h3>
+    <ul>
+      <li>バーコード風・QRコード風は読み取れない飾りです。商品や決済には使えません。QRコードは株式会社デンソーウェーブの登録商標です。</li>
+      <li>SVGで保存すると、選んだ書体のデータが中に埋め込まれます。書体はGoogle Fonts（SIL Open Font License 1.1）のものなので、SVGのまま配る場合はそのライセンスに従ってください。PNGは絵になっているので関係ありません。</li>
+      <li>「自分のフォントを読み込む」で使った書体は、その書体のライセンス次第です。</li>
+    </ul>
+
+    <h3>作者</h3>
+    <p class="sig">砂上電力（エレクトリック電力）<br>
+      <a href="https://x.com/sazyou_dnrk" target="_blank" rel="noopener">@sazyou_dnrk</a></p>
+
+    <button id="hClose">閉じる</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1932,7 +1983,7 @@ const PATS=[
    return{full:PT(d,0,g.fg,Math.max(0.3,g.sw*0.6),' opacity="0.72"')};}},
 
 /* ===== 文字 ===== */
-{id:'textplain',dsize:110,cat:'文字',name:'そのまま文字',seam:'×',full:1,nosize:1,
+{id:'textplain',dsize:110,cat:'文字',name:'文字',seam:'×',full:1,nosize:1,
  desc:'入力した文字をただ並べるだけの、いちばん素直な型です。改行はそのまま改行になり、長い行は枠に収まるよう自動で折り返します。文字化けやZalgoだけを作りたいときはこれが一番手早いです。',
  ps:[{k:'text',l:'文字',t:'T',v:'ここに文字を入れてください。\n改行もそのまま入ります。'},
      {k:'fs',l:'文字サイズ',min:10,max:200,v:60},
@@ -2671,6 +2722,11 @@ $('#bPng').onclick=()=>{
 };
 $('#mClose').onclick=closePreview;
 $('#modal').onclick=e=>{if(e.target.id==='modal')closePreview();};
+const helpOn=v=>$('#help').classList.toggle('on',v);
+$('#helpBtn').onclick=()=>helpOn(true);
+$('#hClose').onclick=()=>helpOn(false);
+$('#help').onclick=e=>{if(e.target.id==='help')helpOn(false);};
+$('#footHelp').onclick=e=>{e.preventDefault();helpOn(true);};
 window.addEventListener('resize',()=>render());
 
 /* ---------- init ---------- */
