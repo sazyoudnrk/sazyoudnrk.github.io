@@ -139,6 +139,7 @@ input[type=range]::-webkit-slider-thumb{
 }
 .sizerow span{color:var(--ink2);font-size:13px;white-space:nowrap;flex:0 0 auto}
 .tbox{font:inherit;font-size:15px;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
 .sizerow button{font:inherit;font-size:13px;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;white-space:nowrap;flex:0 0 auto}
 .sizerow input[type=number]{min-width:0}
 
@@ -497,6 +498,26 @@ function fillLen(raw,sep,px,fs,ls,fam){
   const reps=Math.min(400,Math.max(1,Math.ceil(px/up)+1));
   let t='';for(let i=0;i<reps&&t.length<8000;i++)t+=unit;
   return t;
+}
+function wrapLines(src,fs,ls,avail,fam){   // 改行を保ったまま、幅に収まるよう折り返す
+  const out=[];
+  for(const para of String(src==null?'':src).split('\n')){
+    if(para===''){out.push('');continue;}
+    let cur='',sp=-1;
+    for(const ch of para){
+      const t=cur+ch;                                  // 1行ぶんを実測（Zalgo等で結合記号が幅を持つ書体にも追従）
+      if(cur&&measEm(t,fam)*fs+emWidth(t)[1]*ls>avail){
+        if(sp>0){out.push(cur.slice(0,sp));cur=cur.slice(sp+1);}  // 直前の空白で折る（欧文）
+        else{out.push(cur);cur='';}
+        sp=-1;
+      }
+      if(ch===' ')sp=cur.length;
+      cur+=ch;
+      if(out.length>=600)return out;
+    }
+    out.push(cur);
+  }
+  return out.length?out:[''];
 }
 function txStyle(g){
   const fam=g.fontCSS?"PL":(g.fontFam||'sans-serif');
@@ -1911,6 +1932,31 @@ const PATS=[
    return{full:PT(d,0,g.fg,Math.max(0.3,g.sw*0.6),' opacity="0.72"')};}},
 
 /* ===== 文字 ===== */
+{id:'textplain',dsize:110,cat:'文字',name:'そのまま文字',seam:'×',full:1,nosize:1,
+ desc:'入力した文字をただ並べるだけの、いちばん素直な型です。改行はそのまま改行になり、長い行は枠に収まるよう自動で折り返します。文字化けやZalgoだけを作りたいときはこれが一番手早いです。',
+ ps:[{k:'text',l:'文字',t:'T',v:'ここに文字を入れてください。\n改行もそのまま入ります。'},
+     {k:'fs',l:'文字サイズ',min:10,max:200,v:60},
+     {k:'lh',l:'行間',min:90,max:300,v:155},
+     {k:'ls',l:'字間',min:-20,max:60,v:0},
+     {k:'al',l:'横の揃え',t:'s',o:['左','中央','右'],v:0},
+     {k:'vc',l:'上下中央に置く',t:'b',v:1},
+     {k:'fx',l:'加工',t:'s',o:FX,v:0},{k:'fxv',l:'加工の強さ',min:5,max:100,v:40}],
+ f:g=>{const sty=txStyle(g);
+   const fs=Math.max(1,Math.min(g.W,g.H)*g.p.fs/1000);
+   const ls=fs*g.p.ls/100,lh=fs*g.p.lh/100;
+   const mg=Math.min(g.W,g.H)*0.06,avail=Math.max(fs,g.W-mg*2);
+   const src=txProc(String(g.p.text==null?'':g.p.text).slice(0,2000),g);
+   const lines=wrapLines(src,fs,ls,avail,sty.fam);
+   const al=Math.round(g.p.al),anc=al===1?'middle':al===2?'end':'start';
+   const x=al===1?g.W/2:al===2?g.W-mg:mg;
+   const total=(lines.length-1)*lh;
+   const y0=g.p.vc?(g.H-total)/2+fs*0.3:mg+fs*0.85;
+   let body='';
+   lines.forEach((t,i)=>{if(!t)return;
+     body+=`<text x="${n(x)}" y="${n(y0+lh*i)}" text-anchor="${anc}" font-family="${sty.fam}"`
+       +` font-size="${n(fs)}" letter-spacing="${n(ls)}" fill="${g.fg}" xml:space="preserve">${XE(t)}</text>`;});
+   return{defs:sty.css?`<style>${sty.css}</style>`:'',full:txGroup(body,g)};}},
+
 {id:'textspiral',dsize:110,cat:'文字',name:'渦巻き文字',seam:'×',full:1,
  desc:'蚊取り線香のように、渦を巻きながら文字が続きます。巻きの間隔から文字サイズを決めているので、巻き数を増やしても重なりません。文字は自動で繰り返して渦を埋めます。',
  ps:[{k:'text',l:'文字',t:'t',v:'ぐるぐる'},{k:'sep',l:'区切り',t:'s',o:['なし','・','　','―'],v:1},
@@ -2310,6 +2356,13 @@ function textbox(label,val,onC){
   i.addEventListener('input',()=>{onC(i.value);render();});
   d.appendChild(i);return d;
 }
+function textarea(label,val,onC){
+  const d=document.createElement('div');d.className='ctl';
+  d.innerHTML=`<label><span>${label}</span></label>`;
+  const i=document.createElement('textarea');i.className='tbox';i.rows=4;i.value=val;
+  i.addEventListener('input',()=>{onC(i.value);render();});
+  d.appendChild(i);return d;
+}
 function select(label,val,opts,onC,plain){
   const d=document.createElement('div');d.className='ctl';
   d.innerHTML=`<label><span>${label}</span></label>`;
@@ -2332,6 +2385,7 @@ function buildExtra(){
   (P.ps||[]).forEach(q=>{
     const cur=st.p[P.id][q.k];
     if(q.t==='t')el.appendChild(textbox(q.l,cur,v=>{st.p[P.id][q.k]=v;if(P.cat==='文字')queueFont();}));
+    else if(q.t==='T')el.appendChild(textarea(q.l,cur,v=>{st.p[P.id][q.k]=v;if(P.cat==='文字')queueFont();}));
     else if(q.t==='b')el.appendChild(toggle(q.l,cur,v=>st.p[P.id][q.k]=v));
     else if(q.t==='s')el.appendChild(select(q.l,cur,q.o,v=>{st.p[P.id][q.k]=v;if(q.set)q.set(v,P);}));
     else el.appendChild(slider(q.l,cur,q.min,q.max,q.step||1,v=>st.p[P.id][q.k]=v));
@@ -2341,7 +2395,7 @@ function textChars(){
   const P=byId(st.pat);if(P.cat!=='文字')return '';
   const g={W:1000,H:1000,T:st.size,p:st.p[st.pat],R:mul(st.seed*2654435761)};
   let t='';try{t=txProc(st.p[st.pat].text,g);}catch(e){t=String(st.p[st.pat].text||'');}
-  return [...new Set((t+'・　― ').split(''))].join('');
+  return [...new Set((t+'・　― ').replace(/[\r\n\t]/g,'').split(''))].join('');
 }
 function b64(buf){const u=new Uint8Array(buf);let s='';
   for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
