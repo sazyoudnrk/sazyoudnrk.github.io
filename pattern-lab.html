@@ -32,14 +32,21 @@ header{
   display:flex;align-items:baseline;gap:10px;
 }
 header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.16em}
-header span{font-size:11.5px;color:#5d6169}
-header .help{
+header>span{font-size:11.5px;color:#5d6169}
+header .rnd{
   margin-left:auto;align-self:center;flex:0 0 auto;
+  height:27px;padding:0 11px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  font:inherit;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;
+}
+header .help{
+  margin-left:6px;align-self:center;flex:0 0 auto;
   width:27px;height:27px;border-radius:50%;cursor:pointer;
   border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
   font:inherit;font-size:13px;font-weight:700;line-height:1;padding:0;
 }
-header .help:active{background:var(--panel)}
+header .rnd:active,header .help:active{background:var(--panel)}
+@media (max-width:392px){header>span{display:none}}
 
 /* stage */
 .stage{
@@ -198,6 +205,8 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
 .modal .doc button{display:block;width:100%;margin:18px 0 0;background:var(--ink);color:#f2f0ec}
 .toast{position:fixed;left:16px;right:16px;bottom:96px;background:rgba(20,22,25,.92);color:#fff;font-size:13px;line-height:1.6;padding:10px 16px;border-radius:14px;z-index:60;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
+.toast.act{pointer-events:auto}
+.toast .tundo{font:inherit;font-size:13px;margin-left:12px;padding:5px 13px;border-radius:9px;border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;cursor:pointer}
 </style>
 </head>
 <body>
@@ -205,6 +214,7 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
 <header>
   <h1>PATTERN LAB</h1>
   <span>背景パターン生成</span>
+  <button class="rnd" id="randAll">🎲 ランダム</button>
   <button class="help" id="helpBtn" aria-label="このアプリについて">?</button>
 </header>
 
@@ -2590,8 +2600,14 @@ function syncTile(){
   el.textContent=t?`タイル1枚 ${t.W} × ${t.H} px を書き出します。出力サイズの指定は使いません。`
     :'このパターンはタイルにならないため、通常の出力サイズで保存されます。';
 }
-function toast(msg,ms){const t=$('#toast');t.textContent=msg;t.classList.add('on');
-  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),ms||1800);}
+function toast(msg,ms,act){
+  const t=$('#toast');t.textContent=msg;
+  t.classList.toggle('act',!!act);
+  if(act){const b=document.createElement('button');b.className='tundo';b.textContent=act.label;
+    b.onclick=()=>{clearTimeout(t._t);t.classList.remove('on','act');act.fn();};
+    t.appendChild(b);}
+  t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on','act'),ms||1800);}
 
 /* ---------- events ---------- */
 let thTimer=0;
@@ -2642,17 +2658,36 @@ $('#tSeam').onclick=function(){st.seamless=!st.seamless;this.classList.toggle('o
 $('#tTrans').onclick=function(){st.trans=!st.trans;this.classList.toggle('on',st.trans);render();};
 $('#tCheck').onclick=function(){st.check=!st.check;this.classList.toggle('on',st.check);render();};
 $('#bSeed').onclick=()=>{st.seed=(st.seed+1)%9999;render();toast('乱数を引き直しました');};
-$('#bRandP').onclick=()=>{
-  const P=byId(st.pat);
+function randParams(P){                     // 入力した文字は壊さない（数字だけの欄は振り直す）
   (P.ps||[]).forEach(q=>{
-    if(q.t==='t'){const cur=String(st.p[P.id][q.k]||'');
+    if(q.t==='t'||q.t==='T'){const cur=String(st.p[P.id][q.k]||'');
       if(/^\d+$/.test(cur))st.p[P.id][q.k]=Array.from(cur,()=>Math.floor(Math.random()*10)).join('');}
     else if(q.t==='b')st.p[P.id][q.k]=Math.random()<0.5?1:0;
-    else if(q.t==='s')st.p[P.id][q.k]=Math.floor(Math.random()*q.o.length);
+    else if(q.t==='s'){const v=Math.floor(Math.random()*q.o.length);
+      st.p[P.id][q.k]=v;if(q.set)q.set(v,P);}        // プリセットの連動（タータンの種類など）も効かせる
     else st.p[P.id][q.k]=Math.round(q.min+Math.random()*(q.max-q.min));});
-  if(!P.nosize)st.size=Math.max(8,Math.round((P.dsize||110)*(0.5+Math.random())));
+  if(!P.nosize)st.size=Math.max(8,Math.round(st.size*(0.6+Math.random()*0.8)));
   st.seed=Math.floor(Math.random()*9999);
-  buildExtra();buildCommon();render();
+}
+$('#bRandP').onclick=()=>{randParams(byId(st.pat));buildExtra();buildCommon();render();};
+
+/* 色・出力サイズ・効果（ゆがみ／万華鏡／ハーフトーン）には触らない */
+function snapState(){return{pat:st.pat,grp:st.grp,size:st.size,seed:st.seed,
+  p:JSON.parse(JSON.stringify(st.p))};}
+function restoreState(s){
+  st.pat=s.pat;st.grp=s.grp;st.size=s.size;st.seed=s.seed;st.p=s.p;
+  buildCats();buildPats();buildCommon();buildExtra();buildFonts();syncTile();render();
+}
+$('#randAll').onclick=()=>{
+  const snap=snapState();
+  let P=PATS[Math.floor(Math.random()*PATS.length)];
+  for(let i=0;i<8&&P.id===snap.pat&&PATS.length>1;i++)P=PATS[Math.floor(Math.random()*PATS.length)];
+  const gi=GROUPS.findIndex(g=>g.cats.includes(P.cat));
+  st.grp=gi<0?0:gi;st.pat=P.id;st.size=P.dsize||110;
+  randParams(P);
+  buildCats();buildPats();buildCommon();buildExtra();buildFonts();syncTile();render();
+  toast(`「${P.name}」になりました`,5200,{label:'元に戻す',
+    fn:()=>{restoreState(snap);toast('元に戻しました');}});
 };
 
 
