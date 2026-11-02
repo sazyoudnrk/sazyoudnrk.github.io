@@ -351,8 +351,8 @@ textarea.tbox{resize:vertical;min-height:96px;line-height:1.55;display:block}
     <h3>気をつけてほしいこと</h3>
     <ul>
       <li>バーコード風・QRコード風は読み取れない飾りです。商品や決済には使えません。QRコードは株式会社デンソーウェーブの登録商標です。</li>
-      <li>SVGで保存すると、選んだ書体のデータが中に埋め込まれます。書体はGoogle Fonts（SIL Open Font License 1.1）のものなので、SVGのまま配る場合はそのライセンスに従ってください。PNGは絵になっているので関係ありません。</li>
-      <li>「自分のフォントを読み込む」で使った書体は、その書体のライセンス次第です。</li>
+      <li>SVGで保存すると、選んだ書体のデータが中に埋め込まれます。Google Fonts（SIL Open Font License）は文書への埋め込みを認めているので、そのまま配って構いません。使った字だけを埋め込んでいるので、あとからSVGの文字を打ち替えると出ない字がある点だけ気に留めてください。</li>
+      <li>「自分のフォントを読み込む」を使ったときは別です。市販フォントは埋め込み自体を禁じていることがあるので、そのSVGを配る前にライセンスを確認してください。PNGは絵になっているので関係ありません。</li>
     </ul>
 
     <h3>作者</h3>
@@ -2503,7 +2503,7 @@ function buildFonts(){
     b.innerHTML=`${f.n}<em>${f.f}</em>`;
     b.onclick=()=>{st.font=i;st.fontLocal=null;st.fontCSS='';st.fontKey='';buildFonts();render();loadFont();};
     el.appendChild(b);});
-  if(st.fontLocal)$('#fontNote').textContent=`読み込んだ書体「${st.fontLocal}」を使っています。`;
+  if(st.fontLocal)$('#fontNote').textContent=`読み込んだ書体「${st.fontLocal}」を使っています。SVGで保存するとこの書体のデータがファイルに入ります。市販フォントは埋め込みを禁じていることがあるので、配る前にライセンスを確認してください。`;
   else if(!st.fontCSS)queueFont();
 }
 function buildWarps(){
